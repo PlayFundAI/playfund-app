@@ -238,6 +238,69 @@
   .overview-rollup-num { font-family: 'Anton', sans-serif; font-size: 24px; font-weight: 400; }
   .overview-rollup-label { font-size: 10.5px; color: rgba(255,255,255,0.65); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 3px; }
 
+  /* Payout hero block */
+  .payout-hero {
+    background: var(--ink); border-radius: 16px; padding: 22px 20px 18px;
+    margin-bottom: 16px; color: var(--white);
+  }
+  .payout-hero-eyebrow {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--fund-green); margin-bottom: 6px;
+  }
+  .payout-hero-amount {
+    font-family: 'Anton', sans-serif; font-size: 48px; font-weight: 400;
+    line-height: 1; margin-bottom: 8px; letter-spacing: -0.01em;
+  }
+  .payout-hero-sub {
+    font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.4;
+  }
+  .payout-hero-sub b { color: var(--white); font-weight: 700; }
+  .payout-hero-divider {
+    border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 14px 0;
+  }
+  .payout-hero-stats {
+    display: flex; gap: 0;
+  }
+  .payout-hero-stat {
+    flex: 1; text-align: center;
+  }
+  .payout-hero-stat + .payout-hero-stat {
+    border-left: 1px solid rgba(255,255,255,0.12);
+  }
+  .payout-hero-stat-num {
+    font-family: 'Anton', sans-serif; font-size: 22px; font-weight: 400; color: var(--white);
+  }
+  .payout-hero-stat-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: rgba(255,255,255,0.55); margin-top: 2px;
+  }
+
+  /* Status buckets */
+  .status-buckets { margin-bottom: 16px; }
+  .status-bucket {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-radius: 12px; margin-bottom: 8px;
+    background: var(--paper-dim);
+  }
+  .status-bucket-left { display: flex; align-items: center; gap: 10px; }
+  .status-bucket-dot {
+    width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-bucket-dot--green  { background: var(--fund-green); }
+  .status-bucket-dot--amber  { background: #F59E0B; }
+  .status-bucket-dot--red    { background: var(--unpaid); }
+  .status-bucket-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--ink-soft);
+  }
+  .status-bucket-count {
+    font-family: 'Anton', sans-serif; font-size: 28px; font-weight: 400;
+    color: var(--ink); line-height: 1;
+  }
+  .status-bucket-amount {
+    font-size: 13px; font-weight: 700; color: var(--ink-soft);
+  }
+
   .team-card {
     display: flex; align-items: center; gap: 14px;
     background: var(--white); border: 1px solid var(--line); border-left: 4px solid var(--brass);
@@ -828,7 +891,65 @@
   }
   .confirm-icon svg { width: 34px; height: 34px; color: var(--paid); }
   .confirm-wrap h1 { margin-bottom: 8px; }
+  /* ---------- Confirmation ---------- */
+  .confirm-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .confirm-icon {
+    width: 72px; height: 72px; border-radius: 50%; background: var(--paid-bg);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 22px;
+  }
+  .confirm-icon svg { width: 34px; height: 34px; color: var(--paid); }
+  .confirm-wrap h1 { margin-bottom: 8px; }
   .confirm-wrap p { color: var(--ink-soft); font-size: 14px; max-width: 280px; line-height: 1.5; }
+
+  /* Payment schedule on confirmation */
+  .payment-schedule { width: 100%; margin: 20px 0 0; text-align: left; }
+  .payment-schedule-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--ink-soft); margin-bottom: 10px;
+  }
+  .payment-schedule-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--line);
+  }
+  .payment-schedule-row:last-child { border-bottom: none; }
+  .payment-schedule-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px;
+  }
+  .payment-schedule-dot--paid { background: var(--fund-green); }
+  .payment-schedule-dot--upcoming { background: var(--line); border: 1.5px solid var(--ink-soft); }
+  .payment-schedule-info { flex: 1; }
+  .payment-schedule-date { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .payment-schedule-label { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+  .payment-schedule-right { text-align: right; flex-shrink: 0; }
+  .payment-schedule-amt { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .payment-schedule-status {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--fund-green); margin-top: 2px;
+  }
+  .confirm-reassurance {
+    width: 100%; margin-top: 16px; background: var(--paper-dim);
+    border-radius: 10px; padding: 12px 14px; text-align: left;
+    font-size: 12px; color: var(--ink-soft); line-height: 1.5;
+  }
+  .confirm-reassurance b { color: var(--ink); }
+
+  /* Step progress indicator */
+  .step-progress {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 16px;
+  }
+  .step-progress-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--ink-soft);
+  }
+  .step-progress-item.active { color: var(--ink); }
+  .step-progress-item.done { color: var(--fund-green); }
+  .step-progress-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--line); flex-shrink: 0;
+  }
+  .step-progress-item.active .step-progress-dot { background: var(--ink); }
+  .step-progress-item.done .step-progress-dot { background: var(--fund-green); }
+  .step-progress-sep { color: var(--line); font-size: 10px; }
 
   .footer-spacer { flex: 1; }
 </style>
@@ -899,27 +1020,72 @@
 
   <!-- SCREEN: club overview (rollup + team picker) -->
   <div class="screen" id="screen-club-overview">
-    <div class="eyebrow">Sports Club</div>
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0;">
-      <h1 class="title" id="overviewClubName" style="margin-bottom:0;">Club name</h1>
-      <button onclick="goToClubSettings()" style="background:none; border:none; padding:6px 0; cursor:pointer; color:var(--ink-soft);" aria-label="Settings">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div>
+        <div class="eyebrow" style="margin-bottom:2px;">Sports Club</div>
+        <div style="font-size:15px; font-weight:700; color:var(--ink);" id="overviewClubName">Club name</div>
+        <div style="font-size:12px; color:var(--ink-soft);" id="overviewLocation">City, ST</div>
+      </div>
+      <button onclick="goToClubSettings()" style="background:none; border:none; padding:6px; cursor:pointer; color:var(--ink-soft);" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09c0 .67.39 1.27 1 1.51.59.24 1.27.14 1.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06c-.47.47-.57 1.15-.33 1.82.24.61.84 1 1.51 1H21a2 2 0 110 4h-.09c-.67 0-1.27.39-1.51 1z"/></svg>
       </button>
     </div>
-    <p class="subtitle" id="overviewLocation" style="margin-top:6px;">City, ST</p>
 
-    <div class="overview-rollup">
-      <div class="overview-rollup-stat">
-        <div class="overview-rollup-num" id="overviewTeamCount">0</div>
-        <div class="overview-rollup-label">Teams</div>
+    <!-- Payout hero -->
+    <div class="payout-hero">
+      <div class="payout-hero-eyebrow">Landing in your account</div>
+      <div class="payout-hero-amount" id="overviewPayoutAmt">$0</div>
+      <div class="payout-hero-sub" id="overviewPayoutSub">
+        For <b id="overviewFundedCount">0</b> athletes already approved
       </div>
-      <div class="overview-rollup-stat">
-        <div class="overview-rollup-num" id="overviewAthleteCount">0</div>
-        <div class="overview-rollup-label">Athletes</div>
+      <hr class="payout-hero-divider">
+      <div class="payout-hero-stats">
+        <div class="payout-hero-stat">
+          <div class="payout-hero-stat-num" id="overviewTeamCount">0</div>
+          <div class="payout-hero-stat-label">Teams</div>
+        </div>
+        <div class="payout-hero-stat">
+          <div class="payout-hero-stat-num" id="overviewAthleteCount">0</div>
+          <div class="payout-hero-stat-label">Athletes</div>
+        </div>
+        <div class="payout-hero-stat">
+          <div class="payout-hero-stat-num" id="overviewTotalDues">$0</div>
+          <div class="payout-hero-stat-label">Total Dues</div>
+        </div>
       </div>
-      <div class="overview-rollup-stat">
-        <div class="overview-rollup-num" id="overviewFundedCount">0</div>
-        <div class="overview-rollup-label">Funded</div>
+    </div>
+
+    <!-- Status buckets -->
+    <div class="status-buckets">
+      <div class="status-bucket">
+        <div class="status-bucket-left">
+          <div class="status-bucket-dot status-bucket-dot--green"></div>
+          <div>
+            <div class="status-bucket-label">Funded</div>
+            <div class="status-bucket-count" id="bucketFundedCount">0</div>
+          </div>
+        </div>
+        <div class="status-bucket-amount" id="bucketFundedAmt">$0</div>
+      </div>
+      <div class="status-bucket">
+        <div class="status-bucket-left">
+          <div class="status-bucket-dot status-bucket-dot--amber"></div>
+          <div>
+            <div class="status-bucket-label">Still deciding</div>
+            <div class="status-bucket-count" id="bucketPendingCount">0</div>
+          </div>
+        </div>
+        <div class="status-bucket-amount" id="bucketPendingAmt">$0</div>
+      </div>
+      <div class="status-bucket">
+        <div class="status-bucket-left">
+          <div class="status-bucket-dot status-bucket-dot--red"></div>
+          <div>
+            <div class="status-bucket-label">Needs another option</div>
+            <div class="status-bucket-count" id="bucketDefaultedCount">0</div>
+          </div>
+        </div>
+        <div class="status-bucket-amount" id="bucketDefaultedAmt">$0</div>
       </div>
     </div>
 
@@ -1022,6 +1188,15 @@
   <!-- SCREEN: add athlete (parent code entry, reusable for first + additional athletes) -->
   <div class="screen" id="screen-parent-code">
     <div class="eyebrow">Parent</div>
+    <div class="step-progress">
+      <div class="step-progress-item active"><div class="step-progress-dot"></div>Add athlete</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item"><div class="step-progress-dot"></div>Choose payment</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item"><div class="step-progress-dot"></div>Pay</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item"><div class="step-progress-dot"></div>Confirmed</div>
+    </div>
     <h1 class="title" id="addAthleteTitle">Add an athlete</h1>
     <p class="subtitle">Enter your child's name and the club code their club shared with you. Each athlete has their own code, even if siblings play at the same club.</p>
 
@@ -1061,6 +1236,15 @@
   <!-- SCREEN: athlete detail (payment options for one athlete) -->
   <div class="screen" id="screen-athlete-detail">
     <div class="eyebrow">Parent</div>
+    <div class="step-progress">
+      <div class="step-progress-item done"><div class="step-progress-dot"></div>Add athlete</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item active"><div class="step-progress-dot"></div>Choose payment</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item"><div class="step-progress-dot"></div>Pay</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item"><div class="step-progress-dot"></div>Confirmed</div>
+    </div>
     <h1 class="title" id="athleteDetailTitle" style="margin-bottom:0;">Season dues</h1>
     <p class="subtitle">Choose how you'd like to pay — you'll complete payment securely on Stripe's checkout page.</p>
 
@@ -1241,27 +1425,59 @@
   </div>
 
   <!-- SCREEN: confirm now -->
+  <!-- SCREEN: confirm now (pay in full) -->
   <div class="screen" id="screen-confirm-now">
-    <div class="confirm-wrap">
+    <div class="step-progress">
+      <div class="step-progress-item done"><div class="step-progress-dot"></div>Add athlete</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item done"><div class="step-progress-dot"></div>Choose payment</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item done"><div class="step-progress-dot"></div>Pay</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item active"><div class="step-progress-dot"></div>Confirmed</div>
+    </div>
+    <div class="confirm-wrap" style="justify-content:flex-start; padding-top:16px;">
       <div class="confirm-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
-      <h1 class="title">You're all set</h1>
-      <p>Your $1,000 payment to Hawks Travel Basketball has been received in full.</p>
+      <h1 class="title" style="margin-bottom:4px;" id="confirmNowTitle">You're all set</h1>
+      <p id="confirmNowSub" style="margin-bottom:0;">Your club has been paid in full for the season.</p>
+
+      <div class="payment-schedule" id="confirmNowSchedule"></div>
+
+      <div class="confirm-reassurance">
+        <b>Receipt emailed.</b> Nothing else is due — you're registered for the full season.
+      </div>
     </div>
+    <div class="footer-spacer"></div>
     <button class="btn btn-secondary" onclick="goToAthleteList()">Done</button>
   </div>
 
-  <!-- SCREEN: confirm terms -->
+  <!-- SCREEN: confirm terms (BNPL) -->
   <div class="screen" id="screen-confirm-terms">
-    <div class="confirm-wrap">
+    <div class="step-progress">
+      <div class="step-progress-item done"><div class="step-progress-dot"></div>Add athlete</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item done"><div class="step-progress-dot"></div>Choose payment</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item done"><div class="step-progress-dot"></div>Pay</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item active"><div class="step-progress-dot"></div>Confirmed</div>
+    </div>
+    <div class="confirm-wrap" style="justify-content:flex-start; padding-top:16px;">
       <div class="confirm-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
-      <h1 class="title">Plan confirmed</h1>
-      <p id="confirmTermsSub">Hawks Travel Basketball has been paid $1,000 in full. You're set up for 8 weekly payments of $125.</p>
-      <p style="font-size:11.5px; color:var(--ink-soft); margin-top:14px;">Payment plan managed by PlayFund.</p>
+      <h1 class="title" style="margin-bottom:4px;" id="confirmTermsTitle">Plan confirmed</h1>
+      <p id="confirmTermsSub" style="margin-bottom:0;">Your club has been paid for the season. Here's your payment schedule.</p>
+
+      <div class="payment-schedule" id="confirmTermsSchedule"></div>
+
+      <div class="confirm-reassurance">
+        <b>We'll remind you 2 days before each payment.</b> You can update your card or move a date from that message.
+      </div>
     </div>
+    <div class="footer-spacer"></div>
     <button class="btn btn-secondary" onclick="goToAthleteList()">Done</button>
   </div>
 
@@ -1977,38 +2193,72 @@ var usStates = ["Virginia"];
     var c = state.club;
     state.team = null;
     document.getElementById('overviewClubName').textContent = c.name;
-    document.getElementById('overviewLocation').textContent = c.city;
+    document.getElementById('overviewLocation').textContent = c.city || '';
 
-    var totalAthletes = 0, totalFunded = 0;
+    // Aggregate stats across all teams
+    var totalAthletes = 0, totalFunded = 0, totalPending = 0, totalDefaulted = 0;
+    var totalDuesCents = 0, fundedCents = 0, pendingCents = 0, defaultedCents = 0;
+
     var teamListEl = document.getElementById('teamList');
     teamListEl.innerHTML = '';
-    c.teams.forEach(function(team){
-      var summary = teamSummary(c, team);
-      totalAthletes += summary.totalCount;
-      totalFunded += summary.fundedCount;
 
+    c.teams.forEach(function(team){
+      var athletes = team.athletes || [];
+      var dues = team.dues || (team.dues_cents ? team.dues_cents / 100 : 0);
+      var advanceCents = Math.round(dues * 0.95 * 100);
+
+      var teamFunded = 0, teamPending = 0;
+      athletes.forEach(function(a){
+        var s = a.payment_status || 'unpaid';
+        totalAthletes++;
+        totalDuesCents += dues * 100;
+        if(s === 'paid_full' || s === 'bnpl_active' || s === 'bnpl_complete'){
+          totalFunded++; teamFunded++;
+          fundedCents += advanceCents;
+        } else if(s === 'defaulted'){
+          totalDefaulted++;
+          defaultedCents += Math.round(dues * 100);
+        } else {
+          totalPending++; teamPending++;
+          pendingCents += Math.round(dues * 100);
+        }
+      });
+
+      // Team card — shows funded fraction and athlete count
       var card = document.createElement('div');
       card.className = 'team-card';
       card.innerHTML =
-        '<div class="team-card-icon">' + (teamIcons[team.age] || '') + '</div>' +
+        '<div class="team-card-icon">' + (teamIcons[team.age_group] || teamIcons[team.age] || '') + '</div>' +
         '<div class="team-card-meta">' +
           '<div class="team-card-name">' + team.name + '</div>' +
-          '<div class="team-card-sub">' + fmtUSD(team.dues) + ' season dues &middot; ' + summary.totalCount + ' athletes</div>' +
+          '<div class="team-card-sub">' + athletes.length + ' athlete' + (athletes.length !== 1 ? 's' : '') + ' &middot; $' + Math.round(dues).toLocaleString() + ' dues</div>' +
         '</div>' +
         '<div class="team-card-funded">' +
-          '<div class="team-card-funded-num">' + summary.fundedCount + '/' + summary.totalCount + '</div>' +
+          '<div class="team-card-funded-num">' + teamFunded + '/' + athletes.length + '</div>' +
           '<div class="team-card-funded-label">Funded</div>' +
         '</div>';
       card.addEventListener('click', function(){
-        state.team = team;
-        openRoster();
+        state.team = team; openRoster();
       });
       teamListEl.appendChild(card);
     });
 
-    document.getElementById('overviewTeamCount').textContent = c.teams.length;
-    document.getElementById('overviewAthleteCount').textContent = totalAthletes;
+    // Payout hero — 95% advance for all funded athletes
+    var payoutDollars = Math.round(fundedCents / 100);
+    document.getElementById('overviewPayoutAmt').textContent = '$' + payoutDollars.toLocaleString();
     document.getElementById('overviewFundedCount').textContent = totalFunded;
+    document.getElementById('overviewTeamCount').textContent  = c.teams.length;
+    document.getElementById('overviewAthleteCount').textContent = totalAthletes;
+    document.getElementById('overviewTotalDues').textContent  = '$' + Math.round(totalDuesCents / 100).toLocaleString();
+
+    // Status buckets
+    document.getElementById('bucketFundedCount').textContent    = totalFunded;
+    document.getElementById('bucketFundedAmt').textContent      = '$' + Math.round(fundedCents / 100).toLocaleString();
+    document.getElementById('bucketPendingCount').textContent   = totalPending;
+    document.getElementById('bucketPendingAmt').textContent     = '$' + Math.round(pendingCents / 100).toLocaleString();
+    document.getElementById('bucketDefaultedCount').textContent = totalDefaulted;
+    document.getElementById('bucketDefaultedAmt').textContent   = '$' + Math.round(defaultedCents / 100).toLocaleString();
+
     showScreen('club-overview');
   }
 
@@ -2184,6 +2434,9 @@ var usStates = ["Virginia"];
 
     var tournaments = SPORT_TOURNAMENTS[sport] || [];
 
+    // Travel estimate — shown but not charged
+    var travelEstimate = Math.round(dues * 0.30 / 10) * 10;
+
     panel.innerHTML = rows.map(function(row){
       var chevronHtml = row.isTournament
         ? ' <span id="tournamentChevron" style="font-size:11px; color:var(--ink-soft); transition:transform 0.2s ease; display:inline-block;">&#8250;</span>'
@@ -2204,7 +2457,15 @@ var usStates = ["Virginia"];
           }).join('') + '</div>';
       }
       return rowHtml;
-    }).join('');
+    }).join('') +
+    // Travel estimate row — not charged
+    '<div class="breakdown-row" style="opacity:0.6; border-top: 1px dashed var(--line); margin-top:4px; padding-top:10px;">' +
+      '<div class="breakdown-row-left">' +
+        '<div class="breakdown-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="19" r="1"/><circle cx="20" cy="19" r="1"/></svg></div>' +
+        '<div class="breakdown-row-label">Travel (hotels &amp; gas)<br><span style="font-size:10px; color:var(--ink-soft);">Estimated · not charged here</span></div>' +
+      '</div>' +
+      '<div class="breakdown-row-amt" style="color:var(--ink-soft);">~' + fmtUSD(travelEstimate) + '</div>' +
+    '</div>';
   }
 
   function toggleTournaments(){
@@ -2350,23 +2611,64 @@ var usStates = ["Virginia"];
     // the shared clubs/teams dataset (ct.team is a direct reference into it).
     state.parentClub = Object.assign({}, ct.team, { name: ct.club.name + ' \u2014 ' + ct.team.name });
     updateFeeBreakdowns();
-    // Populate cost breakdown for this sport + dues, and reset to closed state.
+    // Populate cost breakdown and open it by default — parent should see costs immediately
     buildBreakdown(ct.club.sport, ct.team.dues);
     var panel = document.getElementById('breakdownPanel');
     var chevron = document.getElementById('breakdownChevron');
-    if(panel) panel.classList.remove('open');
-    if(chevron) chevron.classList.remove('open');
+    if(panel) panel.classList.add('open');
+    if(chevron) chevron.classList.add('open');
     showScreen('athlete-detail');
   }
 
   function recordAthletePayment(method, weeks){
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
     if(!athlete) return;
-    athlete.paymentStatus = method; // 'full' or 'bnpl'
+    athlete.paymentStatus = method;
     athlete.termWeeks = weeks || null;
     athlete.history = buildAthleteHistory(athlete);
     saveAthletes(state.athletes);
     renderAthleteList();
+
+    var ct = getAthleteClubTeam(athlete);
+    var dues = ct && ct.team ? (ct.team.dues || 0) : 0;
+    var clubName = ct && ct.club ? ct.club.name : 'your club';
+
+    if(method === 'full'){
+      // Populate pay-in-full confirmation
+      document.getElementById('confirmNowTitle').textContent = athlete.name + ' is registered';
+      document.getElementById('confirmNowSub').textContent = clubName + ' has been paid in full for the season. Nothing else is due.';
+      var nowSched = document.getElementById('confirmNowSchedule');
+      nowSched.innerHTML = '<div class="payment-schedule-title">Your payment</div>' +
+        renderScheduleRow({ label: 'Season dues — paid in full', date: new Date(), amount: dues, status: 'paid' });
+    } else {
+      // Populate BNPL confirmation with full installment schedule
+      var numWeeks = weeks || 8;
+      var history = athlete.history || [];
+      document.getElementById('confirmTermsTitle').textContent = athlete.name + ' is registered';
+      document.getElementById('confirmTermsSub').textContent =
+        clubName + ' has been paid in full. Your ' + numWeeks + ' Klarna payments are scheduled below.';
+      var termSched = document.getElementById('confirmTermsSchedule');
+      termSched.innerHTML = '<div class="payment-schedule-title">Your payment schedule</div>' +
+        history.map(renderScheduleRow).join('');
+    }
+  }
+
+  function renderScheduleRow(item){
+    var isPaid = item.status === 'paid';
+    var dateStr = item.date instanceof Date
+      ? item.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : String(item.date);
+    return '<div class="payment-schedule-row">' +
+      '<div class="payment-schedule-dot payment-schedule-dot--' + (isPaid ? 'paid' : 'upcoming') + '"></div>' +
+      '<div class="payment-schedule-info">' +
+        '<div class="payment-schedule-date">' + dateStr + '</div>' +
+        '<div class="payment-schedule-label">' + item.label + '</div>' +
+      '</div>' +
+      '<div class="payment-schedule-right">' +
+        '<div class="payment-schedule-amt">' + fmtUSD(item.amount) + '</div>' +
+        (isPaid ? '<div class="payment-schedule-status">Paid</div>' : '<div class="payment-schedule-label" style="text-align:right;">Klarna, automatic</div>') +
+      '</div>' +
+    '</div>';
   }
 
   // Builds a plausible payment history for an athlete: a single dated receipt for

@@ -254,9 +254,10 @@
   .team-card-meta { flex: 1; }
   .team-card-name { font-weight: 700; font-size: 15px; }
   .team-card-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 1px; }
-  .team-card-funded { text-align: right; }
-  .team-card-funded-num { font-family: 'Anton', sans-serif; font-size: 16px; font-weight: 400; color: var(--paid); }
-  .team-card-funded-label { font-size: 10px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
+  .team-card-funded { text-align: right; flex-shrink: 0; }
+  .team-card-funded-num { font-family: 'Anton', sans-serif; font-size: 22px; font-weight: 400; color: var(--fund-green); line-height: 1; }
+  .team-card-funded-label { font-size: 9px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .loading-msg { color: var(--fund-green) !important; }
 
   /* ---------- Roster screen ---------- */
   .summary-strip {
@@ -615,18 +616,18 @@
     content: ''; position: absolute; left: 6px; top: 8px; bottom: 8px;
     width: 2px; background: rgba(255,255,255,0.25); border-radius: 1px;
   }
-  .timeline-node { display: flex; flex-direction: column; gap: 1px; position: relative; }
+  .timeline-node { display: flex; flex-direction: column; gap: 2px; position: relative; }
   .timeline-node::before {
-    content: ''; position: absolute; left: -17px; top: 5px;
+    content: ''; position: absolute; left: -17px; top: 4px;
     width: 10px; height: 10px; border-radius: 50%;
     background: var(--fund-green); border: 2px solid var(--ink);
     box-shadow: 0 0 0 2px var(--fund-green);
   }
   .timeline-node-label {
     font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.05em; color: rgba(255,255,255,0.6);
+    letter-spacing: 0.05em; color: var(--fund-green);
   }
-  .timeline-node-date { font-size: 13px; font-weight: 600; color: var(--white); }
+  .timeline-node-date { display: none; }
   .team-banner-divider {
     width: 1px; background: rgba(255,255,255,0.15); flex-shrink: 0;
   }
@@ -1520,16 +1521,13 @@
     <div class="team-banner">
       <div class="team-timeline" id="adminRosterTimeline">
         <div class="timeline-node">
-          <div class="timeline-node-label">Team Sign Up</div>
-          <div class="timeline-node-date">Aug 15, 2026</div>
+          <div class="timeline-node-label">Team Sign Up: Aug 15, 2026</div>
         </div>
         <div class="timeline-node">
-          <div class="timeline-node-label">Team Funded</div>
-          <div class="timeline-node-date">Aug 29, 2026</div>
+          <div class="timeline-node-label">Team Funded: Aug 29, 2026</div>
         </div>
         <div class="timeline-node">
-          <div class="timeline-node-label">Season Ends</div>
-          <div class="timeline-node-date">Oct 24, 2026</div>
+          <div class="timeline-node-label">Season Ends: Oct 24, 2026</div>
         </div>
       </div>
       <div class="team-banner-divider"></div>
@@ -1764,15 +1762,15 @@ var usStates = ["Virginia"];
     var pin  = (document.getElementById('clubPinInput').value || '').trim();
     var errEl = document.getElementById('clubLoginError');
 
-    if(!code){ errEl.textContent = 'Enter your club code.'; return; }
+    if(!code){ errEl.textContent = 'Enter your club code.'; errEl.classList.remove('loading-msg'); return; }
     if(pin.length !== 4 || !/^\d{4}$/.test(pin)){
-      errEl.textContent = 'PIN must be 4 digits.'; return;
+      errEl.textContent = 'PIN must be 4 digits.'; errEl.classList.remove('loading-msg'); return;
     }
 
-    errEl.textContent = 'Loading…';
+    errEl.textContent = 'Loading…'; errEl.classList.add('loading-msg');
     var club = await fetchClub(code);
     if(!club){
-      errEl.textContent = 'Club code not found. Try BBALL1.'; return;
+      errEl.textContent = 'Club code not found. Try BBALL1.'; errEl.classList.remove('loading-msg'); return;
     }
 
     // PIN check — for pilot we store plain text PIN in the clubs table
@@ -1835,11 +1833,11 @@ var usStates = ["Virginia"];
     var dueDate = document.getElementById('addTeamDue').value;
     var errEl   = document.getElementById('addTeamError');
 
-    if(!name)        { errEl.textContent = 'Team name is required.'; return; }
-    if(!dues || dues <= 0) { errEl.textContent = 'Enter a valid dues amount.'; return; }
-    if(!c)           { errEl.textContent = 'No club loaded. Please log in again.'; return; }
+    if(!name)        { errEl.textContent = 'Team name is required.'; errEl.classList.remove('loading-msg'); return; }
+    if(!dues || dues <= 0) { errEl.textContent = 'Enter a valid dues amount.'; errEl.classList.remove('loading-msg'); return; }
+    if(!c)           { errEl.textContent = 'No club loaded. Please log in again.'; errEl.classList.remove('loading-msg'); return; }
 
-    errEl.textContent = 'Saving…';
+    errEl.textContent = 'Saving…'; errEl.classList.add('loading-msg');
 
     try {
       var res = await fetch(WORKER_URL + '/team', {
@@ -1873,7 +1871,7 @@ var usStates = ["Virginia"];
       errEl.textContent = '';
       openClubOverview();
     } catch(e) {
-      errEl.textContent = 'Network error. Please try again.';
+      errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg');
     }
   }
 
@@ -1897,11 +1895,11 @@ var usStates = ["Virginia"];
     var phone = document.getElementById('addAthleteAdminPhone').value.trim();
     var errEl = document.getElementById('addAthleteAdminError');
 
-    if(!name)  { errEl.textContent = 'Athlete name is required.'; return; }
-    if(!email) { errEl.textContent = 'Parent email is required.'; return; }
-    if(!c || !team) { errEl.textContent = 'No team loaded. Go back and try again.'; return; }
+    if(!name)  { errEl.textContent = 'Athlete name is required.'; errEl.classList.remove('loading-msg'); return; }
+    if(!email) { errEl.textContent = 'Parent email is required.'; errEl.classList.remove('loading-msg'); return; }
+    if(!c || !team) { errEl.textContent = 'No team loaded. Go back and try again.'; errEl.classList.remove('loading-msg'); return; }
 
-    errEl.textContent = 'Saving…';
+    errEl.textContent = 'Saving…'; errEl.classList.add('loading-msg');
 
     try {
       var res = await fetch(WORKER_URL + '/athlete', {
@@ -1927,7 +1925,7 @@ var usStates = ["Virginia"];
       errEl.textContent = '';
       openRoster(); // return to roster with new athlete visible
     } catch(e) {
-      errEl.textContent = 'Network error. Please try again.';
+      errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg');
     }
   }
 
@@ -2274,7 +2272,7 @@ var usStates = ["Virginia"];
     if(!name){ errEl.textContent = "Enter the athlete's name first."; return; }
     if(!raw)  { errEl.textContent = "Enter the club code."; return; }
 
-    errEl.textContent = 'Looking up club…';
+    errEl.textContent = 'Looking up club…'; errEl.classList.add('loading-msg');
     var club = await fetchClub(raw);
     if(!club){
       errEl.textContent = "We couldn't find a club with that code. Try BBALL1.";
@@ -2470,8 +2468,8 @@ var usStates = ["Virginia"];
     var password = (document.getElementById('adminPasswordInput').value || '').trim();
     var errEl    = document.getElementById('adminLoginError');
 
-    if(!email || !password){ errEl.textContent = 'Enter your email and password.'; return; }
-    errEl.textContent = 'Signing in…';
+    if(!email || !password){ errEl.textContent = 'Enter your email and password.'; errEl.classList.remove('loading-msg'); return; }
+    errEl.textContent = 'Signing in…'; errEl.classList.add('loading-msg');
 
     try {
       var res = await fetch(WORKER_URL + '/auth/login', {
@@ -2484,7 +2482,7 @@ var usStates = ["Virginia"];
 
       // Check that this user has playfund_admin role
       if(data.user.role !== 'playfund_admin'){
-        errEl.textContent = 'This account does not have admin access.'; return;
+        errEl.textContent = 'This account does not have admin access.'; errEl.classList.remove('loading-msg'); return;
       }
 
       adminSession = data.access_token;
@@ -2493,7 +2491,7 @@ var usStates = ["Virginia"];
       document.getElementById('adminPasswordInput').value = '';
       loadAdminClubs();
     } catch(e) {
-      errEl.textContent = 'Network error. Please try again.';
+      errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg');
     }
   }
 
@@ -2520,9 +2518,9 @@ var usStates = ["Virginia"];
 
   async function loadAdminClubs(){
     showScreen('admin-clubs');
-    // Reset rollup
     ['adminTotalClubs','adminTotalTeams','adminTotalAthletes'].forEach(function(id){
-      document.getElementById(id).textContent = '…';
+      var el = document.getElementById(id);
+      el.textContent = '…'; el.classList.add('loading-msg');
     });
     document.getElementById('adminTotalFronted').textContent = '…';
     document.getElementById('adminTotalCollected').textContent = '…';
@@ -2536,10 +2534,14 @@ var usStates = ["Virginia"];
       var clubs = data.clubs || [];
       var totals = data.totals || {};
 
-      // Populate rollup banner
-      document.getElementById('adminTotalClubs').textContent     = totals.clubs || 0;
-      document.getElementById('adminTotalTeams').textContent     = totals.teams || 0;
-      document.getElementById('adminTotalAthletes').textContent  = totals.athletes || 0;
+      // Live rollup banner from Worker totals
+      var rollupIds = ['adminTotalClubs','adminTotalTeams','adminTotalAthletes'];
+      var rollupVals = [totals.clubs || 0, totals.teams || 0, totals.athletes || 0];
+      rollupIds.forEach(function(id, i){
+        var el = document.getElementById(id);
+        el.textContent = rollupVals[i];
+        el.classList.remove('loading-msg');
+      });
 
       // Financial panels
       var fronted   = (totals.fronted_cents   || 0) / 100;
@@ -2571,13 +2573,18 @@ var usStates = ["Virginia"];
             '<div class="team-card-name">' + club.name + '</div>' +
             '<div class="team-card-sub">' + club.city + ' &middot; ' + club.sport + ' &middot; ' + club.team_count + ' teams</div>' +
             '<div class="team-card-sub" style="margin-top:2px;">Total Dues: $' + Math.round(totalDues).toLocaleString() + '</div>' +
-            '<div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-top:4px;">' + recoveryPct + '% Advances Recovered</div>' +
+          '</div>' +
+          '<div class="team-card-funded">' +
+            '<div class="team-card-funded-num">' + recoveryPct + '%</div>' +
+            '<div class="team-card-funded-label">Advances Recovered</div>' +
           '</div>';
         card.addEventListener('click', function(){ openAdminClubDetail(club); });
         listEl.appendChild(card);
       });
     } catch(e) {
-      document.getElementById('adminTotalClubs').textContent = '!';
+      ['adminTotalClubs','adminTotalTeams','adminTotalAthletes'].forEach(function(id){
+        document.getElementById(id).classList.remove('loading-msg');
+      });
       console.error('loadAdminClubs error:', e);
     }
   }
@@ -2612,12 +2619,10 @@ var usStates = ["Virginia"];
     var teamListEl = document.getElementById('adminTeamList');
     teamListEl.innerHTML = '';
     (club.teams || []).forEach(function(team){
-      var teamDues = (team.dues_cents || 0) / 100;
-      // Per-team athlete count not available here — show total dues based on club average
-      var athletesPerTeam = Math.round(club.athlete_count / Math.max(club.team_count, 1));
-      var teamTotalDues = teamDues * athletesPerTeam;
-      // Recovery % — 0 until we have per-team payment data
-      var teamRecoveryPct = 0;
+      var teamAthletes = team.athlete_count || 0;
+      var teamDues     = (team.dues_cents || 0) / 100;
+      var teamTotalDues = teamAthletes * teamDues;
+      var teamRecoveryPct = 0; // per-team recovery available once webhook wired
       var card = document.createElement('div');
       card.className = 'team-card';
       card.style.marginBottom = '10px';
@@ -2627,8 +2632,11 @@ var usStates = ["Virginia"];
         '</div>' +
         '<div class="team-card-meta">' +
           '<div class="team-card-name">' + team.name + '</div>' +
-          '<div class="team-card-sub">$' + Math.round(teamDues).toLocaleString() + ' dues · Total Dues: $' + Math.round(teamTotalDues).toLocaleString() + '</div>' +
-          '<div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-top:4px;">' + teamRecoveryPct + '% Advances Recovered</div>' +
+          '<div class="team-card-sub">Total Dues: $' + Math.round(teamTotalDues).toLocaleString() + '</div>' +
+        '</div>' +
+        '<div class="team-card-funded">' +
+          '<div class="team-card-funded-num">' + teamRecoveryPct + '%</div>' +
+          '<div class="team-card-funded-label">Advances Recovered</div>' +
         '</div>';
       card.addEventListener('click', function(){ openAdminTeamRoster(club, team); });
       teamListEl.appendChild(card);
@@ -2639,7 +2647,7 @@ var usStates = ["Virginia"];
 
   async function openAdminTeamRoster(club, team){
     document.getElementById('adminRosterTitle').textContent = club.name + ' — ' + team.name;
-    document.getElementById('adminRosterSub').textContent = fmtUSD(team.dues_cents/100) + ' season dues';
+    document.getElementById('adminRosterSub').textContent = '$' + Math.round(team.dues_cents/100).toLocaleString() + ' season dues';
     document.getElementById('adminRosterList').innerHTML = '<p style="color:var(--ink-soft); font-size:14px; padding:16px 0;">Loading…</p>';
     document.getElementById('adminRosterFronted').textContent   = '…';
     document.getElementById('adminRosterFunded').textContent    = '…';

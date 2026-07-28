@@ -1908,7 +1908,22 @@
       </div>
       <div class="field">
         <label>State</label>
-        <input type="text" id="reg1State" placeholder="e.g. VA" maxlength="2" autocomplete="off" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase();">
+        <select id="reg1State" style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:var(--white); appearance:none;">
+          <option value="">Select</option>
+          <option>Alabama</option><option>Alaska</option><option>Arizona</option><option>Arkansas</option>
+          <option>California</option><option>Colorado</option><option>Connecticut</option><option>Delaware</option>
+          <option>Florida</option><option>Georgia</option><option>Hawaii</option><option>Idaho</option>
+          <option>Illinois</option><option>Indiana</option><option>Iowa</option><option>Kansas</option>
+          <option>Kentucky</option><option>Louisiana</option><option>Maine</option><option>Maryland</option>
+          <option>Massachusetts</option><option>Michigan</option><option>Minnesota</option><option>Mississippi</option>
+          <option>Missouri</option><option>Montana</option><option>Nebraska</option><option>Nevada</option>
+          <option>New Hampshire</option><option>New Jersey</option><option>New Mexico</option><option>New York</option>
+          <option>North Carolina</option><option>North Dakota</option><option>Ohio</option><option>Oklahoma</option>
+          <option>Oregon</option><option>Pennsylvania</option><option>Rhode Island</option><option>South Carolina</option>
+          <option>South Dakota</option><option>Tennessee</option><option>Texas</option><option>Utah</option>
+          <option>Vermont</option><option>Virginia</option><option>Washington</option><option>West Virginia</option>
+          <option>Wisconsin</option><option>Wyoming</option>
+        </select>
       </div>
     </div>
     <div class="field-row">
@@ -3666,14 +3681,11 @@ var usStates = ["Virginia"];
     var ps = document.getElementById('paynowSub');
     if(ct) ct.textContent = fmtUSD(cardTotal);
     if(at) at.textContent = fmtUSD(achTotal);
-    syncPaynowButton();
     if(ps) ps.textContent = '$' + dues.toLocaleString() + ' due in full today.';
     syncPaynowButton();
-    document.getElementById('paynowSub').textContent = '$' + dues.toLocaleString() + ' due in full today.';
-
-    document.getElementById('termsSubtitle').innerHTML = 'Your order total is <b>' + fmtUSD(dues) + '</b>.';
+    var ts = document.getElementById('termsSubtitle');
+    if(ts) ts.innerHTML = 'Your order total is <b>' + fmtUSD(dues) + '</b>.';
     rebuildTermCards(dues);
-    // re-select whichever term is currently marked selected (defaults to 8 weeks) to refresh the timeline
     var selectedCard = document.querySelector('.sezzle-option.selected') || document.querySelector('.sezzle-option[data-weeks="8"]');
     if(selectedCard) selectTerm(selectedCard, parseInt(selectedCard.dataset.weeks, 10));
   }
@@ -3695,10 +3707,11 @@ var usStates = ["Virginia"];
     var clubName = (state.parentClub && state.parentClub.name) || 'Hawks Travel Basketball';
     state.selectedTermWeeks = weeks;
 
-    document.getElementById('termsMethodSub').textContent =
+    var tms = document.getElementById('termsMethodSub');
+    if(tms) tms.textContent =
       'Review your payment schedule for your season dues at ' + clubName + '.';
 
-    // Build the itemized timeline: first payment due today, then one row per remaining weekly payment
+    // Build the itemized timeline
     var timelineEl = document.getElementById('sezzleTimeline');
     if(timelineEl){
       var rows = '<div class="sezzle-timeline-item">' +
@@ -3718,7 +3731,8 @@ var usStates = ["Virginia"];
       timelineEl.innerHTML = rows;
     }
 
-    document.getElementById('confirmTermsSub').textContent =
+    var cts = document.getElementById('confirmTermsSub');
+    if(cts) cts.textContent =
       clubName + ' has been paid ' + fmtUSD(dues) + ' in full. You\'re set up for ' + weeks + ' weekly payments of ' + perWeek + '.';
   }
 </script>

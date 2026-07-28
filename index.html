@@ -673,24 +673,27 @@
   }
   .team-timeline {
     flex: 1; display: flex; flex-direction: column; justify-content: space-between;
-    position: relative; padding-left: 20px;
+    position: relative; padding-left: 22px;
   }
   .team-timeline::before {
-    content: ''; position: absolute; left: 6px; top: 8px; bottom: 8px;
-    width: 2px; background: rgba(255,255,255,0.25); border-radius: 1px;
+    content: ''; position: absolute; left: 6px; top: 10px; bottom: 10px;
+    width: 2px; background: rgba(255,255,255,0.2); border-radius: 1px;
   }
   .timeline-node { display: flex; flex-direction: column; gap: 2px; position: relative; }
   .timeline-node::before {
-    content: ''; position: absolute; left: -17px; top: 4px;
-    width: 10px; height: 10px; border-radius: 50%;
+    content: ''; position: absolute; left: -19px; top: 5px;
+    width: 11px; height: 11px; border-radius: 50%;
     background: var(--fund-green); border: 2px solid var(--ink);
     box-shadow: 0 0 0 2px var(--fund-green);
   }
   .timeline-node-label {
-    font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.05em; color: var(--fund-green);
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--fund-green);
   }
-  .timeline-node-date { display: none; }
+  .timeline-node-date {
+    font-size: 12px; font-weight: 600; color: var(--white);
+    display: block;
+  }
   .team-banner-divider {
     width: 1px; background: rgba(255,255,255,0.15); flex-shrink: 0;
   }
@@ -951,8 +954,35 @@
   .step-progress-item.done .step-progress-dot { background: var(--fund-green); }
   .step-progress-sep { color: var(--line); font-size: 10px; }
 
-  .footer-spacer { flex: 1; }
-</style>
+  /* Registration step progress — full width with progress bar */
+  .reg-progress {
+    width: 100%; margin-bottom: 20px;
+  }
+  .reg-progress-steps {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .reg-progress-step {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    flex: 1;
+  }
+  .reg-progress-label {
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--line); transition: color 0.2s;
+    text-align: center;
+  }
+  .reg-progress-step.active .reg-progress-label { color: var(--ink); }
+  .reg-progress-step.done .reg-progress-label   { color: var(--fund-green); }
+  .reg-progress-bar-track {
+    height: 3px; background: var(--line); border-radius: 2px;
+    overflow: hidden;
+  }
+  .reg-progress-bar-fill {
+    height: 100%; background: var(--fund-green); border-radius: 2px;
+    transition: width 0.35s ease;
+  }
+
+
 </head>
 <body>
 
@@ -996,26 +1026,25 @@
   <!-- SCREEN: club select -->
   <div class="screen" id="screen-club-select">
     <div class="eyebrow">Sports Club</div>
-    <h1 class="title">Club login</h1>
-    <p class="subtitle">Enter your club code and team PIN. Your club director shares these when setting up PlayFund.</p>
+    <h1 class="title">Sign in</h1>
+    <p class="subtitle">Enter your email and password to access your club dashboard.</p>
 
     <div class="field" style="margin-bottom:14px;">
-      <label>Club code</label>
-      <input type="text" id="clubCodeInput" placeholder="e.g. BBALL1" autocomplete="off"
-        autocapitalize="characters" oninput="this.value=this.value.toUpperCase(); clearClubError();">
+      <label>Email</label>
+      <input type="email" id="clubEmailInput" placeholder="you@yourclub.com" autocomplete="email">
     </div>
     <div class="field" style="margin-bottom:6px;">
-      <label>Team PIN</label>
-      <input type="text" id="clubPinInput" placeholder="4-digit PIN" inputmode="numeric" maxlength="4"
-        oninput="clearClubError();">
+      <label>Password</label>
+      <input type="password" id="clubPasswordInput" placeholder="Password" autocomplete="current-password">
     </div>
     <p id="clubLoginError" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 2px 18px;"></p>
 
     <div class="footer-spacer"></div>
     <button class="btn btn-primary" onclick="submitClubLogin()">Sign in</button>
-    <p style="font-size:11.5px; color:var(--ink-soft); text-align:center; margin-top:16px;">
-      Demo: try code <b style="color:var(--ink);">BBALL1</b> with PIN <b style="color:var(--ink);">1234</b>, or any 4-digit PIN.
-    </p>
+    <div style="margin-top:20px; padding-top:20px; border-top:1px solid var(--line); text-align:center;">
+      <p style="font-size:13px; color:var(--ink-soft); margin-bottom:10px;">New to PlayFund?</p>
+      <button class="btn btn-secondary" onclick="showScreen('club-register-1')" style="width:100%;">Register your club →</button>
+    </div>
   </div>
 
   <!-- SCREEN: club overview (rollup + team picker) -->
@@ -1180,7 +1209,10 @@
 
     <div class="roster-section-label">Roster &middot; 0 athletes</div>
     <div id="rosterList"></div>
-    <button class="btn btn-secondary" onclick="showAddAthleteScreen()" style="margin-top:12px;">+ Add athlete</button>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button class="btn btn-secondary" onclick="showAddAthleteScreen()" style="flex:1;">+ Add athlete</button>
+      <button class="btn btn-secondary" onclick="showInviteAdminScreen()" style="flex:1;">+ Invite coach</button>
+    </div>
   </div>
 
   <!-- SCREEN: parent home -->
@@ -1546,9 +1578,10 @@
     </div>
 
     <p class="settings-placeholder-note">This is a shell for illustrative purposes — settings aren't functional in this mockup.</p>
+    <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--line);">
+      <button onclick="clubSignOut()" style="background:none; border:none; font-size:13px; font-weight:700; color:#555; cursor:pointer; font-family:'Inter',sans-serif;">Sign out</button>
+    </div>
   </div>
-
-  <!-- SCREEN: add team (club admin) -->
   <div class="screen" id="screen-add-team">
     <div class="eyebrow">Sports Club</div>
     <h1 class="title">Add a team</h1>
@@ -1737,13 +1770,16 @@
     <div class="team-banner">
       <div class="team-timeline" id="adminRosterTimeline">
         <div class="timeline-node">
-          <div class="timeline-node-label">Team Sign Up: Aug 15, 2026</div>
+          <div class="timeline-node-label">Team Sign Up</div>
+          <div class="timeline-node-date">Aug 15, 2026</div>
         </div>
         <div class="timeline-node">
-          <div class="timeline-node-label">Team Funded: Aug 29, 2026</div>
+          <div class="timeline-node-label">Team Funded</div>
+          <div class="timeline-node-date">Aug 29, 2026</div>
         </div>
         <div class="timeline-node">
-          <div class="timeline-node-label">Season Ends: Oct 24, 2026</div>
+          <div class="timeline-node-label">Season Ends</div>
+          <div class="timeline-node-date">Oct 24, 2026</div>
         </div>
       </div>
       <div class="team-banner-divider"></div>
@@ -1774,6 +1810,227 @@
     </div>
 
     <div id="adminRosterList"></div>
+  </div>
+
+  <!-- SCREEN: team admin roster (team admins see only their team) -->
+  <div class="screen" id="screen-team-admin-roster">
+    <div>
+      <div class="eyebrow" style="margin-bottom:2px;">Team Admin</div>
+      <div style="font-size:15px; font-weight:700; color:var(--ink);" id="teamAdminTitle">Team name</div>
+      <div style="font-size:12px; color:var(--ink-soft);" id="teamAdminSub">Club name</div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin:14px 0;">
+      <div style="flex:1; background:var(--paper-dim); border-radius:12px; padding:14px 16px; text-align:center;">
+        <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="teamAdminAthleteCount">0</div>
+        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-top:2px;">Athletes</div>
+      </div>
+      <div style="flex:1; background:var(--paper-dim); border-radius:12px; padding:14px 16px; text-align:center;">
+        <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--fund-green);" id="teamAdminFundedCount">0</div>
+        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-top:2px;">Funded</div>
+      </div>
+      <div style="flex:1; background:var(--paper-dim); border-radius:12px; padding:14px 16px; text-align:center;">
+        <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="teamAdminDues">$0</div>
+        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-top:2px;">Dues</div>
+      </div>
+    </div>
+
+    <div class="roster-section-label">Roster</div>
+    <div id="teamAdminRosterList"></div>
+    <button class="btn btn-secondary" onclick="showAddAthleteScreenForTeamAdmin()" style="margin-top:12px;">+ Add athlete</button>
+
+    <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--line);">
+      <button onclick="teamAdminSignOut()" style="background:none; border:none; font-size:13px; font-weight:700; color:#555; cursor:pointer; font-family:'Inter',sans-serif;">Sign out</button>
+    </div>
+  </div>
+
+  <!-- SCREEN: invite team admin -->
+  <div class="screen" id="screen-invite-admin">
+    <div class="eyebrow">Sports Club</div>
+    <h1 class="title">Invite a team admin</h1>
+    <p class="subtitle" id="inviteAdminSub">They'll get an email to set their password and access their team's roster.</p>
+
+    <div class="field">
+      <label>Name</label>
+      <input type="text" id="inviteAdminName" placeholder="e.g. Coach Williams" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="inviteAdminEmail" placeholder="coach@email.com" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Team</label>
+      <select id="inviteAdminTeam" style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:var(--white); appearance:none;">
+        <option value="">Select team</option>
+      </select>
+    </div>
+    <p id="inviteAdminError" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
+    <div class="footer-spacer"></div>
+    <button class="btn btn-primary" onclick="submitInviteAdmin()">Send invite</button>
+  </div>
+
+  <!-- ══ CLUB REGISTRATION FLOW ══════════════════════════════════════════ -->
+  <div class="screen" id="screen-club-register-1">
+    <div class="eyebrow" style="color:var(--ink);">Register your club</div>
+    <div class="reg-progress">
+      <div class="reg-progress-steps">
+      <div class="reg-progress-step active"><div class="reg-progress-label">Basics</div></div>
+      <div class="reg-progress-step "><div class="reg-progress-label">Fees</div></div>
+      <div class="reg-progress-step "><div class="reg-progress-label">Roster</div></div>
+      <div class="reg-progress-step "><div class="reg-progress-label">Finish</div></div>
+      </div>
+      <div class="reg-progress-bar-track">
+        <div class="reg-progress-bar-fill" style="width:8%;"></div>
+      </div>
+    </div>
+    <h1 class="title" style="font-size:26px; margin-bottom:6px;">Tell us about your season</h1>
+    <p class="subtitle" style="margin-bottom:20px;">A few quick details. No account, no card, no call with sales.</p>
+    <div class="field">
+      <label>Club name</label>
+      <input type="text" id="reg1ClubName" placeholder="e.g. Northside Select" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Sport</label>
+      <select id="reg1Sport" style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:var(--white); appearance:none;">
+        <option value="">Select a sport</option>
+        <option value="Basketball">Basketball</option>
+        <option value="Soccer">Soccer</option>
+        <option value="Baseball">Baseball</option>
+        <option value="Volleyball">Volleyball</option>
+        <option value="Youth Lacrosse">Lacrosse</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>City</label>
+        <input type="text" id="reg1City" placeholder="e.g. Richmond" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>State</label>
+        <input type="text" id="reg1State" placeholder="e.g. VA" maxlength="2" autocomplete="off" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase();">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Season start</label>
+        <input type="date" id="reg1SeasonStart">
+      </div>
+      <div class="field">
+        <label>Season end</label>
+        <input type="date" id="reg1SeasonEnd">
+      </div>
+    </div>
+    <div class="field">
+      <label>Roughly how many athletes?</label>
+      <input type="number" id="reg1Athletes" placeholder="e.g. 80" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label>Your name</label>
+      <input type="text" id="reg1Name" placeholder="e.g. Travis Johnson" autocomplete="name">
+    </div>
+    <div class="field">
+      <label>Your email</label>
+      <input type="email" id="reg1Email" placeholder="you@yourclub.com" autocomplete="email">
+    </div>
+    <p id="reg1Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
+    <div class="footer-spacer"></div>
+    <button class="btn btn-primary" onclick="regStep1Next()">Continue</button>
+    <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:12px;">No credit check · No contract</p>
+  </div>
+
+  <!-- Step 2: Fee breakdown -->
+  <div class="screen" id="screen-club-register-2">
+    <div class="eyebrow" style="color:var(--ink);">Register your club</div>
+    <div class="reg-progress">
+      <div class="reg-progress-steps">
+      <div class="reg-progress-step done"><div class="reg-progress-label">Basics</div></div>
+      <div class="reg-progress-step active"><div class="reg-progress-label">Fees</div></div>
+      <div class="reg-progress-step "><div class="reg-progress-label">Roster</div></div>
+      <div class="reg-progress-step "><div class="reg-progress-label">Finish</div></div>
+      </div>
+      <div class="reg-progress-bar-track">
+        <div class="reg-progress-bar-fill" style="width:33%;"></div>
+      </div>
+    </div>
+    <h1 class="title" style="font-size:26px; margin-bottom:6px;">What does a season cost a family?</h1>
+    <p class="subtitle" style="margin-bottom:20px;">List every fee you charge. Parents see this exact breakdown.</p>
+
+    <div id="regFeeList"></div>
+    <button onclick="regAddFee()" style="background:none; border:none; font-size:13px; font-weight:700; color:var(--fund-green); cursor:pointer; font-family:'Inter',sans-serif; padding:6px 0; margin-bottom:16px;">+ Add another fee</button>
+
+    <div style="background:var(--paper-dim); border-radius:12px; padding:14px 16px; margin-bottom:16px;">
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:4px;">You'd receive, Day 1</div>
+      <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="reg2PayoutPreview">$0</div>
+      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;" id="reg2PayoutSub">Based on 0 athletes</div>
+      <div style="font-size:12px; color:var(--fund-green); font-weight:700; margin-top:6px;" id="reg2PayoutDate" style="display:none;"></div>
+    </div>
+
+    <p id="reg2Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
+    <div class="footer-spacer"></div>
+    <button class="btn btn-primary" onclick="regStep2Next()">Continue</button>
+  </div>
+
+  <!-- Step 3: Roster paste -->
+  <div class="screen" id="screen-club-register-3">
+    <div class="eyebrow" style="color:var(--ink);">Register your club</div>
+    <div class="reg-progress">
+      <div class="reg-progress-steps">
+      <div class="reg-progress-step done"><div class="reg-progress-label">Basics</div></div>
+      <div class="reg-progress-step done"><div class="reg-progress-label">Fees</div></div>
+      <div class="reg-progress-step active"><div class="reg-progress-label">Roster</div></div>
+      <div class="reg-progress-step "><div class="reg-progress-label">Finish</div></div>
+      </div>
+      <div class="reg-progress-bar-track">
+        <div class="reg-progress-bar-fill" style="width:66%;"></div>
+      </div>
+    </div>
+    <h1 class="title" style="font-size:26px; margin-bottom:6px;">Paste your roster</h1>
+    <p class="subtitle" style="margin-bottom:16px;">Straight from a spreadsheet — one athlete per line. Include name, team, and email if you have them. Any order is fine.</p>
+    <textarea id="reg3Roster" rows="8" placeholder="Maya Rivera, 12U Girls, mrivera@email.com&#10;Jordan Rivera, 14U Boys, mrivera@email.com&#10;Elena Whitfield, 16U Girls, dwhit@email.com&#10;..." style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:none; box-sizing:border-box;"></textarea>
+    <div id="reg3ParseResult" style="font-size:12.5px; color:var(--fund-green); margin:8px 0 4px; min-height:18px;"></div>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin-bottom:16px; line-height:1.5;">You can fix missing emails later — athletes just won't get their payment link until you do.</p>
+    <p id="reg3Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
+    <div class="footer-spacer"></div>
+    <button class="btn btn-primary" onclick="regStep3Next()">Continue</button>
+    <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:12px;">No file formatting required</p>
+  </div>
+
+  <!-- Step 4: Confirmation / next steps -->
+  <div class="screen" id="screen-club-register-4">
+    <div class="reg-progress">
+      <div class="reg-progress-steps">
+        <div class="reg-progress-step done"><div class="reg-progress-label">Basics</div></div>
+        <div class="reg-progress-step done"><div class="reg-progress-label">Fees</div></div>
+        <div class="reg-progress-step done"><div class="reg-progress-label">Roster</div></div>
+        <div class="reg-progress-step active"><div class="reg-progress-label">Finish</div></div>
+      </div>
+      <div class="reg-progress-bar-track">
+        <div class="reg-progress-bar-fill" style="width:100%;"></div>
+      </div>
+    </div>
+    <div class="confirm-wrap" style="justify-content:flex-start; padding-top:8px;">
+      <div class="confirm-icon" style="margin-bottom:14px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h1 class="title" style="font-size:26px; margin-bottom:6px;" id="reg4Title">You're on the list.</h1>
+      <p style="color:var(--ink-soft); font-size:14px; line-height:1.6; text-align:center; max-width:300px;" id="reg4Sub">
+        We'll reach out within one business day to complete your setup and get you live.
+      </p>
+
+      <div class="confirm-reassurance" style="margin-top:20px; text-align:left;">
+        <b>What happens next:</b><br>
+        A PlayFund team member will contact you to connect your bank account via Stripe, confirm your payout date, and send you the link to share with families.
+      </div>
+
+      <div style="background:var(--paper-dim); border-radius:12px; padding:14px 16px; margin-top:12px; width:100%;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:4px;">Estimated payout</div>
+        <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="reg4Payout">$0</div>
+        <div style="font-size:11.5px; color:var(--ink-soft);" id="reg4PayoutSub">Illustrative · based on your inputs</div>
+      </div>
+    </div>
+    <div class="footer-spacer"></div>
+    <button class="btn btn-secondary" onclick="showScreen('club-select')">Back to sign in</button>
   </div>
 
 </div>
@@ -1913,11 +2170,11 @@ var usStates = ["Virginia"];
     // Enter key → submit for all input screens
     var enterMap = [
       // [inputId(s), submitFn]
-      [['clubCodeInput', 'clubPinInput'],       function(){ submitClubLogin(); }],
+      [['clubEmailInput', 'clubPasswordInput'],    function(){ submitClubLogin(); }],
       [['athleteNameInput', 'codeInput'],        function(){ submitCode(); }],
       [['adminPasscode'],                        function(){ submitAdminLogin(); }],
       [['adminEmailInput', 'adminPasswordInput'],function(){ submitAdminEmailLogin(); }],
-      [['addTeamName','addTeamAge','addTeamDues','addTeamStart','addTeamEnd','addTeamDue'], function(){ submitAddTeam(); }],
+      [['reg1ClubName','reg1Athletes','reg1Name','reg1Email'], function(){ regStep1Next(); }],
       [['addAthleteAdminName','addAthleteAdminAge','addAthleteAdminEmail','addAthleteAdminPhone'], function(){ submitAddAthleteAdmin(); }],
     ];
     enterMap.forEach(function(pair){
@@ -1966,58 +2223,68 @@ var usStates = ["Virginia"];
   }
 
   // ---------- club login (code + PIN) ----------
-  var CLUB_SESSION_KEY = 'playfund_club_session';
+  var CLUB_SESSION_KEY = 'pf_club_session';
 
   function clearClubError(){
     var el = document.getElementById('clubLoginError');
-    if(el) el.textContent = '';
+    if(el){ el.textContent = ''; el.classList.remove('loading-msg'); }
   }
 
   async function submitClubLogin(){
-    var code = (document.getElementById('clubCodeInput').value || '').trim().toUpperCase();
-    var pin  = (document.getElementById('clubPinInput').value || '').trim();
-    var errEl = document.getElementById('clubLoginError');
-
-    if(!code){ errEl.textContent = 'Enter your club code.'; errEl.classList.remove('loading-msg'); return; }
-    if(pin.length !== 4 || !/^\d{4}$/.test(pin)){
-      errEl.textContent = 'PIN must be 4 digits.'; errEl.classList.remove('loading-msg'); return;
-    }
-
-    errEl.textContent = 'Loading…'; errEl.classList.add('loading-msg');
-    var club = await fetchClub(code);
-    if(!club){
-      errEl.textContent = 'Club code not found. Try BBALL1.'; errEl.classList.remove('loading-msg'); return;
-    }
-
-    // PIN check — for pilot we store plain text PIN in the clubs table
-    // (will switch to bcrypt once we add server-side auth)
-    // For now any 4-digit PIN is accepted since PIN is stored as plain text
-    errEl.textContent = '';
-    try { localStorage.setItem(CLUB_SESSION_KEY, JSON.stringify({ clubCode: code, pin: pin })); } catch(e){}
-    state.club = club;
-    openClubOverview();
+    var email    = (document.getElementById('clubEmailInput').value || '').trim();
+    var password = (document.getElementById('clubPasswordInput').value || '').trim();
+    var errEl    = document.getElementById('clubLoginError');
+    if(!email || !password){ errEl.textContent = 'Enter your email and password.'; errEl.classList.remove('loading-msg'); return; }
+    errEl.textContent = 'Signing in…'; errEl.classList.add('loading-msg');
+    try {
+      var res = await fetch(WORKER_URL + '/auth/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      var data = await res.json();
+      if(!res.ok){ errEl.textContent = data.error || 'Invalid email or password.'; errEl.classList.remove('loading-msg'); return; }
+      errEl.textContent = ''; errEl.classList.remove('loading-msg');
+      try { sessionStorage.setItem(CLUB_SESSION_KEY, JSON.stringify(data)); } catch(e){}
+      if(data.user.role === 'team_admin'){
+        openTeamAdminView(data);
+      } else if(data.user.role === 'club_admin'){
+        if(data.user.club){
+          var club = await fetchClub(data.user.club.code);
+          if(club){ state.club = club; openClubOverview(); }
+          else { errEl.textContent = 'Club not found.'; }
+        }
+      } else { errEl.textContent = 'This account does not have club access.'; }
+    } catch(e) { errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg'); }
   }
 
   function enterClubMode(){
-    var saved = null;
-    try { saved = JSON.parse(localStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
-    if(saved && saved.clubCode){
-      fetchClub(saved.clubCode).then(function(club){
-        if(club){ state.club = club; openClubOverview(); }
-        else { showScreen('club-select'); }
-      });
-      return;
-    }
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null');
+      if(saved && saved.user){
+        if(saved.user.role === 'team_admin'){ openTeamAdminView(saved); return; }
+        if(saved.user.role === 'club_admin' && saved.user.club){
+          fetchClub(saved.user.club.code).then(function(club){
+            if(club){ state.club = club; openClubOverview(); }
+            else { showScreen('club-select'); }
+          }); return;
+        }
+      }
+    } catch(e){}
     showScreen('club-select');
   }
 
+  function clubSignOut(){
+    try { sessionStorage.removeItem(CLUB_SESSION_KEY); } catch(e){}
+    state.club = null; state.team = null; showScreen('home');
+  }
+
   function switchClub(){
-    try { localStorage.removeItem(CLUB_SESSION_KEY); } catch(e){}
+    try { sessionStorage.removeItem(CLUB_SESSION_KEY); } catch(e){}
     state.club = null; state.team = null;
-    var codeEl = document.getElementById('clubCodeInput');
-    var pinEl = document.getElementById('clubPinInput');
-    if(codeEl) codeEl.value = '';
-    if(pinEl) pinEl.value = '';
+    var emailEl = document.getElementById('clubEmailInput');
+    var pwEl    = document.getElementById('clubPasswordInput');
+    if(emailEl) emailEl.value = '';
+    if(pwEl)    pwEl.value    = '';
     clearClubError();
     showScreen('club-select');
   }
@@ -2800,6 +3067,275 @@ var usStates = ["Virginia"];
   // Keep backward compat with old passcode function name (now unused but referenced in Enter map)
   function submitAdminLogin(){ submitAdminEmailLogin(); }
 
+  // ---------- Club registration flow ----------
+  var regState = {
+    clubName: '', sport: '', city: '', state: '',
+    seasonStart: '', seasonEnd: '',
+    athleteCount: 0, adminName: '', adminEmail: '',
+    fees: [], roster: [], teams: []
+  };
+
+  function regStep1Next(){
+    var name        = document.getElementById('reg1ClubName').value.trim();
+    var sport       = document.getElementById('reg1Sport').value;
+    var city        = document.getElementById('reg1City').value.trim();
+    var state       = document.getElementById('reg1State').value.trim();
+    var seasonStart = document.getElementById('reg1SeasonStart').value;
+    var seasonEnd   = document.getElementById('reg1SeasonEnd').value;
+    var count       = parseInt(document.getElementById('reg1Athletes').value) || 0;
+    var aName       = document.getElementById('reg1Name').value.trim();
+    var email       = document.getElementById('reg1Email').value.trim();
+    var errEl       = document.getElementById('reg1Error');
+    if(!name)  { errEl.textContent = 'Club name is required.'; return; }
+    if(!sport) { errEl.textContent = 'Select a sport.'; return; }
+    if(!email) { errEl.textContent = 'Your email is required.'; return; }
+    errEl.textContent = '';
+    regState.clubName    = name;    regState.sport = sport;
+    regState.city        = city;    regState.state = state;
+    regState.seasonStart = seasonStart; regState.seasonEnd = seasonEnd;
+    regState.athleteCount = count;  regState.adminName = aName; regState.adminEmail = email;
+    regState.fees = [{ label: 'Season fee', amount: '' }];
+    renderRegFees();
+    updateReg2Preview();
+    showScreen('club-register-2');
+  }
+
+  function renderRegFees(){
+    var listEl = document.getElementById('regFeeList');
+    if(!listEl) return;
+    listEl.innerHTML = '';
+    regState.fees.forEach(function(fee, i){
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex; gap:10px; margin-bottom:10px; align-items:center;';
+      row.innerHTML =
+        '<input type="text" placeholder="Fee label" value="' + fee.label + '" ' +
+          'style="flex:1.5; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; font-family:\'Inter\',sans-serif; font-size:13px;" ' +
+          'oninput="regState.fees[' + i + '].label=this.value;">' +
+        '<input type="number" placeholder="$" value="' + fee.amount + '" inputmode="numeric" ' +
+          'style="flex:1; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; font-family:\'Inter\',sans-serif; font-size:13px;" ' +
+          'oninput="regState.fees[' + i + '].amount=parseFloat(this.value)||0; updateReg2Preview();">' +
+        (i > 0 ? '<button onclick="regRemoveFee(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:18px;padding:0 4px;">×</button>' : '<span style="width:26px;"></span>');
+      listEl.appendChild(row);
+    });
+  }
+
+  function regAddFee(){
+    regState.fees.push({ label: '', amount: 0 });
+    renderRegFees();
+  }
+
+  function regRemoveFee(i){
+    regState.fees.splice(i, 1);
+    renderRegFees();
+    updateReg2Preview();
+  }
+
+  function updateReg2Preview(){
+    var total  = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
+    var payout = Math.round(total * regState.athleteCount * 0.925);
+    var el     = document.getElementById('reg2PayoutPreview');
+    var sub    = document.getElementById('reg2PayoutSub');
+    var dateEl = document.getElementById('reg2PayoutDate');
+    if(el)  el.textContent  = '$' + payout.toLocaleString();
+    if(sub) sub.textContent = 'Based on ' + regState.athleteCount + ' athletes · 7.5% PlayFund fee';
+    if(dateEl){
+      if(regState.seasonStart){
+        var d = new Date(regState.seasonStart + 'T00:00:00');
+        d.setDate(d.getDate() + 14);
+        var payoutDateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        dateEl.textContent = 'Estimated payout date: ' + payoutDateStr;
+        dateEl.style.display = 'block';
+      } else {
+        dateEl.textContent = '';
+        dateEl.style.display = 'none';
+      }
+    }
+  }
+
+  function regStep2Next(){
+    var total = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
+    var errEl = document.getElementById('reg2Error');
+    if(total <= 0){ errEl.textContent = 'Enter at least one fee amount.'; return; }
+    errEl.textContent = '';
+    showScreen('club-register-3');
+  }
+
+  function regStep3Next(){
+    var raw = (document.getElementById('reg3Roster').value || '').trim();
+    var errEl = document.getElementById('reg3Error');
+    // Parse roster — be forgiving about column order
+    var lines = raw.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    var parsed = lines.map(function(line){
+      var parts = line.split(',').map(function(p){ return p.trim(); });
+      var email = parts.find(function(p){ return p.includes('@'); }) || '';
+      var name  = parts.find(function(p){ return !p.includes('@') && !/^\d+[Uu]$/.test(p) && p.length > 1 }) || parts[0];
+      var team  = parts.find(function(p){ return /\d+[Uu]/i.test(p) || /travel|select|elite|boys|girls/i.test(p); }) || '';
+      return { name: name, team: team, email: email };
+    });
+    regState.roster = parsed;
+    // Extract unique teams
+    var teamNames = [];
+    parsed.forEach(function(a){ if(a.team && !teamNames.includes(a.team)) teamNames.push(a.team); });
+    regState.teams = teamNames.map(function(t){
+      var dues = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
+      return { name: t, age_group: t, dues: dues };
+    });
+    var resultEl = document.getElementById('reg3ParseResult');
+    resultEl.textContent = parsed.length + ' athletes read ✓' + (teamNames.length ? '  ·  ' + teamNames.length + ' teams matched ✓' : '');
+    var missing = parsed.filter(function(a){ return !a.email; }).length;
+    if(missing) resultEl.textContent += '  ·  ' + missing + ' missing an email';
+
+    if(!parsed.length){ errEl.textContent = 'Paste at least one athlete.'; return; }
+    errEl.textContent = '';
+    submitRegistration();
+  }
+
+  async function submitRegistration(){
+    var total  = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
+    var payout = Math.round(total * regState.athleteCount * 0.925);
+
+    // Compute payout date
+    var payoutDateStr = '';
+    if(regState.seasonStart){
+      var d = new Date(regState.seasonStart + 'T00:00:00');
+      d.setDate(d.getDate() + 14);
+      payoutDateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    try {
+      await fetch(WORKER_URL + '/club/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:          regState.clubName,
+          sport:         regState.sport,
+          city:          regState.city   ? regState.city + ', ' + regState.state : null,
+          state:         regState.state  || null,
+          admin_email:   regState.adminEmail,
+          admin_name:    regState.adminName,
+          athlete_count: regState.athleteCount,
+          season_start:  regState.seasonStart || null,
+          season_end:    regState.seasonEnd   || null,
+          fees:          regState.fees,
+          teams:         regState.teams
+        })
+      });
+    } catch(e){ console.warn('Registration submit (non-blocking):', e); }
+
+    // Populate step 4 confirmation
+    document.getElementById('reg4Title').textContent = regState.adminName
+      ? regState.adminName.split(' ')[0] + ', you\'re on the list.'
+      : 'You\'re on the list.';
+    document.getElementById('reg4Sub').textContent =
+      'We\'ll reach out to ' + regState.adminEmail + ' within one business day to complete your setup.';
+    document.getElementById('reg4Payout').textContent = '$' + payout.toLocaleString();
+
+    var subParts = ['Illustrative · ' + regState.athleteCount + ' athletes · $' + Math.round(total).toLocaleString() + ' dues · 7.5% fee'];
+    if(payoutDateStr) subParts.push('Estimated payout: ' + payoutDateStr);
+    document.getElementById('reg4PayoutSub').textContent = subParts.join(' · ');
+
+    showScreen('club-register-4');
+  }
+
+  // ── Team admin view ───────────────────────────────────────────────────────
+  async function openTeamAdminView(sessionData){
+    var user = sessionData.user;
+    var team = user.team; var club = user.club;
+    if(!team || !club){ showScreen('club-select'); return; }
+    document.getElementById('teamAdminTitle').textContent = team.name;
+    document.getElementById('teamAdminSub').textContent   = club.name + ' · ' + (club.city || '');
+    document.getElementById('teamAdminDues').textContent  = '$' + Math.round((team.dues_cents||0)/100).toLocaleString();
+    state.teamAdminSession = sessionData;
+    showScreen('team-admin-roster');
+    try {
+      var res  = await fetch(WORKER_URL + '/club/' + club.code);
+      var data = await res.json();
+      var liveTeam = (data.club.teams || []).find(function(t){ return t.id === team.id; });
+      if(!liveTeam) return;
+      var athletes = liveTeam.athletes || [];
+      var funded   = athletes.filter(function(a){
+        return ['paid_full','bnpl_active','bnpl_complete'].includes(a.payment_status);
+      }).length;
+      document.getElementById('teamAdminAthleteCount').textContent = athletes.length;
+      document.getElementById('teamAdminFundedCount').textContent  = funded;
+      var listEl = document.getElementById('teamAdminRosterList');
+      if(!athletes.length){
+        listEl.innerHTML = '<p style="color:var(--ink-soft);font-size:14px;text-align:center;padding:24px 0;">No athletes yet.</p>';
+        return;
+      }
+      listEl.innerHTML = '';
+      var statusLabels = { paid_full:'Paid', bnpl_active:'BNPL Active', bnpl_complete:'Complete', unpaid:'Not Paid', defaulted:'Defaulted' };
+      athletes.forEach(function(a){
+        var status = a.payment_status || 'unpaid';
+        var isPaid = status !== 'unpaid' && status !== 'defaulted';
+        var row = document.createElement('div');
+        row.className = 'roster-row';
+        row.style.setProperty('--status-color','var('+(isPaid?'--paid':'--unpaid')+')');
+        row.style.setProperty('--status-bg','var('+(isPaid?'--paid-bg':'--unpaid-bg')+')');
+        row.innerHTML =
+          '<div class="roster-icon">'+(isPaid?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>')+'</div>'+
+          '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+'</div>'+
+          '<div class="roster-right"><div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div></div>';
+        listEl.appendChild(row);
+      });
+    } catch(e){ console.error('openTeamAdminView error:', e); }
+  }
+
+  function teamAdminSignOut(){
+    try { sessionStorage.removeItem(CLUB_SESSION_KEY); } catch(e){}
+    state.teamAdminSession = null; showScreen('home');
+  }
+
+  function showAddAthleteScreenForTeamAdmin(){
+    var s = state.teamAdminSession;
+    if(!s || !s.user || !s.user.team) return;
+    state.team = s.user.team; state.club = { id: s.user.club.id, name: s.user.club.name, code: s.user.club.code };
+    var el = document.getElementById('addAthleteTeamName');
+    if(el) el.textContent = s.user.team.name;
+    showScreen('add-athlete-admin');
+  }
+
+  // ── Invite team admin ─────────────────────────────────────────────────────
+  function showInviteAdminScreen(){
+    var c = state.club;
+    if(!c) return;
+    document.getElementById('inviteAdminSub').textContent =
+      'They\'ll get an email to set their password and access their team\'s roster at ' + c.name + '.';
+    document.getElementById('inviteAdminName').value  = '';
+    document.getElementById('inviteAdminEmail').value = '';
+    document.getElementById('inviteAdminError').textContent = '';
+    var sel = document.getElementById('inviteAdminTeam');
+    sel.innerHTML = '<option value="">Select team</option>';
+    (c.teams || []).forEach(function(t){
+      var opt = document.createElement('option');
+      opt.value = t.id; opt.textContent = t.name; sel.appendChild(opt);
+    });
+    showScreen('invite-admin');
+  }
+
+  async function submitInviteAdmin(){
+    var name   = document.getElementById('inviteAdminName').value.trim();
+    var email  = document.getElementById('inviteAdminEmail').value.trim();
+    var teamId = document.getElementById('inviteAdminTeam').value;
+    var errEl  = document.getElementById('inviteAdminError');
+    if(!name)   { errEl.textContent = 'Enter their name.'; return; }
+    if(!email)  { errEl.textContent = 'Enter their email.'; return; }
+    if(!teamId) { errEl.textContent = 'Select a team.'; return; }
+    if(!state.club){ errEl.textContent = 'No club loaded.'; return; }
+    errEl.textContent = 'Sending invite\u2026'; errEl.classList.add('loading-msg');
+    try {
+      var res = await fetch(WORKER_URL + '/invite', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, display_name: name, role: 'team_admin', club_id: state.club.id, team_id: teamId })
+      });
+      var data = await res.json();
+      if(!res.ok){ errEl.textContent = data.error || 'Failed to send invite.'; errEl.classList.remove('loading-msg'); return; }
+      errEl.textContent = '';
+      alert('Invite sent to ' + email + '. They\'ll receive an email to set their password.');
+      goBack();
+    } catch(e){ errEl.textContent = 'Network error.'; errEl.classList.remove('loading-msg'); }
+  }
+
   function adminSignOut(){
     adminSession = null;
     try { sessionStorage.removeItem('pf_admin_token'); } catch(e){}
@@ -2864,16 +3400,18 @@ var usStates = ["Virginia"];
         var recoveryPct = club.fronted_cents > 0
           ? Math.min(100, Math.round(club.collected_cents / club.fronted_cents * 100)) : 0;
         var totalDues = club.athlete_count * (club.teams[0] ? club.teams[0].dues_cents/100 : 0);
+        var sv = sportVisual(club.sport);
+        var iconHtml = sv.icon
+          ? '<div class="team-card-icon" style="background:' + sv.bg + '; color:' + sv.color + ';">' + sv.icon + '</div>'
+          : '<div class="team-card-icon" style="background:var(--paper-dim);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20"/></svg></div>';
         var card = document.createElement('div');
         card.className = 'team-card';
         card.style.marginBottom = '10px';
         card.innerHTML =
-          '<div class="team-card-icon" style="background:var(--paper-dim);">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M2 12h20"/></svg>' +
-          '</div>' +
+          iconHtml +
           '<div class="team-card-meta">' +
             '<div class="team-card-name">' + club.name + '</div>' +
-            '<div class="team-card-sub">' + club.city + ' &middot; ' + club.sport + ' &middot; ' + club.team_count + ' teams</div>' +
+            '<div class="team-card-sub">' + club.city + ' &middot; ' + club.team_count + ' teams</div>' +
             '<div class="team-card-sub" style="margin-top:2px;">Total Dues: $' + Math.round(totalDues).toLocaleString() + '</div>' +
           '</div>' +
           '<div class="team-card-funded">' +

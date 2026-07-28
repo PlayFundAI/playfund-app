@@ -473,10 +473,15 @@
     width: 100%; padding: 13px 14px; border-radius: 10px;
     border: 1px solid var(--line); background: var(--white);
     font-family: 'Inter', sans-serif; font-size: 14.5px; color: var(--ink);
+    box-sizing: border-box;
   }
   .field input:focus, .field select:focus { outline: none; border-color: var(--ink); }
+  .field input[type="date"] { font-size: 13.5px; }
   .field-row { display: flex; gap: 10px; }
-  .field-row .field { flex: 1; }
+  .field-row .field { flex: 1; min-width: 0; }
+  .field-row .field input, .field-row .field select {
+    width: 100%; box-sizing: border-box; min-width: 0;
+  }
 
   .method-toggle { display: flex; gap: 10px; margin-bottom: 22px; }
   .method-btn {
@@ -982,6 +987,100 @@
     transition: width 0.35s ease;
   }
 
+  /* ---------- Payment management screen ---------- */
+  .payment-mgmt-card {
+    background: var(--ink); border-radius: 14px; padding: 18px 20px;
+    margin-bottom: 14px; color: var(--white);
+  }
+  .payment-mgmt-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--fund-green); margin-bottom: 4px;
+  }
+  .payment-mgmt-amount {
+    font-family: 'Anton', sans-serif; font-size: 36px; line-height: 1; margin-bottom: 4px;
+  }
+  .payment-mgmt-sub { font-size: 12px; color: rgba(255,255,255,0.6); }
+  .payment-mgmt-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.12);
+    font-size: 13px;
+  }
+  .payment-mgmt-row:last-child { border-bottom: none; }
+  .payment-mgmt-row-label { color: rgba(255,255,255,0.6); }
+  .payment-mgmt-row-value { font-weight: 700; }
+
+  /* ---------- Send reminder modal ---------- */
+  .reminder-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: flex; align-items: flex-end; z-index: 200;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  }
+  .reminder-modal-backdrop.open { opacity: 1; pointer-events: all; }
+  .reminder-modal {
+    background: var(--white); border-radius: 20px 20px 0 0;
+    padding: 24px 20px 40px; width: 100%; box-sizing: border-box;
+    transform: translateY(100%); transition: transform 0.3s ease;
+  }
+  .reminder-modal-backdrop.open .reminder-modal { transform: translateY(0); }
+  .reminder-modal-handle {
+    width: 36px; height: 4px; background: var(--line);
+    border-radius: 2px; margin: 0 auto 20px;
+  }
+
+  /* ---------- FAQ accordion ---------- */
+  .faq-section-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--fund-green); margin: 20px 0 8px;
+  }
+  .faq-item {
+    border-bottom: 1px solid var(--line); overflow: hidden;
+  }
+  .faq-item:first-of-type { border-top: 1px solid var(--line); }
+  .faq-question {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 0; cursor: pointer; gap: 12px;
+  }
+  .faq-question-text {
+    font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.4;
+  }
+  .faq-chevron {
+    flex-shrink: 0; width: 18px; height: 18px; color: var(--ink-soft);
+    transition: transform 0.2s ease;
+  }
+  .faq-item.open .faq-chevron { transform: rotate(180deg); }
+  .faq-answer {
+    font-size: 13.5px; color: var(--ink-soft); line-height: 1.65;
+    max-height: 0; overflow: hidden; transition: max-height 0.25s ease, padding 0.2s ease;
+    padding: 0;
+  }
+  .faq-item.open .faq-answer { max-height: 400px; padding-bottom: 14px; }
+
+  /* ---------- Sibling / combined plan ---------- */
+  .sibling-athlete-row {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--paper-dim); border-radius: 12px; padding: 14px 16px;
+    margin-bottom: 8px;
+  }
+  .sibling-athlete-name {
+    font-size: 14px; font-weight: 700; color: var(--ink);
+  }
+  .sibling-athlete-sub {
+    font-size: 12px; color: var(--ink-soft); margin-top: 2px;
+  }
+  .sibling-athlete-amt {
+    font-family: 'Anton', sans-serif; font-size: 18px; color: var(--ink);
+  }
+  .sibling-total-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 0; border-top: 2px solid var(--ink); margin-top: 4px;
+  }
+  .sibling-total-label {
+    font-size: 15px; font-weight: 800; color: var(--ink);
+  }
+  .sibling-total-amt {
+    font-family: 'Anton', sans-serif; font-size: 28px; color: var(--ink);
+  }
+
   .footer-spacer { flex: 1; }
 </style>
 <body>
@@ -993,7 +1092,7 @@
 <div id="app">
 
   <div class="header" id="header">
-    <button class="back-btn" id="backBtn" onclick="goBack()" style="display:none;">
+    <button class="back-btn" id="backBtn" onclick="goBack()" style="display:none;" aria-label="Go back">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
     </button>
     <div class="wordmark"><span class="play">Play</span><span class="fund">Fund</span></div>
@@ -1018,7 +1117,10 @@
         <div class="role-sub">Pay season dues</div>
       </div>
     </div>
-    <button onclick="enterAdminMode()" style="background:none; border:none; margin-top:20px; font-size:12px; color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif;">
+    <button onclick="showScreen('faq')" style="background:var(--paper-dim); border:1.5px solid var(--line); border-radius:12px; margin-top:16px; padding:13px 0; width:100%; font-size:14px; font-weight:600; color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; letter-spacing:0.01em;">
+      How it works
+    </button>
+    <button onclick="enterAdminMode()" style="background:none; border:none; margin-top:14px; font-size:11.5px; color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; opacity:0.6;">
       PlayFund Admin ↗
     </button>
   </div>
@@ -1213,6 +1315,8 @@
       <button class="btn btn-secondary" onclick="showAddAthleteScreen()" style="flex:1;">+ Add athlete</button>
       <button class="btn btn-secondary" onclick="showInviteAdminScreen()" style="flex:1;">+ Invite coach</button>
     </div>
+    <button class="btn btn-secondary" id="sendRemindersBtn" onclick="openReminderModal()" style="margin-top:8px; width:100%; display:none;">📧 Send reminders to unpaid families</button>
+    <button class="btn btn-secondary" onclick="exportRosterCSV()" style="margin-top:8px; width:100%;">⬇ Export roster as CSV</button>
   </div>
 
   <!-- SCREEN: parent home -->
@@ -1262,7 +1366,18 @@
 
     <div id="athleteList"></div>
 
-    <button class="btn btn-secondary" onclick="showScreen('parent-code')" style="margin-top:6px;">+ Add another athlete</button>
+    <!-- Sibling / combined plan panel — shows when 2+ unpaid athletes from same club -->
+    <div id="siblingPlanPanel" style="display:none; background:var(--ink); border-radius:14px; padding:18px; margin-top:14px; color:var(--white);">
+      <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--fund-green); margin-bottom:6px;">Combined plan available</div>
+      <div style="font-size:15px; font-weight:700; margin-bottom:4px;" id="siblingPlanTitle">Both players, one plan</div>
+      <div style="font-size:13px; color:rgba(255,255,255,0.65); margin-bottom:14px;" id="siblingPlanSub">Pay for all your athletes together in one checkout.</div>
+      <div style="display:flex; gap:8px;">
+        <button onclick="openCombinedPlan()" style="flex:1; background:var(--fund-green); border:none; border-radius:8px; padding:11px 0; font-size:13px; font-weight:700; color:var(--white); cursor:pointer; font-family:'Inter',sans-serif;">View combined plan</button>
+        <button onclick="hideSiblingPanel()" style="background:rgba(255,255,255,0.1); border:none; border-radius:8px; padding:11px 14px; font-size:13px; color:rgba(255,255,255,0.7); cursor:pointer; font-family:'Inter',sans-serif;">Dismiss</button>
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" onclick="showScreen('parent-code')" style="margin-top:10px;">+ Add another athlete</button>
   </div>
 
   <!-- SCREEN: athlete detail (payment options for one athlete) -->
@@ -1351,7 +1466,8 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           Card
         </button>
-        <button class="payment-method-btn" onclick="openStripeCheckout('klarna', 'confirm-terms', 'bnpl')">
+        <button class="btn btn-secondary" onclick="showDeclineScreen()" style="margin-bottom:10px; font-size:13px; color:var(--ink-soft);">Klarna couldn't approve me — see other options</button>
+      <button class="payment-method-btn" onclick="openStripeCheckout('klarna', 'confirm-terms', 'bnpl')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
           ACH
         </button>
@@ -1359,6 +1475,8 @@
     </div>
 
     <button class="btn btn-secondary" onclick="openPaymentHistory()" style="margin-top:8px;">View payment history</button>
+    <button class="btn btn-secondary" id="managePlanBtn" onclick="openPaymentMgmt()" style="margin-top:8px; display:none;">Manage payment plan</button>
+    <button onclick="showScreen('faq')" style="background:none; border:none; margin-top:14px; font-size:12.5px; color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; text-decoration:underline;">How does PlayFund work?</button>
   </div>
 
   <!-- SCREEN: pay now (hidden shell — keeps DOM elements updateFeeBreakdowns needs) -->
@@ -1517,8 +1635,49 @@
   <div class="screen" id="screen-payment-history">
     <div class="eyebrow">Parent</div>
     <h1 class="title" id="historyTitle" style="margin-bottom:0;">Payment history</h1>
-    <p class="subtitle" id="historySubtitle">Jordan Smith &middot; Hawks Travel Basketball</p>
+    <p class="subtitle" id="historySubtitle">Athlete &middot; Club</p>
     <div id="historyList"></div>
+  </div>
+
+  <!-- SCREEN: decline handling — fork not a wall -->
+  <div class="screen" id="screen-decline">
+    <div class="eyebrow">Parent</div>
+    <h1 class="title" style="margin-bottom:6px;">Another way forward</h1>
+    <p class="subtitle" id="declineSub" style="margin-bottom:20px;">The installment plan couldn't be approved — but there are still a few ways to get on the roster.</p>
+
+    <!-- Option 1: Pay in full -->
+    <div onclick="showScreen('paynow')" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:10px; cursor:pointer; border:1.5px solid var(--line);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+        <div style="font-size:13px; font-weight:700; color:var(--ink);">Pay in full</div>
+        <div style="font-family:'Anton',sans-serif; font-size:18px; color:var(--ink);" id="declineFullAmt">$950</div>
+      </div>
+      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">One charge today. Card or bank transfer via Stripe.</div>
+    </div>
+
+    <!-- Option 2: Split with another payer -->
+    <div onclick="showDeclineSplitInfo()" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:10px; cursor:pointer; border:1.5px solid var(--line);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+        <div style="font-size:13px; font-weight:700; color:var(--ink);">Split with another payer</div>
+        <div style="font-family:'Anton',sans-serif; font-size:18px; color:var(--ink);" id="declineSplitAmt">$475 each</div>
+      </div>
+      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Invite a grandparent, co-parent, or sponsor to cover their share. Two separate payments, one roster spot.</div>
+    </div>
+
+    <!-- Option 3: Contact club -->
+    <div onclick="showDeclineClubContact()" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:20px; cursor:pointer; border:1.5px solid var(--line);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+        <div style="font-size:13px; font-weight:700; color:var(--ink);">Pay the club directly</div>
+        <div style="font-size:12px; color:var(--ink-soft);">Monthly plan →</div>
+      </div>
+      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;" id="declineClubSub">The club offers their own payment plan. We'll pass your details along so you don't start over.</div>
+    </div>
+
+    <div style="background:var(--paper-dim); border-radius:10px; padding:12px 14px;">
+      <p style="margin:0; font-size:12px; color:var(--ink-soft); line-height:1.5;"><b style="color:var(--ink);">Your club can see you tried.</b> Nobody has to make an awkward phone call — the club already knows you're working on it.</p>
+    </div>
+
+    <div class="footer-spacer"></div>
+    <button class="btn btn-secondary" onclick="goBack()">Go back</button>
   </div>
 
   <!-- SCREEN: parent settings (shell) -->
@@ -2048,6 +2207,232 @@
     <button class="btn btn-secondary" onclick="showScreen('club-select')">Back to sign in</button>
   </div>
 
+  <!-- SCREEN: family payment management -->
+  <div class="screen" id="screen-payment-mgmt">
+    <div class="eyebrow">Parent</div>
+    <h1 class="title" style="font-size:24px; margin-bottom:4px;" id="pmAthleteTitle">Jordan Rivera</h1>
+    <p class="subtitle" id="pmClubTitle" style="margin-bottom:16px;">Team Richmond AAU Basketball</p>
+
+    <!-- Status card -->
+    <div class="payment-mgmt-card">
+      <div class="payment-mgmt-label">Payment plan</div>
+      <div class="payment-mgmt-amount" id="pmTotalAmt">$950</div>
+      <div class="payment-mgmt-sub" id="pmPlanSub">4 monthly payments of $238</div>
+      <div style="border-top:1px solid rgba(255,255,255,0.12); margin-top:14px; padding-top:14px;">
+        <div class="payment-mgmt-row">
+          <span class="payment-mgmt-row-label">Payments made</span>
+          <span class="payment-mgmt-row-value" id="pmPaid">—</span>
+        </div>
+        <div class="payment-mgmt-row">
+          <span class="payment-mgmt-row-label">Remaining balance</span>
+          <span class="payment-mgmt-row-value" id="pmRemaining">—</span>
+        </div>
+        <div class="payment-mgmt-row">
+          <span class="payment-mgmt-row-label">Next payment</span>
+          <span class="payment-mgmt-row-value" id="pmNextDate">—</span>
+        </div>
+        <div class="payment-mgmt-row">
+          <span class="payment-mgmt-row-label">Card on file</span>
+          <span class="payment-mgmt-row-value" id="pmCard">Visa ···4821</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schedule -->
+    <div class="roster-section-label">Payment schedule</div>
+    <div id="pmScheduleList"></div>
+
+    <!-- Actions -->
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
+      <button class="btn btn-secondary" onclick="openStripeUpdateCard()">Update card on file</button>
+      <button class="btn btn-secondary" onclick="downloadReceipt()">Download receipt</button>
+    </div>
+
+    <div style="margin-top:20px; padding:14px; background:var(--paper-dim); border-radius:10px;">
+      <p style="margin:0; font-size:12.5px; color:var(--ink-soft); line-height:1.6;">
+        Payments are managed by PlayFund and processed via Stripe. To change a payment date or cancel, reply to your confirmation email or contact <a href="mailto:hello@getplayfund.com" style="color:var(--fund-green);">hello@getplayfund.com</a>.
+      </p>
+    </div>
+  </div>
+
+  <!-- SCREEN: FAQ / How it works -->
+  <div class="screen" id="screen-faq">
+    <div class="eyebrow">PlayFund</div>
+    <h1 class="title" style="font-size:26px; margin-bottom:6px;">How it works</h1>
+    <p class="subtitle" style="margin-bottom:4px;">Everything you need to know about PlayFund.</p>
+
+    <!-- For families -->
+    <div class="faq-section-label">For families</div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">What is PlayFund?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">PlayFund is a payment platform for youth sports. It lets your club get paid in full before the season starts, while you choose to pay in full today or spread payments over the season. There's no extra cost to you — the club covers the fee.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">Is this safe? Who handles my payment?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">All payments are processed by Stripe, the same technology used by Amazon, Lyft, and millions of other businesses. PlayFund never stores your card number or bank details. Your payment information is encrypted and PCI-compliant.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">What if I choose the installment plan?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">Your payments are split into equal monthly installments. Your club receives the full season dues upfront on Day 1 — PlayFund and its lending partner handle the collection from you over time. You'll receive a reminder email 2 days before each payment is charged.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">What if I miss a payment?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">If a payment fails, we'll notify you by email and try again automatically. You can update your card at any time from your confirmation email. Repeated missed payments may affect your athlete's enrollment — contact us as soon as possible if you're having trouble.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">Can I change my card or payment date?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">Yes. You can update your card on file any time before your next payment date. To change a payment date, contact hello@getplayfund.com — we'll do our best to accommodate. Changes must be requested at least 48 hours before the scheduled charge.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">Do I need to create an account?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">No. You don't need to download an app or create a PlayFund account. Your registration link is unique to your athlete. A receipt and payment schedule are emailed to you automatically after you register.</div>
+    </div>
+
+    <!-- For clubs -->
+    <div class="faq-section-label">For clubs</div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">How does the club advance work?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">Once your roster is locked, PlayFund's lending partner disburses the full season dues (less the 7.5% service fee) directly to your bank account — typically within 14 days of your roster lock date. Your club gets paid in full regardless of how families choose to pay.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">What if a family doesn't pay?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">That's PlayFund's problem, not yours. The advance to your club is non-recourse — if a family defaults on their installments, you keep the money. PlayFund and its lending partner absorb the default risk. You never have to chase a family for payment again.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">What does it cost the club?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">PlayFund charges a flat 7.5% service fee on total season dues, deducted from the advance before it lands in your account. There are no setup fees, monthly fees, or hidden costs. Families pay no extra fees.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">What do I need to get started?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">Your club's EIN, a bank account to receive the advance, and your athlete roster with parent emails. The bank connection is handled through Stripe — it takes about 5 minutes and PlayFund never sees your account credentials.</div>
+    </div>
+
+    <!-- About -->
+    <div class="faq-section-label">About PlayFund</div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">Who built PlayFund?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">PlayFund was founded by Jackson Watkins and Clyde-Blaise Niba. Jackson played college basketball at UNC Chapel Hill and has seen firsthand how dues collection stress affects youth sports programs. PlayFund is based in Richmond, Virginia.</div>
+    </div>
+
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-question">
+        <div class="faq-question-text">How do I contact PlayFund?</div>
+        <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="faq-answer">Email us at hello@getplayfund.com — we typically respond within a few hours. For club partnerships, reach Jackson directly at jackson@getplayfund.com.</div>
+    </div>
+
+    <div class="footer-spacer"></div>
+    <button class="btn btn-secondary" onclick="goBack()">Back</button>
+  </div>
+
+  <!-- SCREEN: combined / sibling plan -->
+  <div class="screen" id="screen-combined-plan">
+    <div class="eyebrow">Parent</div>
+    <div class="step-progress">
+      <div class="step-progress-item done"><div class="step-progress-dot"></div>Add athlete</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item active"><div class="step-progress-dot"></div>Choose payment</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item"><div class="step-progress-dot"></div>Pay</div>
+      <div class="step-progress-sep">›</div>
+      <div class="step-progress-item"><div class="step-progress-dot"></div>Confirmed</div>
+    </div>
+    <h1 class="title" style="font-size:26px; margin-bottom:6px;">Both players,<br>one plan.</h1>
+    <p class="subtitle" id="combinedPlanClub" style="margin-bottom:16px;">Team Richmond AAU Basketball</p>
+
+    <!-- Athletes in plan -->
+    <div id="combinedAthleteList" style="margin-bottom:4px;"></div>
+
+    <!-- Total -->
+    <div class="sibling-total-row">
+      <div class="sibling-total-label">Season total</div>
+      <div class="sibling-total-amt" id="combinedTotal">$0</div>
+    </div>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin:4px 0 20px;">No cap, no minimum. Adding a second athlete never breaks your payment plan.</p>
+
+    <!-- Pay options -->
+    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+
+      <!-- Pay in full -->
+      <div style="background:var(--paper-dim); border-radius:14px; padding:18px; border:1.5px solid var(--line);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); margin-bottom:3px;">Pay in full</div>
+            <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="combinedFullAmt">$0</div>
+          </div>
+          <div style="font-size:12px; color:var(--ink-soft); text-align:right; max-width:120px;">One charge today. Done for the season.</div>
+        </div>
+        <button onclick="openCombinedCheckout('full')" class="btn btn-primary" style="width:100%; margin-top:6px;">Pay in full →</button>
+      </div>
+
+      <!-- Installments -->
+      <div style="background:var(--ink); border-radius:14px; padding:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--fund-green); margin-bottom:3px;">Installment plan</div>
+            <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--white);" id="combinedInstAmt">$0<span style="font-size:14px; font-weight:400; color:rgba(255,255,255,0.5);">/mo</span></div>
+          </div>
+          <div style="font-size:12px; color:rgba(255,255,255,0.6); text-align:right; max-width:120px;" id="combinedInstSub">4 monthly payments</div>
+        </div>
+        <p style="font-size:12px; color:rgba(255,255,255,0.6); margin:0 0 12px; line-height:1.5;">No added cost to you. <span id="combinedClubName">Your club</span> covers the fee.</p>
+        <button onclick="openCombinedCheckout('bnpl')" style="width:100%; background:var(--fund-green); border:none; border-radius:10px; padding:13px 0; font-size:14px; font-weight:700; color:var(--white); cursor:pointer; font-family:'Inter',sans-serif;">Set up installments →</button>
+      </div>
+
+    </div>
+
+    <p style="font-size:11.5px; color:var(--ink-soft); text-align:center; line-height:1.6;">
+      Secured by Stripe · No PlayFund account required
+    </p>
+
+    <div class="footer-spacer"></div>
+    <button class="btn btn-secondary" onclick="goBack()">Pay athletes separately instead</button>
+  </div>
+
 </div>
 
 <!-- Stripe payment interstitial — opens Stripe checkout in a new tab -->
@@ -2084,6 +2469,29 @@
       <svg viewBox="0 0 24 24" fill="#635BFF" stroke="none"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.31 2.564-3.346 2.564-5.732 0-4.103-2.539-5.897-6.63-7.305z"/></svg>
       Powered by Stripe &middot; SSL encrypted
     </div>
+  </div>
+</div>
+
+<!-- Send reminder modal (outside app div, overlays everything) -->
+<div class="reminder-modal-backdrop" id="reminderModal">
+  <div class="reminder-modal">
+    <div class="reminder-modal-handle"></div>
+    <p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--fund-green); margin:0 0 6px;">Send reminders</p>
+    <h2 style="font-size:20px; font-weight:800; color:var(--ink); margin:0 0 10px;" id="reminderModalTitle">Send to unpaid families?</h2>
+    <p style="font-size:14px; color:var(--ink-soft); line-height:1.6; margin:0 0 20px;" id="reminderModalBody">A registration reminder email will be sent to each family who hasn't completed payment.</p>
+    <div style="background:var(--paper-dim); border-radius:10px; padding:14px; margin-bottom:20px;">
+      <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px;">
+        <span style="color:var(--ink-soft);">Families to contact</span>
+        <span style="font-weight:700; color:var(--ink);" id="reminderCount">0</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:13px;">
+        <span style="color:var(--ink-soft);">Already paid / funded</span>
+        <span style="font-weight:700; color:var(--fund-green);" id="reminderPaidCount">0</span>
+      </div>
+    </div>
+    <p id="reminderModalError" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:0 0 12px;"></p>
+    <button class="btn btn-primary" onclick="confirmSendReminders()" id="reminderSendBtn">Send reminders</button>
+    <button class="btn btn-secondary" onclick="closeReminderModal()" style="margin-top:10px;">Cancel</button>
   </div>
 </div>
 
@@ -2125,7 +2533,7 @@ var usStates = ["Virginia"];
 
   var WORKER_URL = 'https://playfund-worker.jacksonwwatkins.workers.dev';
 
-  var state = { club: null, team: null, selectedState: null, history: [], athletes: [], activeAthleteId: null };
+  var state = { club: null, team: null, selectedState: null, history: [], athletes: [], activeAthleteId: null, combinedPlan: null, teamAdminSession: null };
 
   // Cache for clubs loaded from the Worker — avoids re-fetching on every screen
   var clubCache = {};
@@ -2182,7 +2590,69 @@ var usStates = ["Virginia"];
       document.getElementById('splash').classList.add('done');
     }, 1300);
 
-    // Enter key → submit for all input screens
+    // Deep link handling — parse URL params to pre-populate parent flow
+    // Supports: ?code=BBALL1&athlete=UUID&method=full|bnpl
+    (async function handleDeepLink(){
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var code   = params.get('code');
+        var athId  = params.get('athlete');
+        var method = params.get('method'); // 'full' or 'bnpl'
+        if(!code) return;
+
+        var club = await fetchClub(code.toUpperCase());
+        if(!club) return;
+
+        // If athlete UUID provided, find or create the athlete in local state
+        if(athId){
+          // Check if athlete already registered locally
+          var existing = state.athletes.find(function(a){ return a.supabaseId === athId; });
+          if(!existing){
+            // Fetch athlete from Worker and register locally
+            try {
+              var res = await fetch(WORKER_URL + '/athlete/' + athId);
+              if(res.ok){
+                var data = await res.json();
+                var a = data.athlete;
+                if(a){
+                  var newAth = {
+                    id: 'deep_' + athId, supabaseId: athId,
+                    name: a.name, clubCode: code.toUpperCase(),
+                    teamId: a.team_id, paymentStatus: a.payment_status || 'unpaid'
+                  };
+                  state.athletes.push(newAth);
+                  saveAthletes(state.athletes);
+                  existing = newAth;
+                }
+              }
+            } catch(e){ console.warn('Deep link athlete fetch failed:', e); }
+          }
+
+          if(existing){
+            state.activeAthleteId = existing.id;
+            state.parentClub = club;
+            // Find team
+            var team = club.teams && club.teams.find(function(t){ return t.id === existing.teamId; });
+            if(team){
+              state.parentTeam = team;
+              openAthleteDetail(existing.id);
+              // If method specified, navigate directly to payment screen
+              if(method === 'full'){
+                setTimeout(function(){ showScreen('paynow'); }, 100);
+              } else if(method === 'bnpl'){
+                setTimeout(function(){ showScreen('terms'); }, 100);
+              }
+              return;
+            }
+          }
+        }
+
+        // No athlete ID — just pre-fill the club code
+        var codeEl = document.getElementById('codeInput');
+        if(codeEl) codeEl.value = code.toUpperCase();
+        enterParentMode();
+      } catch(e){ console.warn('Deep link handling error:', e); }
+    })();
     var enterMap = [
       // [inputId(s), submitFn]
       [['clubEmailInput', 'clubPasswordInput'],    function(){ submitClubLogin(); }],
@@ -2235,6 +2705,38 @@ var usStates = ["Virginia"];
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById('screen-parent-home').classList.add('active');
     document.getElementById('backBtn').style.display = 'flex';
+  }
+
+  // ---------- decline handling ----------
+  function showDeclineScreen(){
+    var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
+    var ct   = getAthleteClubTeam(athlete);
+    var dues = ct && ct.team ? (ct.team.dues || 0) : 950;
+    var clubName = ct && ct.club ? ct.club.name : 'your club';
+    var athleteName = athlete ? athlete.name : 'your athlete';
+    var el   = document.getElementById('declineFullAmt');
+    var sa   = document.getElementById('declineSplitAmt');
+    var sub  = document.getElementById('declineSub');
+    var csub = document.getElementById('declineClubSub');
+    if(el)   el.textContent   = '$' + dues.toLocaleString();
+    if(sa)   sa.textContent   = '$' + Math.round(dues/2).toLocaleString() + ' each';
+    if(sub)  sub.textContent  = "The installment plan couldn't be approved — but there are still a few ways to get " + athleteName + " on the roster.";
+    if(csub) csub.textContent = clubName + " offers their own payment plan. We'll pass your details along so you don't start over.";
+    showScreen('decline');
+  }
+
+  function showDeclineSplitInfo(){
+    var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
+    var ct   = getAthleteClubTeam(athlete);
+    var dues = ct && ct.team ? (ct.team.dues || 0) : 950;
+    alert('To split the cost, share your payment link with a grandparent, co-parent, or sponsor. They\'ll see the same page you did and can pay their $' + Math.round(dues/2) + ' share. Both payments go directly to the club.');
+  }
+
+  function showDeclineClubContact(){
+    var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
+    var ct      = getAthleteClubTeam(athlete);
+    var clubName = ct && ct.club ? ct.club.name : 'your club';
+    alert(clubName + ' has been notified that you tried the installment plan. Expect to hear from them within 1–2 business days about their own payment options.');
   }
 
   // ---------- club login (code + PIN) ----------
@@ -2628,6 +3130,14 @@ var usStates = ["Virginia"];
       });
     }
 
+    // Show/hide send reminders button
+    var remBtn = document.getElementById('sendRemindersBtn');
+    if(remBtn){
+      var unpaidCount = roster.filter(function(a){ return (a.payment_status||'unpaid') === 'unpaid'; }).length;
+      remBtn.style.display = unpaidCount > 0 ? 'block' : 'none';
+      remBtn.textContent = '\uD83D\uDCE7 Send reminders to ' + unpaidCount + ' unpaid ' + (unpaidCount === 1 ? 'family' : 'families');
+    }
+
     showScreen('roster');
   }
 
@@ -2803,6 +3313,14 @@ var usStates = ["Virginia"];
     showScreen('parent-home');
   }
 
+  function parentSignOut(){
+    state.athletes = [];
+    state.activeAthleteId = null;
+    state.parentClub = null;
+    try { localStorage.removeItem('playfund_athletes'); } catch(e){}
+    showScreen('home');
+  }
+
   function clearCodeError(){
     document.getElementById('codeError').textContent = '';
   }
@@ -2879,7 +3397,142 @@ var usStates = ["Virginia"];
       card.addEventListener('click', function(){ openAthleteDetail(athlete.id); });
       listEl.appendChild(card);
     });
+    updateSiblingPanel();
   }
+
+  // ---------- sibling / combined plan ----------
+  function getUnpaidAthletes(){
+    return state.athletes.filter(function(a){
+      return !a.paymentStatus; // null / undefined = not yet paid
+    });
+  }
+
+  function updateSiblingPanel(){
+    var panel = document.getElementById('siblingPlanPanel');
+    if(!panel) return;
+    var unpaid = getUnpaidAthletes();
+    // Show panel only if 2+ unpaid athletes exist from the same club
+    var clubGroups = {};
+    unpaid.forEach(function(a){
+      var ct = getAthleteClubTeam(a);
+      if(!ct.club) return;
+      var key = ct.club.code || ct.club.name;
+      if(!clubGroups[key]) clubGroups[key] = [];
+      clubGroups[key].push(a);
+    });
+    var multiGroup = Object.values(clubGroups).find(function(g){ return g.length >= 2; });
+    if(multiGroup){
+      var ct = getAthleteClubTeam(multiGroup[0]);
+      var names = multiGroup.map(function(a){ return a.name.split(' ')[0]; }).join(' & ');
+      document.getElementById('siblingPlanTitle').textContent = names + ', one plan.';
+      document.getElementById('siblingPlanSub').textContent =
+        'Pay for all your athletes at ' + ct.club.name + ' together in one checkout.';
+      panel.style.display = 'block';
+      // store club key for combined plan
+      panel.dataset.clubCode = ct.club.code || ct.club.id;
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+
+  function hideSiblingPanel(){
+    var panel = document.getElementById('siblingPlanPanel');
+    if(panel) panel.style.display = 'none';
+  }
+
+  function openCombinedPlan(){
+    // Find the group of unpaid athletes from the same club
+    var unpaid = getUnpaidAthletes();
+    var clubGroups = {};
+    unpaid.forEach(function(a){
+      var ct = getAthleteClubTeam(a);
+      if(!ct.club) return;
+      var key = ct.club.code || ct.club.name;
+      if(!clubGroups[key]) clubGroups[key] = { athletes: [], club: ct.club };
+      clubGroups[key].athletes.push({ athlete: a, team: ct.team });
+    });
+    var group = Object.values(clubGroups).find(function(g){ return g.athletes.length >= 2; });
+    if(!group) return;
+
+    state.combinedPlan = group;
+
+    // Populate the screen
+    var clubName = group.club.name;
+    document.getElementById('combinedPlanClub').textContent = clubName;
+    document.getElementById('combinedClubName').textContent = clubName;
+
+    // Build athlete list
+    var listEl = document.getElementById('combinedAthleteList');
+    listEl.innerHTML = '';
+    var totalDues = 0;
+    group.athletes.forEach(function(entry){
+      var dues = entry.team ? (entry.team.dues || 0) : 0;
+      totalDues += dues;
+      var row = document.createElement('div');
+      row.className = 'sibling-athlete-row';
+      row.innerHTML =
+        '<div>' +
+          '<div class="sibling-athlete-name">' + entry.athlete.name + '</div>' +
+          '<div class="sibling-athlete-sub">' + (entry.team ? entry.team.name : clubName) + '</div>' +
+        '</div>' +
+        '<div class="sibling-athlete-amt">$' + dues.toLocaleString() + '</div>';
+      listEl.appendChild(row);
+    });
+
+    var instAmt = Math.round(totalDues / 4);
+    document.getElementById('combinedTotal').textContent    = '$' + totalDues.toLocaleString();
+    document.getElementById('combinedFullAmt').textContent  = '$' + totalDues.toLocaleString();
+    document.getElementById('combinedInstAmt').textContent  = '$' + instAmt.toLocaleString();
+    document.getElementById('combinedInstSub').textContent  = '4 monthly payments · ' +
+      group.athletes.map(function(e){ return e.athlete.name.split(' ')[0]; }).join(' & ');
+
+    showScreen('combined-plan');
+  }
+
+  function openCombinedCheckout(method){
+    var group = state.combinedPlan;
+    if(!group) return;
+    var totalDues = group.athletes.reduce(function(s, e){
+      return s + (e.team ? (e.team.dues || 0) : 0);
+    }, 0);
+    // Use the appropriate Stripe link — in live mode these would be
+    // dynamically created Checkout Sessions with the combined amount
+    var link = method === 'full' ? STRIPE_LINKS['pay-card'] : STRIPE_LINKS['klarna'];
+    var confirmScreen = method === 'full' ? 'confirm-now' : 'confirm-terms';
+
+    // Mark all athletes in the plan
+    group.athletes.forEach(function(entry){
+      var athlete = entry.athlete;
+      athlete.paymentStatus = method === 'full' ? 'full' : 'bnpl';
+      athlete.termWeeks = method === 'full' ? null : 4;
+      athlete.history = buildAthleteHistory(athlete);
+    });
+    saveAthletes(state.athletes);
+    renderAthleteList();
+
+    // Populate confirmation for combined plan
+    var names = group.athletes.map(function(e){ return e.athlete.name.split(' ')[0]; }).join(' and ');
+    if(method === 'full'){
+      var nowTitle = document.getElementById('confirmNowTitle');
+      var nowSub   = document.getElementById('confirmNowSub');
+      var nowSched = document.getElementById('confirmNowSchedule');
+      if(nowTitle) nowTitle.textContent = names + ' are registered.';
+      if(nowSub)   nowSub.textContent   = group.club.name + ' has been paid in full for the season.';
+      if(nowSched) nowSched.innerHTML   = '<div class="payment-schedule-title">Your payment</div>' +
+        renderScheduleRow({ label: 'Combined season dues — paid in full', date: new Date(), amount: totalDues, status: 'paid' });
+    } else {
+      var termTitle = document.getElementById('confirmTermsTitle');
+      var termSub   = document.getElementById('confirmTermsSub');
+      if(termTitle) termTitle.textContent = names + ' are registered.';
+      if(termSub)   termSub.textContent   = group.club.name + ' has been paid in full. Your 4 monthly payments are scheduled below.';
+    }
+
+    // Open Stripe then show confirmation
+    window.open(link, '_blank');
+    showScreen(confirmScreen);
+  }
+
+
 
   function openAthleteDetail(athleteId){
     var athlete = state.athletes.find(function(a){ return a.id === athleteId; });
@@ -2899,6 +3552,14 @@ var usStates = ["Virginia"];
     var chevron = document.getElementById('breakdownChevron');
     if(panel) panel.classList.add('open');
     if(chevron) chevron.classList.add('open');
+
+    // Show manage plan button if they have an active BNPL plan
+    var mgmtBtn = document.getElementById('managePlanBtn');
+    if(mgmtBtn){
+      var hasPlan = athlete.paymentStatus === 'bnpl' || athlete.paymentStatus === 'bnpl_active';
+      mgmtBtn.style.display = hasPlan ? 'block' : 'none';
+    }
+
     showScreen('athlete-detail');
   }
 
@@ -2977,6 +3638,194 @@ var usStates = ["Virginia"];
       });
     }
     return items;
+  }
+
+  // ---------- payment management ----------
+  function openPaymentMgmt(){
+    var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
+    if(!athlete) return;
+    var ct = getAthleteClubTeam(athlete);
+    var dues = ct && ct.team ? (ct.team.dues || 0) : 0;
+    var history = athlete.history || buildAthleteHistory(athlete);
+    var weeks = athlete.termWeeks || 4;
+    var perPmt = Math.round(dues / weeks);
+    var paid = history.filter(function(h){ return h.status === 'paid'; }).length;
+    var remaining = dues - (paid * perPmt);
+    var next = history.find(function(h){ return h.status !== 'paid'; });
+
+    document.getElementById('pmAthleteTitle').textContent = athlete.name;
+    document.getElementById('pmClubTitle').textContent = ct && ct.club ? ct.club.name : '';
+    document.getElementById('pmTotalAmt').textContent = '$' + dues.toLocaleString();
+    document.getElementById('pmPlanSub').textContent = weeks + ' payments of $' + perPmt.toLocaleString();
+    document.getElementById('pmPaid').textContent = paid + ' of ' + weeks;
+    document.getElementById('pmRemaining').textContent = '$' + Math.max(0, remaining).toLocaleString();
+    document.getElementById('pmNextDate').textContent = next
+      ? (next.date instanceof Date ? next.date.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : String(next.date))
+      : 'All paid ✓';
+    document.getElementById('pmCard').textContent = 'Visa ···4821'; // placeholder until live Stripe
+
+    // Build schedule
+    var listEl = document.getElementById('pmScheduleList');
+    listEl.innerHTML = '';
+    history.forEach(function(h){
+      var isPaid = h.status === 'paid';
+      var dateStr = h.date instanceof Date
+        ? h.date.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+        : String(h.date);
+      var row = document.createElement('div');
+      row.className = 'roster-row';
+      row.style.setProperty('--status-color', 'var(' + (isPaid ? '--paid' : '--unpaid') + ')');
+      row.style.setProperty('--status-bg', 'var(' + (isPaid ? '--paid-bg' : '--unpaid-bg') + ')');
+      row.innerHTML =
+        '<div class="roster-icon">' +
+          (isPaid ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+                  : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>') +
+        '</div>' +
+        '<div class="roster-name-block">' +
+          '<div class="roster-name">' + h.label + '</div>' +
+          '<div class="roster-age">' + dateStr + '</div>' +
+        '</div>' +
+        '<div class="roster-right">' +
+          '<div style="font-size:15px; font-weight:700; color:var(--ink);">$' + (h.amount || perPmt).toLocaleString() + '</div>' +
+          '<div class="status-pill ' + (isPaid ? 'status-paid' : 'status-unpaid') + '" style="margin-top:3px;">' + (isPaid ? 'Paid' : 'Scheduled') + '</div>' +
+        '</div>';
+      listEl.appendChild(row);
+    });
+
+    showScreen('payment-mgmt');
+  }
+
+  function openStripeUpdateCard(){
+    alert('Card update is handled via Stripe. In the live version, this opens Stripe\'s secure card update page. Check your confirmation email for a management link, or contact hello@getplayfund.com.');
+  }
+
+  function downloadReceipt(){
+    alert('Your receipt was emailed when you registered. Check your inbox for an email from PlayFund. Contact hello@getplayfund.com if you need a copy.');
+  }
+
+  // ---------- send reminders ----------
+  // ---------- roster CSV export ----------
+  function exportRosterCSV(){
+    var c = state.club;
+    var team = state.team;
+    if(!c || !team) return;
+
+    var athletes = team.athletes || [];
+    if(!athletes.length){
+      alert('No athletes on this roster yet.');
+      return;
+    }
+
+    var statusLabels = {
+      paid_full: 'Paid in Full', bnpl_active: 'BNPL Active',
+      bnpl_complete: 'BNPL Complete', unpaid: 'Not Paid', defaulted: 'Defaulted'
+    };
+    var methodLabels = {
+      card: 'Card', ach: 'ACH', klarna: 'Klarna / Installment', null: ''
+    };
+
+    var dues = team.dues || (team.dues_cents ? team.dues_cents / 100 : 0);
+
+    var headers = ['Athlete Name', 'Age', 'Parent Email', 'Parent Phone',
+                   'Club', 'Team', 'Payment Status', 'Payment Method', 'Amount Due'];
+
+    var rows = athletes.map(function(a){
+      var status = a.payment_status || 'unpaid';
+      var method = a.payment_method || '';
+      return [
+        csvEscape(a.name || ''),
+        a.age || '',
+        csvEscape(a.parent_email || ''),
+        csvEscape(a.parent_phone || ''),
+        csvEscape(c.name || ''),
+        csvEscape(team.name || ''),
+        statusLabels[status] || status,
+        methodLabels[method] || method,
+        '$' + dues.toLocaleString()
+      ].join(',');
+    });
+
+    var csv = [headers.join(',')].concat(rows).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    var date = new Date().toISOString().split('T')[0];
+    a.href     = url;
+    a.download = (c.name + ' - ' + team.name + ' - ' + date + '.csv')
+                   .replace(/[^a-z0-9\-_ \.]/gi, '');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function csvEscape(val){
+    if(!val) return '';
+    // Wrap in quotes if value contains comma, quote, or newline
+    if(/[,"\n]/.test(val)){
+      return '"' + val.replace(/"/g, '""') + '"';
+    }
+    return val;
+  }
+
+  function openReminderModal(){
+    var team = state.team;
+    var athletes = (team && team.athletes) ? team.athletes : [];
+    var unpaid = athletes.filter(function(a){ return (a.payment_status || 'unpaid') === 'unpaid'; });
+    var paid   = athletes.length - unpaid.length;
+
+    document.getElementById('reminderModalTitle').textContent = 'Send to ' + unpaid.length + ' unpaid ' + (unpaid.length === 1 ? 'family' : 'families') + '?';
+    document.getElementById('reminderModalBody').textContent = 'A registration reminder email will be sent to each family who hasn\'t completed payment for ' + (team ? team.name : 'this team') + '.';
+    document.getElementById('reminderCount').textContent     = unpaid.length;
+    document.getElementById('reminderPaidCount').textContent = paid;
+    document.getElementById('reminderModalError').textContent = '';
+    document.getElementById('reminderSendBtn').textContent   = 'Send ' + unpaid.length + ' reminder' + (unpaid.length !== 1 ? 's' : '');
+
+    var modal = document.getElementById('reminderModal');
+    modal.classList.add('open');
+  }
+
+  function closeReminderModal(){
+    document.getElementById('reminderModal').classList.remove('open');
+  }
+
+  async function confirmSendReminders(){
+    var team = state.team;
+    var club = state.club;
+    if(!team || !club){ closeReminderModal(); return; }
+
+    var btn = document.getElementById('reminderSendBtn');
+    var errEl = document.getElementById('reminderModalError');
+    btn.textContent = 'Sending\u2026';
+    btn.disabled = true;
+    errEl.textContent = '';
+
+    try {
+      var res = await fetch(WORKER_URL + '/remind', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team_id: team.id, club_code: club.code })
+      });
+      var data = await res.json();
+      closeReminderModal();
+      if(res.ok){
+        alert('Sent ' + data.sent + ' reminder' + (data.sent !== 1 ? 's' : '') + ' successfully.' + (data.skipped && data.skipped.length ? ' ' + data.skipped.length + ' skipped (no email on file).' : ''));
+      } else {
+        alert('Error: ' + (data.error || 'Failed to send reminders.'));
+      }
+    } catch(e) {
+      errEl.textContent = 'Network error. Please try again.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ---------- FAQ ----------
+  function toggleFaq(item){
+    var isOpen = item.classList.contains('open');
+    // Close all open items
+    document.querySelectorAll('.faq-item.open').forEach(function(el){ el.classList.remove('open'); });
+    if(!isOpen) item.classList.add('open');
   }
 
   function openPaymentHistory(){

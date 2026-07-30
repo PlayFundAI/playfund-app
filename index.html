@@ -477,6 +477,13 @@
   }
   .field input:focus, .field select:focus { outline: none; border-color: var(--ink); }
   .field input[type="date"] { font-size: 13.5px; }
+  .field input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.5; cursor: pointer;
+    filter: invert(0.3);
+  }
+  .field input[type="date"]::-webkit-datetime-edit {
+    font-family: 'Inter', sans-serif;
+  }
   .field-row { display: flex; gap: 10px; }
   .field-row .field { flex: 1; min-width: 0; }
   .field-row .field input, .field-row .field select {
@@ -2075,11 +2082,11 @@
     <p class="subtitle" style="margin-bottom:20px;">A few quick details. No account, no card, no call with sales.</p>
     <div class="field">
       <label>Club name</label>
-      <input type="text" id="reg1ClubName" placeholder="e.g. Northside Select" autocomplete="off">
+      <input type="text" id="reg1ClubName" tabindex="1" placeholder="e.g. Northside Select" autocomplete="off">
     </div>
     <div class="field">
       <label>Sport</label>
-      <select id="reg1Sport" style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:var(--white); appearance:none;">
+      <select id="reg1Sport" tabindex="2" style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:var(--white); appearance:none;">
         <option value="">Select a sport</option>
         <option value="Basketball">Basketball</option>
         <option value="Soccer">Soccer</option>
@@ -2092,11 +2099,11 @@
     <div class="field-row">
       <div class="field">
         <label>City</label>
-        <input type="text" id="reg1City" placeholder="e.g. Richmond" autocomplete="off">
+        <input type="text" id="reg1City" tabindex="3" placeholder="e.g. Richmond" autocomplete="off">
       </div>
       <div class="field">
         <label>State</label>
-        <select id="reg1State" style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:var(--white); appearance:none;">
+        <select id="reg1State" tabindex="4" style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:var(--white); appearance:none;">
           <option value="">Select</option>
           <option>Alabama</option><option>Alaska</option><option>Arizona</option><option>Arkansas</option>
           <option>California</option><option>Colorado</option><option>Connecticut</option><option>Delaware</option>
@@ -2117,24 +2124,24 @@
     <div class="field-row">
       <div class="field">
         <label>Season start</label>
-        <input type="date" id="reg1SeasonStart">
+        <input type="date" id="reg1SeasonStart" tabindex="5">
       </div>
       <div class="field">
         <label>Season end</label>
-        <input type="date" id="reg1SeasonEnd">
+        <input type="date" id="reg1SeasonEnd" tabindex="6">
       </div>
     </div>
     <div class="field">
       <label>Roughly how many athletes?</label>
-      <input type="number" id="reg1Athletes" placeholder="e.g. 80" inputmode="numeric">
+      <input type="number" id="reg1Athletes" tabindex="7" placeholder="e.g. 80" inputmode="numeric">
     </div>
     <div class="field">
       <label>Your name</label>
-      <input type="text" id="reg1Name" placeholder="e.g. Travis Johnson" autocomplete="name">
+      <input type="text" id="reg1Name" tabindex="8" placeholder="e.g. Travis Johnson" autocomplete="name">
     </div>
     <div class="field">
       <label>Your email</label>
-      <input type="email" id="reg1Email" placeholder="you@yourclub.com" autocomplete="email">
+      <input type="email" id="reg1Email" tabindex="9" placeholder="you@yourclub.com" autocomplete="email">
     </div>
     <p id="reg1Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
     <div class="footer-spacer"></div>
@@ -2189,14 +2196,14 @@
       </div>
     </div>
     <h1 class="title" style="font-size:26px; margin-bottom:6px;">Paste your roster</h1>
-    <p class="subtitle" style="margin-bottom:16px;">Straight from a spreadsheet — one athlete per line. Include name, team, and email if you have them. Any order is fine.</p>
+    <p class="subtitle" style="margin-bottom:16px;">Optional — paste from a spreadsheet, one athlete per line. You can always add athletes later from your dashboard.</p>
     <textarea id="reg3Roster" rows="8" placeholder="Maya Rivera, 12U Girls, mrivera@email.com&#10;Jordan Rivera, 14U Boys, mrivera@email.com&#10;Elena Whitfield, 16U Girls, dwhit@email.com&#10;..." style="width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink); resize:none; box-sizing:border-box;"></textarea>
     <div id="reg3ParseResult" style="font-size:12.5px; color:var(--fund-green); margin:8px 0 4px; min-height:18px;"></div>
     <p style="font-size:11.5px; color:var(--ink-soft); margin-bottom:16px; line-height:1.5;">You can fix missing emails later — athletes just won't get their payment link until you do.</p>
     <p id="reg3Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
     <div class="footer-spacer"></div>
     <button class="btn btn-primary" onclick="regStep3Next()">Continue</button>
-    <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:12px;">No file formatting required</p>
+    <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:12px;">No roster yet? Skip and add athletes from your dashboard later.</p>
   </div>
 
   <!-- Step 4: Confirmation / next steps -->
@@ -4120,9 +4127,9 @@ var usStates = ["Virginia"];
         '<input type="text" placeholder="Fee label" value="' + fee.label + '" ' +
           'style="flex:1.5; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; font-family:\'Inter\',sans-serif; font-size:13px;" ' +
           'oninput="regState.fees[' + i + '].label=this.value;">' +
-        '<input type="number" placeholder="$" value="' + fee.amount + '" inputmode="numeric" ' +
+        '<input type="text" placeholder="$" value="' + (fee.amount ? Number(fee.amount).toLocaleString() : '') + '" inputmode="numeric" ' +
           'style="flex:1; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; font-family:\'Inter\',sans-serif; font-size:13px;" ' +
-          'oninput="regState.fees[' + i + '].amount=parseFloat(this.value)||0; updateReg2Preview();">' +
+          'oninput="var v=this.value.replace(/[^0-9]/g,\'\'); regState.fees[' + i + '].amount=parseFloat(v)||0; this.value=v?Number(v).toLocaleString():\'\'; updateReg2Preview();">' +
         (i > 0 ? '<button onclick="regRemoveFee(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:18px;padding:0 4px;">×</button>' : '<span style="width:26px;"></span>');
       listEl.appendChild(row);
     });
@@ -4194,7 +4201,13 @@ var usStates = ["Virginia"];
     var missing = parsed.filter(function(a){ return !a.email; }).length;
     if(missing) resultEl.textContent += '  ·  ' + missing + ' missing an email';
 
-    if(!parsed.length){ errEl.textContent = 'Paste at least one athlete.'; return; }
+    if(!parsed.length){
+      // Roster is optional — skip parsing and submit with empty roster
+      regState.roster = [];
+      regState.teams  = [];
+      submitRegistration();
+      return;
+    }
     errEl.textContent = '';
     submitRegistration();
   }

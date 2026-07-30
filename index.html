@@ -4513,6 +4513,10 @@ var usStates = ["Virginia"];
       var liveTeam = (data.club.teams || []).find(function(t){ return t.id === team.id; });
       if(!liveTeam){ document.getElementById('adminRosterList').innerHTML = '<p>Team not found.</p>'; return; }
 
+      // Update state with live athlete data so reminder modal can use it
+      state.adminCurrentTeam = liveTeam;
+      state.adminCurrentClub = data.club;
+
       var athletes = liveTeam.athletes || [];
       var dues = liveTeam.dues_cents / 100;
       var advanceAmt = Math.round(dues * 0.95);

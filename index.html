@@ -2028,6 +2028,35 @@
     <button class="btn btn-primary" onclick="submitInviteAdmin()">Send invite</button>
   </div>
 
+  <!-- SCREEN: set password (invite / password reset) -->
+  <div class="screen" id="screen-set-password" style="padding:0;">
+    <div style="background:var(--ink); padding:22px 24px 20px; flex-shrink:0;">
+      <div style="margin-bottom:14px;">
+        <span style="font-size:22px; font-weight:800; color:var(--white);">Play</span><span style="font-size:22px; font-weight:800; color:var(--fund-green);">Fund</span>
+      </div>
+      <p style="margin:0 0 4px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--fund-green);" id="setPasswordEyebrow">Team Access</p>
+      <h1 style="margin:0; font-size:24px; font-weight:800; color:var(--white); line-height:1.2;" id="setPasswordTitle">Set your password</h1>
+      <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.6); line-height:1.5;" id="setPasswordClubLine">Set a password to access your PlayFund dashboard.</p>
+    </div>
+    <div style="padding:24px 24px 0; flex:1; display:flex; flex-direction:column; overflow-y:auto;">
+      <div class="field" style="margin-bottom:14px;">
+        <label style="color:var(--ink-soft);">Your email</label>
+        <input type="email" id="setPasswordEmail" readonly style="background:var(--paper-dim); color:var(--ink-soft); cursor:default;" placeholder="your@email.com">
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label>New password</label>
+        <input type="password" id="newPasswordInput" placeholder="At least 8 characters" autocomplete="new-password">
+      </div>
+      <div class="field" style="margin-bottom:6px;">
+        <label>Confirm password</label>
+        <input type="password" id="confirmPasswordInput" placeholder="Repeat password" autocomplete="new-password">
+      </div>
+      <p id="setPasswordError" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 16px;"></p>
+      <div class="footer-spacer"></div>
+      <button class="btn btn-primary" onclick="submitSetPassword()" style="margin-bottom:32px;">Set password & sign in</button>
+    </div>
+  </div>
+
   <!-- ══ CLUB REGISTRATION FLOW ══════════════════════════════════════════ -->
   <div class="screen" id="screen-club-register-1">
     <div class="eyebrow" style="color:var(--ink);">Register your club</div>
@@ -2531,9 +2560,11 @@ var usStates = ["Virginia"];
     };
   }
 
-  var WORKER_URL = 'https://playfund-worker.jacksonwwatkins.workers.dev';
+  var WORKER_URL     = 'https://playfund-worker.jacksonwwatkins.workers.dev';
+  var SUPABASE_URL   = 'https://klnbdvwasnnqszlhawbl.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsbmJkdndhc25ucXN6bGhhd2JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NjU0MzcsImV4cCI6MjEwMDM0MTQzN30.zv517GCJHteLuR-uDAY9uKkan6DsnkN5_Quqk2JXmcU';
 
-  var state = { club: null, team: null, selectedState: null, history: [], athletes: [], activeAthleteId: null, combinedPlan: null, teamAdminSession: null };
+  var state = { club: null, team: null, selectedState: null, history: [], athletes: [], activeAthleteId: null, combinedPlan: null, teamAdminSession: null, authToken: null, authType: null };
 
   // Cache for clubs loaded from the Worker — avoids re-fetching on every screen
   var clubCache = {};
@@ -2589,6 +2620,46 @@ var usStates = ["Virginia"];
     setTimeout(function(){
       document.getElementById('splash').classList.add('done');
     }, 1300);
+
+    // Detect Supabase invite or password recovery token in URL hash
+    (function handleAuthRedirect(){
+      try {
+        var hash = window.location.hash;
+        if(!hash) return;
+        var params = {};
+        hash.replace('#', '').split('&').forEach(function(pair){
+          var parts = pair.split('=');
+          params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
+        });
+        var type = params['type'];
+        var token = params['access_token'];
+        if(!token) return;
+
+        state.authToken = token;
+        state.authType  = type;
+
+        // Decode JWT to get email
+        try {
+          var payload = JSON.parse(atob(token.split('.')[1]));
+          var email   = payload.email || '';
+          var emailEl = document.getElementById('setPasswordEmail');
+          if(emailEl && email) emailEl.value = email;
+        } catch(e){}
+
+        if(type === 'invite'){
+          document.getElementById('setPasswordTitle').textContent    = 'Welcome to PlayFund';
+          document.getElementById('setPasswordEyebrow').textContent  = 'Team Access';
+          document.getElementById('setPasswordClubLine').textContent = 'Set a password to access your PlayFund dashboard.';
+        } else if(type === 'recovery'){
+          document.getElementById('setPasswordTitle').textContent    = 'Reset your password';
+          document.getElementById('setPasswordEyebrow').textContent  = 'Password Reset';
+          document.getElementById('setPasswordClubLine').textContent = 'Choose a new password for your account.';
+        }
+
+        history.replaceState(null, '', window.location.pathname);
+        setTimeout(function(){ showScreen('set-password'); }, 1100);
+      } catch(e){ console.warn('Auth redirect error:', e); }
+    })();
 
     // Deep link handling — parse URL params to pre-populate parent flow
     // Supports: ?code=BBALL1&athlete=UUID&method=full|bnpl
@@ -3931,7 +4002,81 @@ var usStates = ["Virginia"];
   // Keep backward compat with old passcode function name (now unused but referenced in Enter map)
   function submitAdminLogin(){ submitAdminEmailLogin(); }
 
-  // ---------- Club registration flow ----------
+  // ---------- set password (invite / recovery) ----------
+  async function submitSetPassword(){
+    var pw1   = document.getElementById('newPasswordInput').value;
+    var pw2   = document.getElementById('confirmPasswordInput').value;
+    var errEl = document.getElementById('setPasswordError');
+    if(!pw1 || pw1.length < 8){ errEl.textContent = 'Password must be at least 8 characters.'; return; }
+    if(pw1 !== pw2){ errEl.textContent = 'Passwords don\'t match.'; return; }
+    errEl.textContent = 'Setting password\u2026'; errEl.classList.add('loading-msg');
+
+    try {
+      // Set password using the invite/recovery token
+      var res = await fetch(SUPABASE_URL + '/auth/v1/user', {
+        method: 'PUT',
+        headers: {
+          'apikey':        SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + state.authToken,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({ password: pw1 }),
+      });
+      var data = await res.json();
+      if(!res.ok){ errEl.textContent = data.message || data.error_description || 'Failed to set password.'; errEl.classList.remove('loading-msg'); return; }
+
+      // Check what role this user has
+      var userId = data.id;
+      var role   = null;
+      if(userId){
+        try {
+          var profileRes = await fetch(SUPABASE_URL + '/rest/v1/user_profiles?id=eq.' + userId + '&select=role', {
+            headers: {
+              'apikey':        SUPABASE_ANON_KEY,
+              'Authorization': 'Bearer ' + state.authToken,
+            }
+          });
+          var profileData = await profileRes.json();
+          role = profileData?.[0]?.role || null;
+        } catch(e){ console.warn('Profile fetch error:', e); }
+      }
+
+      errEl.textContent = ''; errEl.classList.remove('loading-msg');
+      state.authToken = null; state.authType = null;
+      document.getElementById('newPasswordInput').value     = '';
+      document.getElementById('confirmPasswordInput').value = '';
+
+      // Route based on role
+      if(role === 'playfund_admin'){
+        // Store session and go straight to admin dashboard
+        var email = document.getElementById('setPasswordEmail').value;
+        // Log them in via the Worker to get a proper session
+        try {
+          var loginRes = await fetch(WORKER_URL + '/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, password: pw1 })
+          });
+          var loginData = await loginRes.json();
+          if(loginRes.ok && loginData.access_token){
+            try { sessionStorage.setItem('pf_admin_token', loginData.access_token); } catch(e){}
+            loadAdminClubs();
+            return;
+          }
+        } catch(e){ console.warn('Auto-login error:', e); }
+        // Fallback — go to admin login screen
+        showScreen('admin-login');
+      } else {
+        // Club admin or unknown — go to club login
+        var emailEl = document.getElementById('setPasswordEmail');
+        var clubEmailEl = document.getElementById('clubEmailInput');
+        if(emailEl && clubEmailEl) clubEmailEl.value = emailEl.value;
+        showScreen('club-select');
+      }
+    } catch(e){
+      errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg');
+    }
+  }
   var regState = {
     clubName: '', sport: '', city: '', state: '',
     seasonStart: '', seasonEnd: '',
@@ -4073,7 +4218,7 @@ var usStates = ["Virginia"];
         body: JSON.stringify({
           name:          regState.clubName,
           sport:         regState.sport,
-          city:          regState.city   ? regState.city + ', ' + regState.state : null,
+          city:          regState.city   || null,
           state:         regState.state  || null,
           admin_email:   regState.adminEmail,
           admin_name:    regState.adminName,

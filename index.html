@@ -1278,51 +1278,12 @@
       </div>
     </div>
 
-    <div class="advance-card">
-      <div class="advance-label">What the club gets, per athlete — Paid in Full</div>
-      <div class="advance-bridge">
-        <div class="advance-block">
-          <div class="advance-amt" id="advanceFullFamilyAmt">$1,000</div>
-          <div class="advance-sub">Family pays<br>in full</div>
-        </div>
-        <div class="advance-arrow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          <span class="advance-rate-tag">100% &middot; no fee</span>
-        </div>
-        <div class="advance-block">
-          <div class="advance-amt" id="advanceFullClubAmt">$1,000</div>
-          <div class="advance-sub">Club receives<br>in full</div>
-        </div>
-      </div>
-      <div class="advance-footnote" id="advanceFullFootnote">Hawks Travel Basketball receives the full season dues directly from the family — no PlayFund fee, since nothing was advanced.</div>
-    </div>
-
-    <div class="advance-card">
-      <div class="advance-label">What the club gets, per athlete — BNPL</div>
-      <div class="advance-bridge">
-        <div class="advance-block">
-          <div class="advance-amt">$1,000</div>
-          <div class="advance-sub">Family pays<br>over time</div>
-        </div>
-        <div class="advance-arrow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          <span class="advance-rate-tag">95% advance</span>
-        </div>
-        <div class="advance-block">
-          <div class="advance-amt small">$950</div>
-          <div class="advance-sub">Club receives<br>upfront, today</div>
-        </div>
-      </div>
-      <div class="advance-footnote" id="advanceBnplFootnote">Hawks Travel Basketball gets paid in full before the season starts — PlayFund and its lending partner take on collection risk and earn a 5% financing fee for advancing the balance.</div>
-    </div>
-
     <div class="roster-section-label">Roster &middot; 0 athletes</div>
     <div id="rosterList"></div>
     <div style="display:flex; gap:10px; margin-top:12px;">
       <button class="btn btn-secondary" onclick="showAddAthleteScreen()" style="flex:1;">+ Add athlete</button>
       <button class="btn btn-secondary" onclick="showInviteAdminScreen()" style="flex:1;">+ Invite coach</button>
     </div>
-    <button class="btn btn-secondary" id="sendRemindersBtn" onclick="openReminderModal()" style="margin-top:8px; width:100%; display:none;">📧 Send reminders to unpaid families</button>
     <button class="btn btn-secondary" onclick="exportRosterCSV()" style="margin-top:8px; width:100%;">⬇ Export roster as CSV</button>
   </div>
 
@@ -1976,6 +1937,8 @@
     </div>
 
     <div id="adminRosterList"></div>
+
+    <button class="btn btn-secondary" id="adminSendRemindersBtn" onclick="openAdminReminderModal()" style="margin-top:12px; width:100%;">📧 Send reminders to unpaid families</button>
   </div>
 
   <!-- SCREEN: team admin roster (team admins see only their team) -->
@@ -2571,7 +2534,7 @@ var usStates = ["Virginia"];
   var SUPABASE_URL   = 'https://klnbdvwasnnqszlhawbl.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsbmJkdndhc25ucXN6bGhhd2JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NjU0MzcsImV4cCI6MjEwMDM0MTQzN30.zv517GCJHteLuR-uDAY9uKkan6DsnkN5_Quqk2JXmcU';
 
-  var state = { club: null, team: null, selectedState: null, history: [], athletes: [], activeAthleteId: null, combinedPlan: null, teamAdminSession: null, authToken: null, authType: null };
+  var state = { club: null, team: null, selectedState: null, history: [], athletes: [], activeAthleteId: null, combinedPlan: null, teamAdminSession: null, authToken: null, authType: null, adminCurrentTeam: null, adminCurrentClub: null };
 
   // Cache for clubs loaded from the Worker — avoids re-fetching on every screen
   var clubCache = {};
@@ -3846,6 +3809,30 @@ var usStates = ["Virginia"];
     return val;
   }
 
+  function openAdminReminderModal(){
+    // Called from admin team roster — use state.adminCurrentTeam
+    var team = state.adminCurrentTeam;
+    var club = state.adminCurrentClub;
+    if(!team || !club){ alert('No team loaded.'); return; }
+
+    var athletes = team.athletes || [];
+    var unpaid   = athletes.filter(function(a){ return (a.payment_status || 'unpaid') === 'unpaid'; });
+    var paid     = athletes.length - unpaid.length;
+
+    document.getElementById('reminderModalTitle').textContent = 'Send to ' + unpaid.length + ' unpaid ' + (unpaid.length === 1 ? 'family' : 'families') + '?';
+    document.getElementById('reminderModalBody').textContent  = 'A payment reminder email will be sent to each unpaid family on ' + team.name + '.';
+    document.getElementById('reminderCount').textContent      = unpaid.length;
+    document.getElementById('reminderPaidCount').textContent  = paid;
+    document.getElementById('reminderModalError').textContent = '';
+    document.getElementById('reminderSendBtn').textContent    = 'Send ' + unpaid.length + ' reminder' + (unpaid.length !== 1 ? 's' : '');
+
+    // Temporarily set state.team and state.club so confirmSendReminders works
+    state.team = team;
+    state.club = club;
+
+    document.getElementById('reminderModal').classList.add('open');
+  }
+
   function openReminderModal(){
     var team = state.team;
     var athletes = (team && team.athletes) ? team.athletes : [];
@@ -4508,6 +4495,8 @@ var usStates = ["Virginia"];
   }
 
   async function openAdminTeamRoster(club, team){
+    state.adminCurrentClub = club;
+    state.adminCurrentTeam = team;
     document.getElementById('adminRosterTitle').textContent = club.name + ' — ' + team.name;
     document.getElementById('adminRosterSub').textContent = '$' + Math.round(team.dues_cents/100).toLocaleString() + ' season dues';
     document.getElementById('adminRosterList').innerHTML = '<p style="color:var(--ink-soft); font-size:14px; padding:16px 0;">Loading…</p>';

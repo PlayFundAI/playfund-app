@@ -120,198 +120,29 @@
     background: var(--paper);
   }
 
-  /* ══ DESKTOP LAYOUT (768px+) ══════════════════════════════
-     Three contexts get different treatments:
-     1. Parent/payment flow  — centered, max 600px, clean checkout feel
-     2. Club admin flow      — sidebar + content, max 960px
-     3. PlayFund admin flow  — full-width dashboard, max 1200px
-  ══════════════════════════════════════════════════════════ */
+  /* ── Desktop: clean phone-card ── */
   @media (min-width: 768px) {
     body {
-      background: var(--paper-dim);
+      background: #E8EEEE;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 20px 60px;
       min-height: 100vh;
-      align-items: stretch;
-      padding: 0;
     }
-
     #app {
-      max-width: 100%;
-      min-height: 100vh;
-      flex-direction: row;
-      align-items: stretch;
+      max-width: 480px;
+      width: 100%;
+      min-height: calc(100vh - 100px);
+      border-radius: 24px;
+      box-shadow:
+        0 2px 4px rgba(0,70,67,0.04),
+        0 8px 24px rgba(0,70,67,0.10),
+        0 24px 64px rgba(0,70,67,0.12);
+      overflow: hidden;
     }
-
-    /* ── Desktop sidebar ── */
-    .desktop-sidebar {
-      display: flex;
-      flex-direction: column;
-      width: 220px;
-      min-width: 220px;
-      background: var(--ink);
-      padding: 28px 0 32px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      overflow-y: auto;
-    }
-
-    .desktop-sidebar-logo {
-      padding: 0 24px 28px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      margin-bottom: 20px;
-    }
-
-    .desktop-sidebar-logo .wordmark {
-      font-size: 22px;
-      color: var(--white);
-    }
-    .desktop-sidebar-logo .wordmark .fund { color: var(--fund-green); }
-
-    .desktop-nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 24px;
-      font-size: 13.5px; font-weight: 600;
-      color: rgba(255,255,255,0.6);
-      cursor: pointer;
-      border-radius: 0;
-      transition: color 0.15s, background 0.15s;
-      text-decoration: none;
-      border: none; background: none;
-      font-family: 'Inter', sans-serif;
-      width: 100%; text-align: left;
-    }
-    .desktop-nav-item:hover { color: var(--white); background: rgba(255,255,255,0.06); }
-    .desktop-nav-item.active { color: var(--white); background: rgba(255,255,255,0.1); }
-    .desktop-nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-
-    .desktop-nav-section-label {
-      font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.08em;
-      color: rgba(255,255,255,0.3);
-      padding: 16px 24px 6px;
-    }
-
-    .desktop-sidebar-footer {
-      margin-top: auto; padding: 16px 24px 0;
-      border-top: 1px solid rgba(255,255,255,0.1);
-    }
-    .desktop-sidebar-user {
-      font-size: 12.5px; color: rgba(255,255,255,0.5);
-      margin-bottom: 10px; line-height: 1.4;
-    }
-    .desktop-sidebar-signout {
-      font-size: 12px; font-weight: 600;
-      color: rgba(255,255,255,0.4);
-      background: none; border: none; cursor: pointer;
-      font-family: 'Inter', sans-serif; padding: 0;
-      transition: color 0.15s;
-    }
-    .desktop-sidebar-signout:hover { color: rgba(255,255,255,0.7); }
-
-    /* ── Desktop content area ── */
-    .desktop-content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow-y: auto;
-      background: var(--paper-dim);
-    }
-
-    /* ── Desktop header bar ── */
-    .desktop-topbar {
-      display: flex; align-items: center;
-      padding: 0 36px;
-      height: 60px;
-      background: var(--paper);
-      border-bottom: 1px solid var(--line);
-      position: sticky; top: 0; z-index: 40;
-      gap: 12px;
-    }
-    .desktop-topbar-title {
-      font-size: 15px; font-weight: 700; color: var(--ink);
-    }
-    .desktop-topbar-sub {
-      font-size: 13px; color: var(--ink-soft); margin-left: 4px;
-    }
-    .desktop-topbar-actions { margin-left: auto; display: flex; gap: 10px; }
-
-    /* ── Desktop screen wrapper ── */
-    .desktop-screen-wrap {
-      flex: 1;
-      padding: 32px 36px 48px;
-      max-width: 860px;
-    }
-
-    /* Screens inside desktop layout */
-    .screen {
-      padding: 0;
-      animation: none;
-      overflow-y: visible;
-    }
-
-    /* ── Header hidden on desktop (sidebar takes its place) ── */
-    .header { display: none; }
-
-    /* ── Wider content for specific screens ── */
-    .desktop-wide .desktop-screen-wrap { max-width: 1100px; }
-
-    /* ── Two-column grid for roster + detail ── */
-    .desktop-roster-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-
-    /* ── Card grid for clubs/teams ── */
-    .desktop-card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 14px;
-      margin-bottom: 20px;
-    }
-
-    /* ── Stat row on desktop ── */
-    .desktop-stat-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 24px;
-    }
-    .desktop-stat-card {
-      background: var(--paper);
-      border: 1.5px solid var(--line);
-      border-radius: var(--r-lg);
-      padding: 18px 20px;
-    }
-    .desktop-stat-num {
-      font-family: 'Anton', sans-serif;
-      font-size: 32px; color: var(--ink); line-height: 1;
-      margin-bottom: 4px;
-    }
-    .desktop-stat-label {
-      font-size: 11px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.06em;
-      color: var(--ink-faint);
-    }
-
-    /* ── Buttons narrower on desktop ── */
-    .btn { max-width: 400px; }
-    .btn-full-desktop { max-width: 100%; }
-
-    /* ── Form max-width ── */
-    .field { max-width: 480px; }
-    .field-row { max-width: 480px; }
-
-    /* ── Role cards wider ── */
-    .role-row { gap: 20px; max-width: 480px; align-self: center; }
-
-    /* ── Footer spacer smaller on desktop ── */
-    .footer-spacer { min-height: 24px; }
-  }
-
-  @media (min-width: 1024px) {
-    .desktop-sidebar { width: 240px; min-width: 240px; }
-    .desktop-screen-wrap { padding: 36px 48px 60px; }
+    .header { border-radius: 0; }
+    .btn { max-width: 100%; }
   }
 
   /* ── Header ── */
@@ -1078,26 +909,6 @@
 </div>
 
 <div id="app">
-
-  <!-- Desktop sidebar (hidden on mobile, shown on desktop via CSS) -->
-  <div class="desktop-sidebar" id="desktopSidebar" style="display:none;">
-    <div class="desktop-sidebar-logo">
-      <div class="wordmark"><span class="play">Play</span><span class="fund">Fund</span></div>
-    </div>
-    <div id="desktopNavItems"></div>
-    <div class="desktop-sidebar-footer">
-      <div class="desktop-sidebar-user" id="desktopSidebarUser"></div>
-      <button class="desktop-sidebar-signout" id="desktopSidebarSignout">Sign out</button>
-    </div>
-  </div>
-
-  <!-- Desktop content wrapper (flex: 1 on desktop) -->
-  <div class="desktop-content" id="desktopContent" style="display:contents;">
-    <div class="desktop-topbar" id="desktopTopbar" style="display:none;">
-      <span class="desktop-topbar-title" id="desktopTopbarTitle"></span>
-      <span class="desktop-topbar-sub" id="desktopTopbarSub"></span>
-      <div class="desktop-topbar-actions" id="desktopTopbarActions"></div>
-    </div>
 
   <div class="header" id="header">
     <button class="back-btn" id="backBtn" onclick="goBack()" style="display:none;" aria-label="Go back">
@@ -2470,8 +2281,7 @@
       Powered by Stripe &middot; SSL encrypted
     </div>
   </div>
-  </div><!-- /.desktop-content -->
-</div><!-- /#app -->
+</div>
 
 <!-- Send reminder modal (outside app div, overlays everything) -->
 <div class="reminder-modal-backdrop" id="reminderModal">
@@ -2717,157 +2527,13 @@ var usStates = ["Virginia"];
 
   // ---------- navigation ----------
   var screenOrder = [];
-  // ── Desktop layout manager ──────────────────────────────────────────────
-  var IS_DESKTOP = window.matchMedia('(min-width: 768px)').matches;
-
-  // Screen context groups
-  var SCREEN_CONTEXT = {
-    // No sidebar (centered payment/auth flows)
-    home: 'none', 'parent-code': 'none', 'set-password': 'none',
-    'club-register-1': 'none', 'club-register-2': 'none',
-    'club-register-3': 'none', 'club-register-4': 'none',
-    faq: 'none',
-
-    // Parent flow
-    'parent-home': 'parent', 'athlete-detail': 'parent', paynow: 'parent',
-    terms: 'parent', 'terms-method': 'parent', 'confirm-now': 'parent',
-    'confirm-terms': 'parent', 'payment-history': 'parent', decline: 'parent',
-    'parent-settings': 'parent', 'combined-plan': 'parent', 'payment-mgmt': 'parent',
-
-    // Club admin flow
-    'club-select': 'club', 'club-overview': 'club', roster: 'club',
-    'add-team': 'club', 'add-athlete-admin': 'club', 'club-settings': 'club',
-    'invite-admin': 'club', 'team-admin-roster': 'club',
-
-    // PlayFund admin flow
-    'admin-login': 'none', 'admin-clubs': 'admin', 'admin-club-detail': 'admin',
-    'admin-team-roster': 'admin',
-  };
-
-  var ADMIN_NAV = [
-    { label: 'All Clubs',    screen: 'admin-clubs',       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>' },
-  ];
-
-  var CLUB_NAV = [
-    { label: 'Overview',     screen: 'club-overview',     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' },
-    { label: 'Settings',     screen: 'club-settings',     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>' },
-  ];
-
-  var PARENT_NAV = [
-    { label: 'My athletes',  screen: 'parent-home',       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
-    { label: 'How it works', screen: 'faq',                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' },
-  ];
-
-  function updateDesktopLayout(screenName){
-    if(!IS_DESKTOP) return;
-
-    var context = SCREEN_CONTEXT[screenName] || 'none';
-    var sidebar  = document.getElementById('desktopSidebar');
-    var content  = document.getElementById('desktopContent');
-    var topbar   = document.getElementById('desktopTopbar');
-    var navItems = document.getElementById('desktopNavItems');
-    var app      = document.getElementById('app');
-
-    if(context === 'none'){
-      // Centered layout — no sidebar
-      sidebar.style.display  = 'none';
-      content.style.display  = 'flex';
-      content.style.flexDirection = 'column';
-      content.style.alignItems = 'center';
-      content.style.justifyContent = 'flex-start';
-      content.style.background = 'var(--paper-dim)';
-      topbar.style.display   = 'none';
-      app.style.flexDirection = 'row';
-
-      // Center the active screen
-      var activeScreen = document.getElementById('screen-' + screenName);
-      if(activeScreen){
-        activeScreen.style.maxWidth = '520px';
-        activeScreen.style.width    = '100%';
-        activeScreen.style.margin   = '0 auto';
-        activeScreen.style.background = 'var(--paper)';
-        activeScreen.style.minHeight   = '100vh';
-        activeScreen.style.padding     = '28px 28px 48px';
-      }
-    } else {
-      // Sidebar layout
-      sidebar.style.display  = 'flex';
-      content.style.display  = 'flex';
-      content.style.flexDirection = 'column';
-      content.style.alignItems = 'stretch';
-      content.style.justifyContent = 'flex-start';
-      content.style.background = 'var(--paper-dim)';
-      topbar.style.display   = 'flex';
-      app.style.flexDirection = 'row';
-
-      var activeScreen = document.getElementById('screen-' + screenName);
-      if(activeScreen){
-        activeScreen.style.maxWidth = '';
-        activeScreen.style.width    = '';
-        activeScreen.style.margin   = '0';
-        activeScreen.style.background = 'transparent';
-        activeScreen.style.minHeight   = '';
-        activeScreen.style.padding     = '28px 36px 48px';
-      }
-
-      // Build nav items
-      var nav = context === 'admin' ? ADMIN_NAV
-              : context === 'club'  ? CLUB_NAV
-              : PARENT_NAV;
-
-      navItems.innerHTML = nav.map(function(item){
-        var isActive = screenName === item.screen;
-        return '<button class="desktop-nav-item' + (isActive ? ' active' : '') + '" onclick="showScreen(\'' + item.screen + '\')">' +
-          item.icon + item.label + '</button>';
-      }).join('');
-
-      // Update topbar
-      var titleEl = document.getElementById('desktopTopbarTitle');
-      var titles = {
-        'admin-clubs': 'All Clubs', 'admin-club-detail': 'Club Detail',
-        'admin-team-roster': 'Team Roster', 'club-overview': 'Club Overview',
-        'roster': 'Team Roster', 'parent-home': 'My Athletes',
-        'athlete-detail': 'Athlete', 'faq': 'How it works',
-      };
-      if(titleEl) titleEl.textContent = titles[screenName] || '';
-
-      // Sidebar user info
-      var userEl = document.getElementById('desktopSidebarUser');
-      var signoutEl = document.getElementById('desktopSidebarSignout');
-      if(context === 'admin' && userEl){
-        userEl.textContent = 'PlayFund Admin';
-        if(signoutEl) signoutEl.onclick = function(){ adminSignOut(); };
-      } else if(context === 'club' && userEl && state.club){
-        userEl.textContent = state.club.name;
-        if(signoutEl) signoutEl.onclick = function(){ clubSignOut(); };
-      } else if(context === 'parent' && userEl){
-        userEl.textContent = 'Parent view';
-        if(signoutEl) signoutEl.onclick = function(){ parentSignOut(); };
-      }
-    }
-  }
-
-  window.matchMedia('(min-width: 768px)').addEventListener('change', function(e){
-    IS_DESKTOP = e.matches;
-  });
-
   function showScreen(name, isRoot){
     var current = document.querySelector('.screen.active');
     if(current && !isRoot) screenOrder.push(current.id.replace('screen-',''));
-    document.querySelectorAll('.screen').forEach(function(s){
-      s.classList.remove('active');
-      // Reset desktop inline styles when switching
-      s.style.maxWidth = '';
-      s.style.width = '';
-      s.style.margin = '';
-      s.style.background = '';
-      s.style.minHeight = '';
-      s.style.padding = '';
-    });
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
     document.getElementById('screen-' + name).classList.add('active');
-    document.getElementById('backBtn').style.display = IS_DESKTOP ? 'none' : (name === 'home') ? 'none' : 'flex';
+    document.getElementById('backBtn').style.display = (name === 'home') ? 'none' : 'flex';
     window.scrollTo(0,0);
-    updateDesktopLayout(name);
   }
   function goBack(){
     var prev = screenOrder.pop();

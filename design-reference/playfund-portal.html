@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PlayFund — Portal screens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --field:#0B3D2E;
+  --field-lift:#12513D;
+  --ink:#0F1614;
+  --ink-2:#41504A;
+  --ink-3:#77857F;
+  --ash:#EEF1EF;
+  --chalk:#FFFFFF;
+  --rule:#DDE3E0;
+  --rule-soft:#EAEEEC;
+  --live:#1E9E6A;
+  --flare:#C97F1E;
+  --stop:#B8433C;
+  --shadow:0 1px 2px rgba(15,22,20,.05),0 12px 34px -14px rgba(15,22,20,.22);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--ash);color:var(--ink);
+  font-family:'Instrument Sans',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+
+/* ============ MASTHEAD ============ */
+.mast{padding:46px 0 30px;border-bottom:1px solid var(--rule)}
+.eyebrow{
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--field);margin-bottom:14px;
+}
+.mast h1{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;
+  font-size:clamp(30px,4.6vw,50px);line-height:1.02;letter-spacing:-.028em;
+  margin:0 0 14px;max-width:19ch;
+}
+.mast p{font-size:16px;line-height:1.6;color:var(--ink-2);max-width:60ch;margin:0}
+
+/* ============ VIEW SWITCH ============ */
+.switch{
+  display:flex;gap:0;margin:26px 0 0;border:1px solid var(--ink);
+  width:fit-content;background:var(--chalk);
+}
+.switch button{
+  font-family:'DM Mono',monospace;font-size:11.5px;letter-spacing:.1em;
+  text-transform:uppercase;padding:11px 22px;border:0;background:transparent;
+  cursor:pointer;color:var(--ink);
+}
+.switch button + button{border-left:1px solid var(--ink)}
+.switch button[aria-selected="true"]{background:var(--ink);color:var(--chalk)}
+
+.view{display:block;padding:34px 0 20px}
+.view + .view{border-top:1px solid var(--rule);margin-top:14px}
+
+.section-head{padding-bottom:20px}
+.section-tag{
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--field);display:block;margin-bottom:8px;
+}
+.section-head h2{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;
+  font-size:clamp(22px,3vw,30px);letter-spacing:-.022em;margin:0;
+}
+
+
+
+/* ============ STAGE ============ */
+.stage{display:block}
+.stage-club{display:grid;grid-template-columns:1fr 330px;gap:52px;align-items:start}
+@media (max-width:900px){
+  .stage-club{grid-template-columns:1fr;gap:34px}
+}
+
+.filmstrip{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:18px;
+  margin-bottom:36px;align-items:start;
+}
+@media (max-width:1200px){.filmstrip{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){.filmstrip{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.filmstrip{grid-template-columns:1fr;max-width:352px;margin-left:auto;margin-right:auto}}
+.step-cap{
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);padding:9px 20px 0;
+}
+
+/* ---- phone ---- */
+.phone{
+  width:100%;border:7px solid var(--ink);border-radius:26px;
+  background:var(--chalk);overflow:hidden;box-shadow:var(--shadow);
+}
+.phone-bar{
+  background:var(--chalk);padding:9px 20px 3px;display:flex;
+  justify-content:space-between;font-family:'DM Mono',monospace;
+  font-size:10.5px;color:var(--ink);
+}
+.screen{padding:4px 20px 22px;min-height:558px;display:flex;flex-direction:column}
+
+/* ---- desktop ---- */
+.laptop{
+  border:1px solid var(--rule);border-radius:10px;background:var(--chalk);
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.laptop-bar{
+  background:#F7F9F8;border-bottom:1px solid var(--rule);padding:10px 16px;
+  display:flex;align-items:center;gap:8px;
+}
+.tl{width:9px;height:9px;border-radius:50%;background:var(--rule)}
+.laptop-url{
+  margin-left:8px;font-family:'DM Mono',monospace;font-size:10.5px;color:var(--ink-3);
+}
+
+/* ============ PARENT UI ============ */
+.brandline{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 0 14px;border-bottom:1px solid var(--rule-soft);
+}
+.brandline .pf{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;
+  font-size:14px;letter-spacing:-.01em;color:var(--field);
+}
+.brandline .who{font-size:11.5px;color:var(--ink-3)}
+
+.prog{display:flex;gap:5px;padding:15px 0 3px}
+.prog i{height:3px;flex:1;background:var(--rule);border-radius:2px}
+.prog i.on{background:var(--field)}
+.prog-lab{
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);padding:8px 0 16px;
+}
+
+.scr-h{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;
+  font-size:23px;line-height:1.14;letter-spacing:-.022em;margin:0 0 7px;
+}
+.scr-sub{font-size:13.4px;line-height:1.52;color:var(--ink-2);margin:0 0 18px}
+
+/* receipt — the signature element */
+.receipt{border-top:1.5px solid var(--ink);margin-bottom:4px}
+.rline{
+  display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding:11px 0;border-bottom:1px solid var(--rule-soft);
+}
+.rline .lbl{font-size:13.4px;line-height:1.35}
+.rline .lbl small{display:block;font-size:11px;color:var(--ink-3);margin-top:2px;line-height:1.35}
+.rline .amt{
+  font-family:'DM Mono',monospace;font-size:13.4px;font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.rline.est .lbl,.rline.est .amt{color:var(--ink-3)}
+.rline.tot{border-bottom:0;border-top:1.5px solid var(--ink);padding-top:13px;margin-top:2px}
+.rline.tot .lbl{font-weight:700;font-size:14.5px}
+.rline.tot .amt{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+}
+.stamp{
+  margin-top:14px;border:1px solid var(--rule);background:#F7FAF8;
+  padding:11px 12px;font-size:12.2px;line-height:1.5;color:var(--ink-2);
+}
+.stamp b{color:var(--ink);font-weight:600}
+
+/* kid rows */
+.kid{
+  display:flex;align-items:center;gap:12px;padding:13px 0;
+  border-bottom:1px solid var(--rule-soft);
+}
+.kid .ini{
+  width:34px;height:34px;border-radius:50%;background:var(--field);color:var(--chalk);
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:13px;
+}
+.kid .nm{flex:1;font-size:13.6px;font-weight:600;line-height:1.3}
+.kid .nm small{display:block;font-weight:400;font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.kid .amt{font-family:'DM Mono',monospace;font-size:13px;font-variant-numeric:tabular-nums}
+.addkid{
+  width:100%;margin-top:12px;padding:11px;background:transparent;
+  border:1px dashed var(--rule);color:var(--ink-2);font-family:'Instrument Sans',sans-serif;
+  font-size:13px;cursor:pointer;
+}
+.addkid:hover{border-color:var(--field);color:var(--field)}
+
+/* pay options */
+.payopt{
+  border:1px solid var(--rule);padding:14px;margin-bottom:10px;cursor:pointer;
+  background:var(--chalk);display:block;width:100%;text-align:left;
+  font-family:'Instrument Sans',sans-serif;
+}
+.payopt[data-sel="true"]{border:1.5px solid var(--field);background:#F7FAF8}
+.payopt .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.payopt .ttl{font-size:14px;font-weight:700;letter-spacing:-.005em}
+.payopt .big{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:20px;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.payopt .sub{font-size:12px;color:var(--ink-2);margin-top:5px;line-height:1.45}
+.payopt .free{color:var(--live);font-weight:600}
+
+/* ---- onboarding elements ---- */
+.field{margin-bottom:11px}
+.field label{
+  display:block;font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:5px;
+}
+.input{
+  border:1px solid var(--rule);padding:10px 11px;font-size:13.4px;background:var(--chalk);
+}
+.input.dim{color:var(--ink-3);letter-spacing:.12em}
+.input.stripe{
+  border-color:var(--field);color:var(--field);font-weight:600;
+}
+.feeline{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 0;border-bottom:1px solid var(--rule-soft);font-size:13.2px;
+}
+.feeline .v{font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}
+.feeline.add{color:var(--ink-3);border-bottom:0}
+.preview{
+  border:1.5px solid var(--field);background:#F5FAF8;padding:13px 14px;margin:14px 0;
+}
+.preview-lab{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--field);margin-bottom:5px;
+}
+.preview-num{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:28px;
+  letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1;color:var(--field);
+}
+.preview-sub{font-size:11.5px;color:var(--ink-2);margin-top:6px}
+.paste{
+  border:1px dashed var(--rule);background:#FAFBFB;padding:11px 12px;
+  min-height:96px;margin-bottom:12px;
+}
+.paste-txt{
+  font-family:'DM Mono',monospace;font-size:10.5px;line-height:1.75;color:var(--ink-2);
+}
+.parsed{border-top:1px solid var(--rule)}
+.parsed-row{
+  display:flex;justify-content:space-between;align-items:center;padding:9px 0;
+  border-bottom:1px solid var(--rule-soft);font-size:12.4px;
+}
+.parsed-row.ok span:last-child{color:var(--live);font-weight:700}
+.parsed-row.fix span:last-child{
+  color:var(--flare);font-weight:600;font-size:11.5px;
+  border:1px solid #EBD9B8;padding:2px 8px;background:#FEF9F0;
+}
+.linkbox{border:1px solid var(--rule);padding:12px 13px;margin-bottom:10px}
+.linkbox-lab{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:5px;
+}
+.linkbox-url{
+  font-family:'DM Mono',monospace;font-size:13px;color:var(--field);font-weight:500;
+  word-break:break-all;
+}
+.sendrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sendbtn{
+  border:1px solid var(--ink);padding:10px;text-align:center;font-size:12.6px;font-weight:600;
+}
+.sendbtn:first-child{background:var(--field);color:var(--chalk);border-color:var(--field)}
+.honest{
+  margin-top:auto;border-left:3px solid var(--flare);background:#FEF9F0;
+  padding:12px 13px;
+}
+.honest-lab{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.11em;
+  text-transform:uppercase;color:#8A5710;margin-bottom:5px;font-weight:500;
+}
+.honest p{margin:0;font-size:11.8px;line-height:1.5;color:var(--ink-2)}
+
+.cta{
+  width:100%;margin-top:auto;padding:14px;background:var(--field);color:var(--chalk);
+  border:0;font-family:'Instrument Sans',sans-serif;font-size:14.5px;font-weight:600;
+  cursor:pointer;letter-spacing:-.005em;
+}
+.cta:hover{background:var(--field-lift)}
+.cta.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--rule);margin-top:8px}
+.cta.ghost:hover{border-color:var(--ink-2);background:transparent}
+.trust{
+  display:flex;align-items:center;justify-content:center;gap:6px;padding-top:11px;
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--ink-3);letter-spacing:.03em;
+}
+
+/* schedule */
+.sched{border-top:1px solid var(--rule);margin:4px 0 0}
+.srow{
+  display:flex;justify-content:space-between;align-items:center;padding:11px 0;
+  border-bottom:1px solid var(--rule-soft);
+}
+.srow .d{font-size:13px}
+.srow .d small{display:block;font-size:11px;color:var(--ink-3);margin-top:2px}
+.srow .a{font-family:'DM Mono',monospace;font-size:13px;font-variant-numeric:tabular-nums}
+.srow .a.paid{color:var(--live)}
+
+.banner{
+  border-left:3px solid var(--live);background:#F4FBF7;padding:13px 14px;margin-bottom:16px;
+}
+.banner.warn{border-left-color:var(--flare);background:#FEF9F0}
+.banner h4{
+  margin:0 0 4px;font-size:13.8px;font-weight:700;letter-spacing:-.008em;
+  font-family:'Bricolage Grotesque',sans-serif;
+}
+.banner p{margin:0;font-size:12.4px;line-height:1.5;color:var(--ink-2)}
+
+/* ============ CLUB UI ============ */
+.club-top{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:16px 22px;border-bottom:1px solid var(--rule);flex-wrap:wrap;
+}
+.club-top .pf{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:15px;color:var(--field);
+}
+.club-top .org{font-size:13px;color:var(--ink-2)}
+.club-top .org b{color:var(--ink);font-weight:600}
+
+.payout{
+  padding:26px 22px 24px;border-bottom:1px solid var(--rule);
+}
+.payout .lab{
+  font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:9px;
+}
+.payout .num{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:800;
+  font-size:clamp(38px,6vw,62px);line-height:.94;letter-spacing:-.035em;
+  font-variant-numeric:tabular-nums;margin:0;
+}
+.payout .when{font-size:14px;color:var(--ink-2);margin-top:11px}
+.payout .when b{color:var(--field);font-weight:600}
+
+.ledger{padding:22px}
+.ledger-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.ledger-h h3{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:17px;
+  letter-spacing:-.018em;margin:0;
+}
+.ledger-h .note{font-size:12.2px;color:var(--ink-3)}
+
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin-bottom:20px}
+.tri div{background:var(--chalk);padding:14px 15px}
+.tri .k{
+  font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:7px;
+  display:flex;align-items:center;gap:6px;
+}
+.tri .k i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.tri .live i{background:var(--live)} .tri .flare i{background:var(--flare)} .tri .stop i{background:var(--stop)}
+.tri .v{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:25px;
+  letter-spacing:-.025em;font-variant-numeric:tabular-nums;line-height:1;
+}
+.tri .v small{font-size:12.5px;font-weight:400;color:var(--ink-3);letter-spacing:0;margin-left:5px}
+@media (max-width:620px){.tri{grid-template-columns:1fr}}
+
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tscroll table{min-width:440px}
+table{width:100%;border-collapse:collapse}
+thead th{
+  text-align:left;font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--ink-3);padding:0 12px 9px 0;
+  border-bottom:1px solid var(--ink);font-weight:400;
+}
+thead th:last-child,tbody td:last-child{text-align:right;padding-right:0}
+tbody td{padding:12px 12px 12px 0;border-bottom:1px solid var(--rule-soft);font-size:13.2px;vertical-align:middle}
+tbody td.name{font-weight:600}
+tbody td.name small{display:block;font-weight:400;font-size:11.5px;color:var(--ink-3);margin-top:2px}
+tbody td.amt{font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;
+  font-size:10.5px;letter-spacing:.05em;padding:4px 9px;border:1px solid var(--rule);
+  white-space:nowrap;
+}
+.pill i{width:6px;height:6px;border-radius:50%}
+.pill.live{color:#146B48;border-color:#BFE3D2;background:#F4FBF7}
+.pill.live i{background:var(--live)}
+.pill.flare{color:#8A5710;border-color:#EBD9B8;background:#FEF9F0}
+.pill.flare i{background:var(--flare)}
+.pill.stop{color:#8E322C;border-color:#EBC7C4;background:#FDF5F4}
+.pill.stop i{background:var(--stop)}
+.linkbtn{
+  background:none;border:0;padding:0;font-family:'Instrument Sans',sans-serif;
+  font-size:12.6px;color:var(--field);text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer;
+}
+
+.actionbar{
+  margin-top:20px;border:1px solid var(--rule);background:#F7FAF8;padding:15px 16px;
+  display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+}
+.actionbar p{margin:0;font-size:13px;line-height:1.5;color:var(--ink-2);max-width:56ch}
+.actionbar p b{color:var(--ink);font-weight:600}
+.actionbar button{
+  background:var(--field);color:var(--chalk);border:0;padding:10px 16px;
+  font-family:'Instrument Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;
+  white-space:nowrap;
+}
+.actionbar button:hover{background:var(--field-lift)}
+
+/* ============ ANNOTATION PANEL ============ */
+.notes{align-self:start}
+.notes.wide{border-top:1px solid var(--ink);padding-top:22px}
+.notes h3{
+  font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:15px;
+  letter-spacing:-.015em;margin:0 0 4px;
+}
+.notes .intro{font-size:12.8px;line-height:1.55;color:var(--ink-2);margin:0 0 16px}
+.nlist{margin:0;padding:0;list-style:none;border-top:1px solid var(--ink)}
+.notes.wide .nlist{
+  border-top:0;display:grid;grid-template-columns:repeat(2,1fr);gap:0 40px;
+}
+@media (max-width:760px){.notes.wide .nlist{grid-template-columns:1fr}}
+.nlist li{padding:13px 0;border-bottom:1px solid var(--rule-soft)}
+.nlist h4{margin:0 0 4px;font-size:13.2px;font-weight:700;line-height:1.3;letter-spacing:-.008em}
+.nlist p{margin:0;font-size:12.4px;line-height:1.5;color:var(--ink-2)}
+.nlist .src{
+  display:block;margin-top:6px;font-family:'DM Mono',monospace;font-size:9.5px;
+  color:var(--ink-3);letter-spacing:.03em;line-height:1.45;
+}
+.nlist .vs{
+  display:block;margin-top:6px;padding-left:9px;border-left:2px solid var(--stop);
+  font-size:11.8px;line-height:1.45;color:var(--ink-2);
+}
+.nlist .vs b{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--stop);display:block;margin-bottom:2px;font-weight:500;
+}
+
+footer{
+  margin-top:10px;padding:26px 0 54px;border-top:1px solid var(--rule);
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--ink-3);
+  letter-spacing:.03em;line-height:1.8;
+}
+@media (max-width:560px){
+  .wrap{padding:0 16px}
+  .screen{padding:4px 15px 20px}
+  .phone{border-width:7px;border-radius:30px}
+  .payout,.ledger{padding-left:15px;padding-right:15px}
+  .club-top{padding:14px 15px}
+  .payout .num{font-size:clamp(34px,10vw,46px)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+@media print{
+  body{background:#fff}
+  .mast .switch{display:none}
+  .view{padding:24px 0}
+  .view + .view{page-break-before:always;break-before:page;border-top:0;margin-top:0}
+  .notes{position:static}
+  .phone,.laptop{box-shadow:none;border-color:#999}
+  a[href]::after{content:""}
+
+  .section-head,.filmstrip,.stage-club,.payout{page-break-inside:avoid;break-inside:avoid}
+  .phone,.laptop{page-break-inside:avoid;break-inside:avoid}
+  .nlist li{page-break-inside:avoid;break-inside:avoid}
+  .notes.wide .nlist{page-break-before:avoid;break-before:avoid}
+  .ledger{page-break-inside:avoid;break-inside:avoid}
+  table{page-break-inside:avoid;break-inside:avoid}
+
+  .filmstrip{
+    display:block !important;
+    max-width:400px;margin:0 auto;
+  }
+  .filmstrip .phone{
+    margin:0 0 26px;page-break-after:always;break-after:page;
+  }
+  .filmstrip .phone:last-child{page-break-after:avoid;break-after:avoid}
+  .notes.wide .nlist{grid-template-columns:1fr !important}
+
+  /* club layout: full width, table must reflow not clip */
+  .stage-club{display:block !important}
+  .stage-club .laptop{margin-bottom:28px}
+  .stage-club .notes{page-break-before:always;break-before:page}
+  .tscroll{overflow:visible !important}
+  .tscroll table{min-width:0 !important;width:100% !important;table-layout:fixed}
+  thead th{font-size:8.5px;letter-spacing:.06em}
+  tbody td{font-size:11px;padding:9px 8px 9px 0;word-break:break-word}
+  tbody td.name small{font-size:9.5px}
+  .pill{font-size:8.5px;padding:3px 6px;white-space:normal}
+  table th:nth-child(1),table td:nth-child(1){width:24%}
+  table th:nth-child(2),table td:nth-child(2){width:31%}
+  table th:nth-child(3),table td:nth-child(3){width:26%}
+  table th:nth-child(4),table td:nth-child(4){width:19%}
+
+  /* force backgrounds to actually print */
+  *,*::before,*::after{
+    -webkit-print-color-adjust:exact !important;
+    print-color-adjust:exact !important;
+    color-adjust:exact !important;
+  }
+
+  /* progress bar: thicken + border fallback so it reads even if fills drop */
+  .prog{gap:4px}
+  .prog i{
+    height:5px;background:#D8DEDB !important;
+    border:0.5pt solid #B6C0BB;border-radius:2px;
+  }
+  .prog i.on{background:var(--field) !important;border-color:var(--field)}
+
+  /* green buttons: keep fill, and never let white text sit on white */
+  .cta,.sendbtn:first-child{
+    background:var(--field) !important;color:#FFFFFF !important;
+    border:1pt solid var(--field) !important;
+  }
+  .cta.ghost{background:transparent !important;color:var(--ink-2) !important;border:1pt solid var(--rule) !important}
+
+  /* other tinted surfaces */
+  .stamp{background:#F5F8F6 !important;border:0.5pt solid var(--rule)}
+  .preview{background:#F2F8F5 !important;border:1pt solid var(--field) !important}
+  .banner{background:#F1FAF5 !important}
+  .banner.warn,.honest{background:#FDF7EC !important}
+  .payopt[data-sel="true"]{background:#F5FAF8 !important;border:1pt solid var(--field) !important}
+  .kid .ini{background:var(--field) !important;color:#FFFFFF !important}
+  .input.stripe{border:1pt solid var(--field) !important}
+  .paste{background:#FAFBFB !important}
+  .pill.live{background:#F1FAF5 !important;border-color:#BFE3D2 !important}
+  .pill.flare{background:#FDF7EC !important;border-color:#EBD9B8 !important}
+  .pill.stop{background:#FCF3F2 !important;border-color:#EBC7C4 !important}
+  .tri .k i{border:0.5pt solid rgba(0,0,0,.25)}
+  .actionbar{background:#F5F8F6 !important;border:0.5pt solid var(--rule)}
+  .parsed-row.fix span:last-child{background:#FDF7EC !important;border:0.5pt solid #EBD9B8}
+  .section-tag,.eyebrow{color:var(--field) !important}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="mast">
+    <div class="eyebrow">PlayFund · Portal screens · pilot build</div>
+    <h1>What the parent sees. What the club sees.</h1>
+    <p>Every screen here is an argument. The true-cost breakdown, the combined multi-kid plan, the live approval ledger — each one exists because the research said the incumbents get it wrong. Notes on the right show what drove each decision.</p>
+    <p style="margin-top:22px;font-size:13px;color:var(--ink-2)">Parent view below, club view follows.</p>
+  </div>
+</div>
+
+<!-- ============================ PARENT ============================ -->
+<div class="view" data-v="parent" data-on="true">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-tag">01 — What the parent sees</span>
+      <h2>The registration &amp; payment flow</h2>
+    </div>
+    <div class="stage">
+
+      <div class="filmstrip">
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">1 · The real number</div>
+
+        <!-- STEP 1 -->
+        <div class="screen" data-step="1">
+          <div class="brandline">
+            <span class="pf">PlayFund</span>
+            <span class="who">Northside Select · Fall 2026</span>
+          </div>
+          <div class="prog"><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="prog-lab">Step 1 of 4 · The real number</div>
+
+          <h2 class="scr-h">What this season actually costs</h2>
+          <p class="scr-sub">Everything Northside charges, in one place, before you commit to anything.</p>
+
+          <div class="receipt">
+            <div class="rline"><span class="lbl">Season fee<small>Coaching, practices, league play</small></span><span class="amt">$1,000</span></div>
+            <div class="rline"><span class="lbl">Uniform kit<small>Two jerseys, shorts, warmup</small></span><span class="amt">$145</span></div>
+            <div class="rline"><span class="lbl">Tournament fees<small>Three tournaments, entry only</small></span><span class="amt">$240</span></div>
+            <div class="rline tot"><span class="lbl">You'll pay</span><span class="amt">$1,385</span></div>
+          </div>
+
+          <div class="rline est" style="border-bottom:0;padding-top:14px">
+            <span class="lbl">Travel, if you go to all three<small>Hotels and gas, estimated from last season</small></span>
+            <span class="amt">~$310</span>
+          </div>
+
+          <div class="stamp">
+            <b>Travel isn't charged here.</b> We show it so the number can't surprise you in March.
+          </div>
+
+          <button class="cta" data-go="2">Continue</button>
+          <div class="trust">Secured by Stripe · No account needed</div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">2 · Your players</div>
+
+        <!-- STEP 2 -->
+        <div class="screen" data-step="2">
+          <div class="brandline">
+            <span class="pf">PlayFund</span>
+            <span class="who">Northside Select · Fall 2026</span>
+          </div>
+          <div class="prog"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+          <div class="prog-lab">Step 2 of 4 · Your players</div>
+
+          <h2 class="scr-h">Both players, one plan</h2>
+          <p class="scr-sub">Add every kid playing this season. They stay on a single plan with a single payment.</p>
+
+          <div class="kid">
+            <span class="ini">MR</span>
+            <span class="nm">Maya Rivera<small>12U Girls · Coach Daniels</small></span>
+            <span class="amt">$1,385</span>
+          </div>
+          <div class="kid">
+            <span class="ini">JR</span>
+            <span class="nm">Jordan Rivera<small>14U Boys · Coach Pruitt</small></span>
+            <span class="amt">$1,455</span>
+          </div>
+          <div class="kid" style="border-bottom:1.5px solid var(--ink)">
+            <span class="ini" style="background:var(--ash);color:var(--ink-3)">+</span>
+            <span class="nm" style="color:var(--ink-3);font-weight:400">Add another player</span>
+          </div>
+
+          <div class="rline tot" style="border-top:0;padding-top:14px">
+            <span class="lbl">Season total</span><span class="amt">$2,840</span>
+          </div>
+
+          <div class="stamp">
+            <b>No cap, no minimum.</b> Adding a second kid never breaks your payment plan.
+          </div>
+
+          <button class="cta" data-go="3">Continue</button>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">3 · How to pay</div>
+
+        <!-- STEP 3 -->
+        <div class="screen" data-step="3">
+          <div class="brandline">
+            <span class="pf">PlayFund</span>
+            <span class="who">Northside Select · Fall 2026</span>
+          </div>
+          <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="prog-lab">Step 3 of 4 · How you'd like to pay</div>
+
+          <h2 class="scr-h">$2,840 for the season</h2>
+          <p class="scr-sub">Both players. Pick whichever works for your month.</p>
+
+          <button class="payopt" data-sel="false" data-pick="full">
+            <span class="top"><span class="ttl">Pay in full</span><span class="big">$2,840</span></span>
+            <span class="sub">One charge today. Done for the season.</span>
+          </button>
+
+          <button class="payopt" data-sel="true" data-pick="split">
+            <span class="top"><span class="ttl">4 monthly payments</span><span class="big">$710<span style="font-size:13px;font-weight:400">/mo</span></span></span>
+            <span class="sub"><span class="free">No added cost to you.</span> Northside covers the fee. Aug 8, Sep 8, Oct 8, Nov 8.</span>
+          </button>
+
+          <div class="stamp" style="margin-bottom:14px">
+            Monthly plans run through our partner Klarna. You'll confirm a few details — it takes about a minute.
+          </div>
+
+          <span class="linkbtn" style="text-align:left;margin-bottom:14px;display:block">Ask a grandparent or another parent to help pay →</span>
+
+          <button class="cta" data-go="4">Continue</button>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">4 · Confirmed</div>
+
+        <!-- STEP 4 -->
+        <div class="screen" data-step="4">
+          <div class="brandline">
+            <span class="pf">PlayFund</span>
+            <span class="who">Northside Select · Fall 2026</span>
+          </div>
+          <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
+          <div class="prog-lab">Step 4 of 4 · Confirmed</div>
+
+          <div class="banner">
+            <h4>Maya and Jordan are registered.</h4>
+            <p>Northside has been paid for the full season. Nothing else is due at signup.</p>
+          </div>
+
+          <h2 class="scr-h" style="font-size:19px">Your four payments</h2>
+          <div class="sched">
+            <div class="srow"><span class="d">Aug 8<small>Charged today</small></span><span class="a paid">$710 paid</span></div>
+            <div class="srow"><span class="d">Sep 8<small>Visa ···4821, automatic</small></span><span class="a">$710</span></div>
+            <div class="srow"><span class="d">Oct 8<small>Visa ···4821, automatic</small></span><span class="a">$710</span></div>
+            <div class="srow"><span class="d">Nov 8<small>Visa ···4821, automatic</small></span><span class="a">$710</span></div>
+          </div>
+
+          <div class="stamp" style="margin-top:16px">
+            <b>We'll text you two days before each charge.</b> Change a card or move a date any time from that message.
+          </div>
+
+          <div class="trust">Secured by Stripe · Receipt emailed, kept forever</div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">Fork · If declined</div>
+
+        <!-- STEP 5 — DECLINED -->
+        <div class="screen" data-step="5">
+          <div class="brandline">
+            <span class="pf">PlayFund</span>
+            <span class="who">Northside Select · Fall 2026</span>
+          </div>
+          <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="prog-lab">Step 3 of 4 · Another way</div>
+
+          <div class="banner warn">
+            <h4>Klarna couldn't approve the monthly plan</h4>
+            <p>That happens, and it isn't the end of it. Here are three other ways to get Maya and Jordan on the roster.</p>
+          </div>
+
+          <button class="payopt" data-sel="false">
+            <span class="top"><span class="ttl">Split it with someone</span><span class="big">$1,420<span style="font-size:13px;font-weight:400">ea</span></span></span>
+            <span class="sub">Send a link to a grandparent, a co-parent, or a sponsor. You each pay your share.</span>
+          </button>
+
+          <button class="payopt" data-sel="false">
+            <span class="top"><span class="ttl">Pay Northside directly</span><span class="big">Monthly</span></span>
+            <span class="sub">Northside offers its own plan. We'll pass your details along so you don't start over.</span>
+          </button>
+
+          <button class="payopt" data-sel="false">
+            <span class="top"><span class="ttl">Smaller deposit now</span><span class="big">$400</span></span>
+            <span class="sub">Hold both roster spots today. Settle the rest with Northside before the first game.</span>
+          </button>
+
+          <div class="stamp">
+            Northside can see you tried and what you picked. Nobody has to make an awkward phone call.
+          </div>
+
+        </div>
+      </div>
+      </div><!-- /filmstrip -->
+
+      <!-- PARENT NOTES -->
+      <div class="notes wide">
+        <h3>Why this screen looks like this</h3>
+        <p class="intro">Each decision traces to the survey, an operator interview, or the teardown.</p>
+        <ul class="nlist">
+          <li>
+            <h4>The true-cost receipt leads</h4>
+            <p>Hidden and unpredictable total cost was the second-biggest theme in 514 free-text answers, and travel was the single most-named cost at 42%. We show travel as an estimate we don't charge, so the number can't ambush them later.</p>
+            <span class="src">Survey · 639 parents</span>
+          </li>
+          <li>
+            <h4>No account, no app</h4>
+            <p>App fatigue dominated the free text. Roughly a quarter of shoppers abandon at forced registration.</p>
+            <span class="vs"><b>TeamSnap</b>Requires an account, and registrations vanish from the dashboard after one year — their help doc advises printing receipts first.</span>
+          </li>
+          <li>
+            <h4>Both kids, one plan</h4>
+            <p>66% of respondents have two or more kids playing. This is a wedge, not an edge case.</p>
+            <span class="vs"><b>TeamSnap</b>Installment plans cap at $10,000 per registration and switch off entirely below $5 per payment — so multi-kid families lose the plan.</span>
+          </li>
+          <li>
+            <h4>The split sits at the price</h4>
+            <p>High-converting checkouts show "4 payments of $X" under the total rather than hiding it behind a payment-method choice. Our current test site does this backwards.</p>
+            <span class="src">2026 checkout benchmarks</span>
+          </li>
+          <li>
+            <h4>"No added cost to you" is stated, not implied</h4>
+            <p>47% of parents flinch at fees and interest. Bilt makes fee-free housing rewards an absolute, repeated promise. If the club carries the fee, the parent should hear it in plain words.</p>
+            <span class="src">Survey · Bilt teardown</span>
+          </li>
+          <li>
+            <h4>Invite another payer</h4>
+            <p>Flywire's authorized-user feature helped institutions cut payment-plan defaults from 34% to under 1%. In youth sports that's a grandparent or a second household. Nobody in the category offers it.</p>
+            <span class="src">Flywire</span>
+          </li>
+          <li>
+            <h4>A decline is a fork, not a wall</h4>
+            <p>Klarna carries the credit in the pilot, so some families will be declined — and they're the ones who needed flexibility most. Three real options, and the club sees they tried.</p>
+            <span class="src">Pilot structure · locked decision</span>
+          </li>
+          <li>
+            <h4>Automatic reminders, always</h4>
+            <p>A text two days before each charge is how you prevent a failed payment. Every prevented failure is a default that never happens.</p>
+            <span class="vs"><b>TeamSnap</b>"Participants will not be automatically notified of changes. You can email participants to let them know."</span>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============================ CLUB ============================ -->
+<div class="view" data-v="club" data-on="true" id="club-view">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-tag">02 — What the club sees</span>
+      <h2>The operator dashboard</h2>
+    </div>
+    <div class="stage stage-club">
+
+      <div class="laptop">
+        <div class="laptop-bar">
+          <span class="tl"></span><span class="tl"></span><span class="tl"></span>
+          <span class="laptop-url">app.playfund.com/northside-select/fall-2026</span>
+        </div>
+
+        <div class="club-top">
+          <span class="pf">PlayFund</span>
+          <span class="org"><b>Northside Select</b> · Fall 2026 · 312 athletes across 50 teams</span>
+        </div>
+
+        <div class="payout">
+          <div>
+            <div class="lab">Landing in your account</div>
+            <p class="num">$264,180</p>
+            <p class="when">Friday, <b>August 8</b> — for 287 athletes, already approved</p>
+          </div>
+        </div>
+
+        <div class="ledger">
+          <div class="ledger-h">
+            <h3>Where every athlete stands</h3>
+            <span class="note">Updated live · nothing waits until season end</span>
+          </div>
+
+          <div class="tri">
+            <div>
+              <div class="k live"><i></i>Funded</div>
+              <div class="v">287<small>$264,180</small></div>
+            </div>
+            <div>
+              <div class="k flare"><i></i>Still deciding</div>
+              <div class="v">19<small>$17,290</small></div>
+            </div>
+            <div>
+              <div class="k stop"><i></i>Needs another option</div>
+              <div class="v">6<small>$5,615</small></div>
+            </div>
+          </div>
+
+          <div class="tscroll">
+          <table>
+            <thead>
+              <tr><th>Athlete</th><th>Status</th><th>Plan</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="name">Maya Rivera<small>12U Girls</small></td>
+                <td><span class="pill live"><i></i>Funded</span></td>
+                <td>4 monthly</td>
+                <td class="amt">$1,385</td>
+              </tr>
+              <tr>
+                <td class="name">Jordan Rivera<small>14U Boys</small></td>
+                <td><span class="pill live"><i></i>Funded</span></td>
+                <td>Same plan as sibling</td>
+                <td class="amt">$1,455</td>
+              </tr>
+              <tr>
+                <td class="name">Elena Whitfield<small>16U Girls</small></td>
+                <td><span class="pill live"><i></i>Funded</span></td>
+                <td>Paid in full</td>
+                <td class="amt">$1,455</td>
+              </tr>
+              <tr>
+                <td class="name">Marcus Bell<small>14U Boys</small></td>
+                <td><span class="pill flare"><i></i>Link opened, not finished</span></td>
+                <td>—</td>
+                <td class="amt">$1,455</td>
+              </tr>
+              <tr>
+                <td class="name">Dante Okafor<small>12U Boys</small></td>
+                <td><span class="pill stop"><i></i>Declined, chose deposit</span></td>
+                <td>$400 held, rest with you</td>
+                <td class="amt">$1,385</td>
+              </tr>
+              <tr>
+                <td class="name">Priya Raman<small>16U Girls</small></td>
+                <td><span class="pill stop"><i></i>Declined, splitting with family</span></td>
+                <td>2 payers invited</td>
+                <td class="amt">$1,455</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+
+          <div class="actionbar">
+            <p><b>6 families need a second option.</b> We've already offered each of them a deposit, a split with family, or your own plan. You don't have to call anyone — but here's the list if you want to.</p>
+            <button>See the 6</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLUB NOTES -->
+      <div class="notes">
+        <h3>Why this screen looks like this</h3>
+        <p class="intro">The club view has one job: replace uncertainty with a date and a number.</p>
+        <ul class="nlist">
+          <li>
+            <h4>The payout and the date are the hero</h4>
+            <p>Travis called the upfront payout "fantastic" and asked to be contacted first. Square charges 1.75% for instant transfer and merchants pay it — speed of access to your own money is a product people buy.</p>
+            <span class="src">Travis · 300 Spartans · Square teardown</span>
+          </li>
+          <li>
+            <h4>One number, no comparison math</h4>
+            <p>The fee conversation belongs in the sales call, not the dashboard. Once a club is live, the only thing this screen owes them is what lands and when. Cost comparisons here just invite second-guessing a decision they already made.</p>
+            <span class="src">Design call · simplified from v1</span>
+          </li>
+          <li>
+            <h4>Declines are on the front page</h4>
+            <p>Because Klarna carries the credit in the pilot, "paid day one" is really "paid day one for every approved athlete." A club that discovers that gap in March is a club we lose. So it's the third column, visible from day one.</p>
+            <span class="src">Pilot structure · locked decision</span>
+          </li>
+          <li>
+            <h4>Status written in club language</h4>
+            <p>"Link opened, not finished." "Declined, chose deposit." Names things by what the operator recognizes, not by how the system works.</p>
+            <span class="vs"><b>TeamSnap</b>"In Progress - Checkout" and "Pay Offline - Waiting for Payment," plus registrant vs participant vs contact 1, 2, 3.</span>
+          </li>
+          <li>
+            <h4>Nobody has to make the awkward call</h4>
+            <p>Skip Gilbert named the real pain: collections are socially awkward because administrators personally know the families. The system has already offered every declined family an alternative before the club sees the list.</p>
+            <span class="src">Skip Gilbert · former US Youth Soccer CEO</span>
+          </li>
+          <li>
+            <h4>Built for a volunteer, not an admin</h4>
+            <p>One screen answers the only two questions a treasurer has: how much, and when. Toast onboarding runs four to six weeks; Square takes minutes. Our buyer is a volunteer with high turnover.</p>
+            <span class="src">Toast vs Square teardown</span>
+          </li>
+          <li>
+            <h4>Sibling plans are visible</h4>
+            <p>"Same plan as sibling" tells the operator that multi-kid families are handled — the exact case where incumbent installment plans break.</p>
+            <span class="src">Survey · 66% have 2+ kids</span>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============================ CLUB ONBOARDING ============================ -->
+<div class="view" data-v="onboarding" data-on="true">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-tag">03 — How a club gets set up</span>
+      <h2>Onboarding, in one sitting</h2>
+    </div>
+    <div class="stage">
+
+      <div class="filmstrip">
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">1 · Start</div>
+        <div class="screen">
+          <div class="brandline">
+            <span class="pf">PlayFund</span><span class="who">New club</span>
+          </div>
+          <div class="prog"><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="prog-lab">About 8 minutes, start to finish</div>
+
+          <h2 class="scr-h">Let's see what your season is worth</h2>
+          <p class="scr-sub">Three questions. No account, no card, no call with sales.</p>
+
+          <div class="field"><label>Club name</label><div class="input">Northside Select</div></div>
+          <div class="field"><label>Sport</label><div class="input">Basketball</div></div>
+          <div class="field"><label>Roughly how many athletes?</label><div class="input">312</div></div>
+
+          <div class="stamp"><b>Nothing is binding yet.</b> You'll see your payout number before we ask for anything.</div>
+          <div class="cta">Continue</div>
+          <div class="trust">No credit check · No contract</div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">2 · Your fees</div>
+        <div class="screen">
+          <div class="brandline">
+            <span class="pf">PlayFund</span><span class="who">Northside Select</span>
+          </div>
+          <div class="prog"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+          <div class="prog-lab">Step 2 of 4 · What you charge</div>
+
+          <h2 class="scr-h">What does a season cost a family?</h2>
+          <p class="scr-sub">List every line you charge. Parents see this exact breakdown.</p>
+
+          <div class="feeline"><span>Season fee</span><span class="v">$1,000</span></div>
+          <div class="feeline"><span>Uniform kit</span><span class="v">$145</span></div>
+          <div class="feeline"><span>Tournament fees</span><span class="v">$240</span></div>
+          <div class="feeline add"><span>+ Add another fee</span><span class="v"></span></div>
+
+          <div class="rline tot" style="border-top:1.5px solid var(--ink);padding-top:13px;margin-top:6px">
+            <span class="lbl">Per athlete</span><span class="amt">$1,385</span>
+          </div>
+
+          <div class="preview">
+            <div class="preview-lab">You'd receive, day one</div>
+            <div class="preview-num">$389,532</div>
+            <div class="preview-sub">312 athletes · before approvals</div>
+          </div>
+
+          <div class="cta">Continue</div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">3 · Roster</div>
+        <div class="screen">
+          <div class="brandline">
+            <span class="pf">PlayFund</span><span class="who">Northside Select</span>
+          </div>
+          <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="prog-lab">Step 3 of 4 · Your roster</div>
+
+          <h2 class="scr-h">Paste your roster</h2>
+          <p class="scr-sub">Straight from a spreadsheet. Any column order, we'll sort it out.</p>
+
+          <div class="paste"><span class="paste-txt">Maya Rivera, 12U Girls, mrivera@…<br>Jordan Rivera, 14U Boys, mrivera@…<br>Elena Whitfield, 16U Girls, dwhit@…<br>Marcus Bell, 14U Boys, tbell@…<br>Dante Okafor, 12U Boys, okafor@…</span></div>
+
+          <div class="parsed">
+            <div class="parsed-row ok"><span>312 athletes read</span><span>✓</span></div>
+            <div class="parsed-row ok"><span>50 teams matched</span><span>✓</span></div>
+            <div class="parsed-row fix"><span>4 missing an email</span><span>Fix</span></div>
+          </div>
+
+          <div class="stamp"><b>You can fix the 4 later.</b> They just won't get their link until you do.</div>
+          <div class="cta">Continue</div>
+          <div class="trust">No file formatting required</div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">4 · Where money lands</div>
+        <div class="screen">
+          <div class="brandline">
+            <span class="pf">PlayFund</span><span class="who">Northside Select</span>
+          </div>
+          <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
+          <div class="prog-lab">Step 4 of 4 · Your bank</div>
+
+          <h2 class="scr-h">Where should $389,532 go?</h2>
+          <p class="scr-sub">Handled by Stripe. We never see or store your bank details.</p>
+
+          <div class="field"><label>Legal club name</label><div class="input">Northside Select Basketball Inc.</div></div>
+          <div class="field"><label>EIN</label><div class="input dim">··-·······</div></div>
+          <div class="field"><label>Bank account</label><div class="input stripe">Connect with Stripe →</div></div>
+
+          <div class="stamp"><b>Stop here if you need to.</b> We save everything and text you a link to finish. Most treasurers have to go find the EIN.</div>
+          <div class="cta">Finish setup</div>
+          <div class="trust">Secured by Stripe · Resumable</div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-bar"><span>9:41</span><span>􀙇 􀺸 􀛨</span></div>
+        <div class="step-cap">Done · Send it</div>
+        <div class="screen">
+          <div class="brandline">
+            <span class="pf">PlayFund</span><span class="who">Northside Select · Live</span>
+          </div>
+
+          <div class="banner">
+            <h4>Northside Select is live.</h4>
+            <p>Setup took 9 minutes. Here's the link to send your families.</p>
+          </div>
+
+          <div class="linkbox">
+            <div class="linkbox-lab">Your registration link</div>
+            <div class="linkbox-url">playfund.com/northside-select</div>
+          </div>
+
+          <div class="sendrow">
+            <div class="sendbtn">Copy link</div>
+            <div class="sendbtn">Text to roster</div>
+          </div>
+
+          <div class="stamp" style="margin-top:14px"><b>Paste it in your team group message or email chain.</b> Families don't need an app or an account.</div>
+
+          <div class="honest">
+            <div class="honest-lab">Before you send</div>
+            <p>Families who pick a monthly plan need approval from Klarna, our financing partner. Most are approved. Anyone who isn't gets offered a deposit or a family split instead — and you'll see exactly who on your dashboard.</p>
+          </div>
+        </div>
+      </div>
+
+      </div><!-- /filmstrip -->
+
+      <div class="notes wide">
+        <h3>Why this screen looks like this</h3>
+        <p class="intro">Greg Kristof named adoption as the biggest risk. This flow is the answer to it.</p>
+        <ul class="nlist">
+          <li>
+            <h4>Value before friction</h4>
+            <p>The payout number appears at step 2, before we ask for an EIN or a bank account. A treasurer should know what this is worth before doing paperwork.</p>
+            <span class="src">Square's order, not Toast's</span>
+          </li>
+          <li>
+            <h4>Eight minutes, not four weeks</h4>
+            <p>Our buyer is a volunteer with high turnover. One sitting, or never.</p>
+            <span class="vs"><b>Toast</b>"A typical remote or onsite implementation takes four to six weeks."</span>
+          </li>
+          <li>
+            <h4>Paste, never retype</h4>
+            <p>The roster step is the highest-probability abandonment point in the product. Any column order, forgiving parser, and errors that don't block you from continuing.</p>
+            <span class="src">Flagged in flows v2 as top drop-off risk</span>
+          </li>
+          <li>
+            <h4>The bank step is resumable by design</h4>
+            <p>Most volunteer treasurers won't have the EIN handy. Rather than lose them, we save state and text a link back. KYC is the known cliff — the fix is letting people leave and return.</p>
+            <span class="src">Stripe Connect · onboarding teardown</span>
+          </li>
+          <li>
+            <h4>No demo call, no contract, public pricing</h4>
+            <p>LeagueApps, PlayMetrics, SportsEngine and Stack Sports all gate pricing behind "request a demo," and several charge a setup fee. Self-serve signup with a visible rate is itself the differentiator with small clubs.</p>
+            <span class="src">Competitor pricing teardown</span>
+          </li>
+          <li>
+            <h4>The approval caveat sits before they send</h4>
+            <p>The last thing a club reads before sharing the link is that some families will need a second option. Saying it here costs nothing. Letting them find out in March costs us the reference customer.</p>
+            <span class="src">Pilot structure · locked decision</span>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <footer>
+    PlayFund · portal screens v1 · illustrative data, real design decisions<br>
+    Locked pilot structure: Klarna carries default risk · club-adopting · any ticket size.<br>
+    Sources: PlayFund parent survey (639 parents); operator interviews — Travis (300 Spartans), Alan (Fury Basketball), Skip Gilbert, Coach Lester (United AAU); teardown of TeamSnap published pricing and help documentation, PlayMetrics/SportsEngine, Jersey Watch, Flywire, Bilt, Toast, Square; 2026 checkout best-practice guidance.<br>
+    Approval rate, repayment term, and payment mix are still unmeasured. The declined-parent path is a design commitment, not a tested one.
+  </footer>
+</div>
+
+<script>
+(function(){
+  document.querySelectorAll('[data-pick]').forEach(function(o){
+    o.addEventListener('click',function(){
+      document.querySelectorAll('[data-pick]').forEach(function(x){x.setAttribute('data-sel','false')});
+      o.setAttribute('data-sel','true');
+    });
+  });
+})();
+</script>
+</body>
+</html>

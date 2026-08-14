@@ -37,6 +37,33 @@ async function supabase(env, method, path, body) {
   }
 }
 __name(supabase, "supabase");
+function toStripeFormParams(obj, prefix) {
+  const params = [];
+  for (const [key, value] of Object.entries(obj)) {
+    const paramKey = prefix ? `${prefix}[${key}]` : key;
+    if (value === undefined || value === null) continue;
+    if (typeof value === "object" && !Array.isArray(value)) {
+      params.push(...toStripeFormParams(value, paramKey));
+    } else {
+      params.push([paramKey, String(value)]);
+    }
+  }
+  return params;
+}
+__name(toStripeFormParams, "toStripeFormParams");
+async function stripe(env, method, path, params) {
+  const res = await fetch(`https://api.stripe.com/v1${path}`, {
+    method,
+    headers: {
+      "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: params ? new URLSearchParams(toStripeFormParams(params)).toString() : void 0
+  });
+  const data = await res.json();
+  return { ok: res.ok, status: res.status, data };
+}
+__name(stripe, "stripe");
 async function supabaseSignIn(env, email, password) {
   const res = await fetch(
     `${env.SUPABASE_URL}/auth/v1/token?grant_type=password`,
@@ -434,6 +461,60 @@ var index_default = {
     if (method === "GET" && path === "/debug") {
       const res = await supabase(env, "GET", "/clubs?select=id,name,code,active");
       return json({ supabase_url: env.SUPABASE_URL, result: res });
+    }
+    if (method === "POST" && path.startsWith("/club/") && path.endsWith("/stripe-onboard")) {
+      const clubId = path.split("/")[2];
+      if (!clubId) return err("Club ID required");
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!callerRes.ok) return err("Invalid token", 401);
+      const callerData = await callerRes.json();
+      const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id`);
+      const callerProfile = callerProfileRes.data?.[0];
+      const isAllowed = callerProfile && (callerProfile.role === "playfund_admin" || callerProfile.role === "club_admin" && callerProfile.club_id === clubId);
+      if (!isAllowed) return err("Forbidden", 403);
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${clubId}&select=id,name,admin_email,stripe_account_id`);
+      const club = clubRes.data?.[0];
+      if (!club) return err("Club not found", 404);
+      let accountId = club.stripe_account_id;
+      if (!accountId) {
+        const acctRes = await stripe(env, "POST", "/accounts", {
+          type: "express",
+          email: club.admin_email || void 0,
+          capabilities: { card_payments: { requested: true }, transfers: { requested: true } }
+        });
+        if (!acctRes.ok) return err("Failed to create Stripe account: " + (acctRes.data?.error?.message || "unknown error"), 500);
+        accountId = acctRes.data.id;
+        await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, { stripe_account_id: accountId });
+      }
+      const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
+      const linkRes = await stripe(env, "POST", "/account_links", {
+        account: accountId,
+        refresh_url: `${APP_URL}?stripe_onboard=refresh&club_id=${clubId}`,
+        return_url: `${APP_URL}?stripe_onboard=complete&club_id=${clubId}`,
+        type: "account_onboarding"
+      });
+      if (!linkRes.ok) return err("Failed to create onboarding link: " + (linkRes.data?.error?.message || "unknown error"), 500);
+      return json({ url: linkRes.data.url, stripe_account_id: accountId });
+    }
+    if (method === "GET" && path.startsWith("/club/") && path.endsWith("/stripe-status")) {
+      const clubId = path.split("/")[2];
+      if (!clubId) return err("Club ID required");
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${clubId}&select=stripe_account_id`);
+      const club = clubRes.data?.[0];
+      if (!club) return err("Club not found", 404);
+      if (!club.stripe_account_id) return json({ connected: false, charges_enabled: false, details_submitted: false });
+      const acctRes = await stripe(env, "GET", `/accounts/${club.stripe_account_id}`);
+      if (!acctRes.ok) return err("Failed to fetch Stripe account status", 500);
+      return json({
+        connected: true,
+        charges_enabled: !!acctRes.data.charges_enabled,
+        details_submitted: !!acctRes.data.details_submitted
+      });
     }
     if (method === "GET" && path.startsWith("/club/")) {
       const code = path.split("/")[2]?.toUpperCase();

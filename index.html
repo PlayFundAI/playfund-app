@@ -2473,11 +2473,15 @@ var usStates = ["Virginia"];
   var clubCache = {};
 
   // Fetch club data from the Worker and cache it
-  async function fetchClub(code) {
+  async function fetchClub(code, token) {
     code = code.toUpperCase();
-    if (clubCache[code]) return clubCache[code];
+    // Skip the cache when a token is passed so an authenticated caller (who
+    // should get the full roster) never gets served a stale unauthenticated
+    // (roster-free) result cached earlier in the same session.
+    if (!token && clubCache[code]) return clubCache[code];
     try {
-      var res = await fetch(WORKER_URL + '/club/' + code);
+      var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : undefined;
+      var res = await fetch(WORKER_URL + '/club/' + code, opts);
       if (!res.ok) return null;
       var data = await res.json();
       if (!data.club) return null;
@@ -2867,7 +2871,7 @@ var usStates = ["Virginia"];
         openTeamAdminView(data);
       } else if(data.user.role === 'club_admin'){
         if(data.user.club){
-          var club = await fetchClub(data.user.club.code);
+          var club = await fetchClub(data.user.club.code, data.access_token);
           if(club){ state.club = club; openClubOverview(); }
           else { errEl.textContent = 'Club not found.'; }
         }
@@ -2881,7 +2885,7 @@ var usStates = ["Virginia"];
       if(saved && saved.user){
         if(saved.user.role === 'team_admin'){ openTeamAdminView(saved); return; }
         if(saved.user.role === 'club_admin' && saved.user.club){
-          fetchClub(saved.user.club.code).then(function(club){
+          fetchClub(saved.user.club.code, saved.access_token).then(function(club){
             if(club){ state.club = club; openClubOverview(); }
             else { showScreen('club-select'); }
           }); return;
@@ -4505,7 +4509,7 @@ var usStates = ["Virginia"];
     state.teamAdminSession = sessionData;
     showScreen('team-admin-roster');
     try {
-      var res  = await fetch(WORKER_URL + '/club/' + club.code);
+      var res  = await fetch(WORKER_URL + '/club/' + club.code, { headers: { 'Authorization': 'Bearer ' + sessionData.access_token } });
       var data = await res.json();
       var liveTeam = (data.club.teams || []).find(function(t){ return t.id === team.id; });
       if(!liveTeam) return;
@@ -4800,7 +4804,7 @@ var usStates = ["Virginia"];
     showScreen('admin-team-roster');
 
     try {
-      var res = await fetch(WORKER_URL + '/club/' + club.code);
+      var res = await fetch(WORKER_URL + '/club/' + club.code, { headers: { 'Authorization': 'Bearer ' + adminSession } });
       var data = await res.json();
       var liveTeam = (data.club.teams || []).find(function(t){ return t.id === team.id; });
       if(!liveTeam){ document.getElementById('adminRosterList').innerHTML = '<p>Team not found.</p>'; return; }

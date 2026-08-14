@@ -37,6 +37,14 @@ async function supabase(env, method, path, body) {
   }
 }
 __name(supabase, "supabase");
+function randomClubCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  const bytes = crypto.getRandomValues(new Uint8Array(7));
+  for (let i = 0; i < 7; i++) code += alphabet[bytes[i] % alphabet.length];
+  return code;
+}
+__name(randomClubCode, "randomClubCode");
 function toStripeFormParams(obj, prefix) {
   const params = [];
   for (const [key, value] of Object.entries(obj)) {
@@ -773,6 +781,38 @@ var index_default = {
         `/teams?select=id,name,age_group,dues_cents,season_start,season_end,dues_due_date&club_id=eq.${club.id}&active=eq.true&order=age_group.asc`
       );
       const teams = teamsRes.data || [];
+
+      // Roster data (names, ages, payment status) is only returned to a caller
+      // authenticated as this specific club's admin/team admin, or a PlayFund
+      // admin. Anyone else — including a parent who just knows the club
+      // code — gets club/team summary info only, no minors' PII.
+      let authorized = false;
+      const authHeader = request.headers.get("Authorization") || "";
+      const callerToken = authHeader.replace("Bearer ", "").trim();
+      if (callerToken) {
+        const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+          headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${callerToken}` }
+        });
+        if (callerRes.ok) {
+          const callerData = await callerRes.json();
+          const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id,team_id`);
+          const callerProfile = callerProfileRes.data?.[0];
+          if (callerProfile) {
+            if (callerProfile.role === "playfund_admin") authorized = true;
+            else if (callerProfile.role === "club_admin" && callerProfile.club_id === club.id) authorized = true;
+            else if (callerProfile.role === "team_admin" && teams.some((t) => t.id === callerProfile.team_id)) authorized = true;
+          }
+        }
+      }
+      if (!authorized) {
+        return json({
+          club: {
+            ...club,
+            teams: teams.map((team) => ({ ...team, dues: team.dues_cents / 100 }))
+          }
+        });
+      }
+
       const teamIds = teams.map((t) => t.id);
       let athletes = [];
       if (teamIds.length) {
@@ -897,14 +937,11 @@ var index_default = {
       }
       const { name, sport, city, state, admin_email, admin_name, athlete_count, fees, teams } = body;
       if (!name || !sport || !admin_email) return err("name, sport, and admin_email required");
-      const baseCode = name.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-      let code = baseCode + "1";
-      let suffix = 1;
-      while (suffix <= 99) {
+      let code = randomClubCode();
+      for (let attempt = 0; attempt < 10; attempt++) {
         const existsRes = await supabase(env, "GET", `/clubs?code=eq.${code}&select=id`);
         if (!existsRes.data?.length) break;
-        suffix++;
-        code = baseCode + suffix;
+        code = randomClubCode();
       }
       const feesPerAthlete = fees && fees.length ? fees.reduce((sum, f) => sum + (parseFloat(f.amount) || 0), 0) : 0;
       const insertData = {

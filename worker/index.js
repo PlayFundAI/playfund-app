@@ -1047,6 +1047,77 @@ var index_default = {
       if (!insertRes.ok) return err("Failed to register athlete", 500);
       return json({ athlete: insertRes.data[0] }, 201);
     }
+    if (method === "POST" && path.startsWith("/athlete/") && path.endsWith("/notify-club")) {
+      const athleteId = path.split("/")[2];
+      if (!athleteId) return err("Athlete ID required");
+      const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=name,team_id,club_id,parent_email`);
+      const athlete = athleteRes.data?.[0];
+      if (!athlete) return err("Athlete not found", 404);
+      const teamRes = await supabase(env, "GET", `/teams?id=eq.${athlete.team_id}&select=name,dues_cents`);
+      const team = teamRes.data?.[0];
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=name,admin_email`);
+      const club = clubRes.data?.[0];
+      if (!club) return err("Club not found", 404);
+      if (!club.admin_email) return err("This club doesn't have an admin contact on file yet", 400);
+      const RESEND_API_KEY = env.RESEND_API_KEY;
+      if (!RESEND_API_KEY) return err("Email not configured", 500);
+      const dues = ((team && team.dues_cents) || 0) / 100;
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
+      </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;"><tr><td align="center" style="padding:32px 16px;">
+      <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <tr><td style="background:#004643;padding:18px 28px;">
+          <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
+          <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+        </td></tr>
+        <tr><td style="padding:28px;">
+          <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Family wants to pay directly</p>
+          <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name}'s family would like to arrange payment with you</h2>
+          <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
+            Their installment plan through Klarna couldn't be approved, and they've asked to set up a payment plan directly with ${club.name} instead of paying online through PlayFund.
+          </p>
+          <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
+            <tr><td style="padding:16px;">
+              <table cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="font-size:13px;color:#6B7280;">Athlete</td>
+                  <td align="right" style="font-size:13px;font-weight:700;color:#004643;">${athlete.name}</td>
+                </tr>
+                ${team ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td></tr>` : ""}
+                <tr>
+                  <td style="font-size:13px;color:#6B7280;padding-top:6px;">Season dues</td>
+                  <td align="right" style="font-size:16px;font-weight:800;color:#004643;padding-top:6px;">$${dues.toLocaleString()}</td>
+                </tr>
+                ${athlete.parent_email ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Parent email</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${athlete.parent_email}</td></tr>` : ""}
+              </table>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;">
+            You can reply directly to this email to reach the family.
+          </p>
+        </td></tr>
+      </table>
+      </td></tr></table>
+      </body></html>`;
+      try {
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "PlayFund <hello@playfundai.com>",
+            to: [club.admin_email],
+            reply_to: athlete.parent_email || void 0,
+            subject: `${athlete.name}'s family wants to arrange payment directly`,
+            html
+          })
+        });
+        if (!res.ok) return err("Failed to send notification: " + await res.text(), 500);
+      } catch (e) {
+        return err("Failed to send notification", 500);
+      }
+      return json({ success: true });
+    }
     if (method === "POST" && path.startsWith("/athlete/") && path.endsWith("/checkout")) {
       const athleteId = path.split("/")[2];
       if (!athleteId) return err("Athlete ID required");

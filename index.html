@@ -1456,18 +1456,6 @@
   </div>
 
   <!-- SCREEN: pay now (hidden shell — keeps DOM elements updateFeeBreakdowns needs) -->
-  <div class="screen" id="screen-paynow" style="display:none;">
-    <span id="paynowSub"></span>
-    <span id="cardFeeTotal"></span>
-    <span id="achFeeTotal"></span>
-    <span id="paynowBtnAmt"></span>
-    <span id="methodCard"></span>
-    <span id="methodAch"></span>
-    <span id="cardFields"></span>
-    <span id="achFields"></span>
-  </div>
-
-
   <!-- SCREEN: terms — payment schedule selection -->
   <div class="screen sezzle-screen" id="screen-terms">
     <div class="sezzle-modal-header">
@@ -1622,7 +1610,7 @@
     <p class="subtitle" id="declineSub" style="margin-bottom:20px;">The installment plan couldn't be approved — but there are still a few ways to get on the roster.</p>
 
     <!-- Option 1: Pay in full -->
-    <div onclick="showScreen('paynow')" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:10px; cursor:pointer; border:1.5px solid var(--line);">
+    <div onclick="openStripeCheckout('full')" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:10px; cursor:pointer; border:1.5px solid var(--line);">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
         <div style="font-size:13px; font-weight:700; color:var(--ink);">Pay in full</div>
         <div style="font-family:'Anton',sans-serif; font-size:18px; color:var(--ink);" id="declineFullAmt">$950</div>
@@ -2912,16 +2900,28 @@ var usStates = ["Virginia"];
   }
 
   function showDeclineSplitInfo(){
-    var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
-    var ct   = getAthleteClubTeam(athlete);
-    var dues = ct && ct.team ? (ct.team.dues || 0) : 950;
-    alert('To split the cost, share your payment link with a grandparent, co-parent, or sponsor. They\'ll see the same page you did and can pay their $' + Math.round(dues/2) + ' share. Both payments go directly to the club.');
+    alert("Splitting a payment with another person isn't available in the app yet. For now, arrange it between yourselves and have one of you pay the full amount here — or use \"Pay the club directly\" to work out a plan with the club.");
   }
 
-  function showDeclineClubContact(){
+  async function showDeclineClubContact(){
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
     var ct      = getAthleteClubTeam(athlete);
     var clubName = ct && ct.club ? ct.club.name : 'your club';
+    if(!athlete || !athlete.supabaseId){
+      alert("We couldn't reach " + clubName + " right now. Please try again in a moment.");
+      return;
+    }
+    try {
+      var res = await fetch(WORKER_URL + '/athlete/' + athlete.supabaseId + '/notify-club', { method: 'POST' });
+      var data = await res.json();
+      if(!res.ok){
+        alert(data.error || ("We couldn't reach " + clubName + " right now. Please try again in a moment."));
+        return;
+      }
+    } catch(e){
+      alert("We couldn't reach " + clubName + " right now. Please try again in a moment.");
+      return;
+    }
     alert(clubName + ' has been notified that you tried the installment plan. Expect to hear from them within 1–2 business days about their own payment options.');
   }
 

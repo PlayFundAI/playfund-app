@@ -2701,7 +2701,9 @@ var usStates = ["Virginia"];
           }
 
           if(funded){
+            await hydrateClubCache([localAthlete]);
             recordAthletePayment(method, state.selectedTermWeeks);
+            showScreen(method === 'bnpl' ? 'confirm-terms' : 'confirm-now', true);
           } else {
             alert("We're still confirming your payment with Stripe. This can take a minute — check back shortly and your registration will update automatically.");
             showScreen('home', true);

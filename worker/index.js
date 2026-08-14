@@ -475,6 +475,29 @@ var index_default = {
         }
       });
     }
+    if (method === "POST" && path.startsWith("/admin/clubs/") && path.endsWith("/backfill-klarna")) {
+      const clubId = path.split("/")[3];
+      if (!clubId) return err("Club ID required");
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!userRes.ok) return err("Invalid token", 401);
+      const userData = await userRes.json();
+      const profileRes = await supabase(env, "GET", `/user_profiles?id=eq.${userData.id}&select=role`);
+      if (profileRes.data?.[0]?.role !== "playfund_admin") return err("Forbidden", 403);
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${clubId}&select=stripe_account_id`);
+      const club = clubRes.data?.[0];
+      if (!club?.stripe_account_id) return err("Club has no connected Stripe account", 400);
+      const updateRes = await stripeV2(env, "POST", `/core/accounts/${club.stripe_account_id}`, {
+        configuration: { merchant: { capabilities: { klarna_payments: { requested: true } } } },
+        include: ["configuration.merchant"]
+      });
+      if (!updateRes.ok) return err("Failed to update capabilities: " + JSON.stringify(updateRes.data), 500);
+      return json({ success: true, capabilities: updateRes.data?.configuration?.merchant?.capabilities });
+    }
     if (method === "POST" && path === "/admin/run-reminders") {
       const authHeader = request.headers.get("Authorization") || "";
       const token = authHeader.replace("Bearer ", "").trim();
@@ -701,7 +724,7 @@ var index_default = {
           dashboard: "express",
           identity: { country: "us" },
           configuration: {
-            merchant: { capabilities: { card_payments: { requested: true } } },
+            merchant: { capabilities: { card_payments: { requested: true }, klarna_payments: { requested: true } } },
             recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } }
           },
           defaults: {

@@ -2682,7 +2682,42 @@ var usStates = ["Virginia"];
         var athId    = params.get('athlete');
         if(!checkout || !athId) return;
         history.replaceState(null, '', window.location.pathname);
-        if(checkout !== 'success') { setTimeout(function(){ showScreen('home', true); }, 1100); return; }
+
+        if(checkout !== 'success') {
+          // A cancel/back redirect doesn't by itself mean Klarna declined —
+          // it could just be the parent closing the tab. Check the server for
+          // a real recent payment_intent.payment_failed record (logged by the
+          // webhook) before treating this as a decline worth forking on.
+          setTimeout(async function(){
+            var localAthlete = loadAthletes().find(function(a){ return a.supabaseId === athId; });
+            if(!localAthlete){ showScreen('home', true); return; }
+            state.athletes = loadAthletes();
+            state.activeAthleteId = localAthlete.id;
+
+            var declined = false;
+            for(var i = 0; i < 3 && !declined; i++){
+              try {
+                var res  = await fetch(WORKER_URL + '/athlete/' + athId);
+                var data = await res.json();
+                var payments = data.payments || [];
+                declined = payments.some(function(p){
+                  if(p.status !== 'failed') return false;
+                  return (Date.now() - new Date(p.created_at).getTime()) < 5 * 60 * 1000;
+                });
+                if(declined) break;
+              } catch(e){}
+              if(!declined && i < 2) await new Promise(function(r){ setTimeout(r, 1200); });
+            }
+
+            if(declined){
+              await hydrateClubCache([localAthlete]);
+              showDeclineScreen();
+            } else {
+              showScreen('home', true);
+            }
+          }, 1100);
+          return;
+        }
 
         setTimeout(async function(){
           var localAthlete = loadAthletes().find(function(a){ return a.supabaseId === athId; });

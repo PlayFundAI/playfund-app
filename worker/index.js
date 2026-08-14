@@ -64,6 +64,20 @@ async function stripe(env, method, path, params) {
   return { ok: res.ok, status: res.status, data };
 }
 __name(stripe, "stripe");
+async function stripeV2(env, method, path, body) {
+  const res = await fetch(`https://api.stripe.com/v2${path}`, {
+    method,
+    headers: {
+      "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "Stripe-Version": "2026-07-29.dahlia",
+      "Content-Type": "application/json"
+    },
+    body: body ? JSON.stringify(body) : void 0
+  });
+  const data = await res.json();
+  return { ok: res.ok, status: res.status, data };
+}
+__name(stripeV2, "stripeV2");
 async function supabaseSignIn(env, email, password) {
   const res = await fetch(
     `${env.SUPABASE_URL}/auth/v1/token?grant_type=password`,
@@ -482,12 +496,21 @@ var index_default = {
       if (!club) return err("Club not found", 404);
       let accountId = club.stripe_account_id;
       if (!accountId) {
-        const acctRes = await stripe(env, "POST", "/accounts", {
-          type: "express",
-          email: club.admin_email || void 0,
-          capabilities: { card_payments: { requested: true }, transfers: { requested: true } }
+        const acctRes = await stripeV2(env, "POST", "/core/accounts", {
+          contact_email: club.admin_email || void 0,
+          display_name: club.name,
+          dashboard: "express",
+          identity: { country: "us" },
+          configuration: {
+            merchant: { capabilities: { card_payments: { requested: true } } },
+            recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } }
+          },
+          defaults: {
+            currency: "usd",
+            responsibilities: { fees_collector: "application", losses_collector: "application" }
+          }
         });
-        if (!acctRes.ok) return err("Failed to create Stripe account: " + (acctRes.data?.error?.message || "unknown error"), 500);
+        if (!acctRes.ok) return err("Failed to create Stripe account [" + acctRes.status + "]: " + JSON.stringify(acctRes.data), 500);
         accountId = acctRes.data.id;
         await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, { stripe_account_id: accountId });
       }

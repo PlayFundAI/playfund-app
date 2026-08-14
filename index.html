@@ -1156,6 +1156,12 @@
       </button>
     </div>
 
+    <!-- Stripe connect banner -->
+    <div id="stripeConnectBanner" style="display:none; margin-bottom:14px; padding:14px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--paper-dim);">
+      <div id="stripeConnectMsg" style="font-size:13px; color:var(--ink-soft); margin-bottom:8px;"></div>
+      <button class="btn btn-primary" id="stripeConnectBtn" style="width:100%; font-size:13px;" onclick="startStripeOnboarding()">Connect Stripe</button>
+    </div>
+
     <!-- Payout hero -->
     <div class="payout-hero">
       <div class="payout-hero-eyebrow">Landing in your account</div>
@@ -2684,6 +2690,17 @@ var usStates = ["Virginia"];
       } catch(e){ console.warn('Auth redirect error:', e); }
     })();
 
+    // Returning from Stripe Connect onboarding
+    // Supports: ?stripe_onboard=complete|refresh&club_id=UUID
+    (function handleStripeReturn(){
+      try {
+        var params = new URLSearchParams(window.location.search);
+        if(!params.get('stripe_onboard')) return;
+        history.replaceState(null, '', window.location.pathname);
+        setTimeout(function(){ enterClubMode(); }, 1100);
+      } catch(e){}
+    })();
+
     // Deep link handling — parse URL params to pre-populate parent flow
     // Supports: ?code=BBALL1&athlete=UUID&method=full|bnpl
     (async function handleDeepLink(){
@@ -3198,6 +3215,54 @@ var usStates = ["Virginia"];
     document.getElementById('bucketDefaultedAmt').textContent   = '$' + Math.round(defaultedCents / 100).toLocaleString();
 
     showScreen('club-overview');
+    refreshStripeBanner();
+  }
+
+  async function refreshStripeBanner(){
+    var c = state.club;
+    var banner = document.getElementById('stripeConnectBanner');
+    var msg    = document.getElementById('stripeConnectMsg');
+    var btn    = document.getElementById('stripeConnectBtn');
+    if(!c || !banner) return;
+    try {
+      var res  = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-status');
+      var data = await res.json();
+      if(data.charges_enabled){ banner.style.display = 'none'; return; }
+      banner.style.display = 'block';
+      if(data.connected){
+        msg.textContent = "Stripe setup isn't finished yet — parents can't pay until it is.";
+        btn.textContent = 'Finish Stripe setup';
+      } else {
+        msg.textContent = 'Connect Stripe to get paid — this is where your payouts land.';
+        btn.textContent = 'Connect Stripe';
+      }
+    } catch(e){ console.warn('refreshStripeBanner error:', e); }
+  }
+
+  async function startStripeOnboarding(){
+    var c = state.club;
+    if(!c) return;
+    var clubSession = null;
+    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    if(!clubSession || !clubSession.access_token){ alert('Session expired. Please sign in again.'); return; }
+    var btn = document.getElementById('stripeConnectBtn');
+    if(btn){ btn.disabled = true; btn.textContent = 'Loading…'; }
+    try {
+      var res = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-onboard', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + clubSession.access_token }
+      });
+      var data = await res.json();
+      if(!res.ok){
+        alert(data.error || 'Failed to start Stripe onboarding.');
+        if(btn){ btn.disabled = false; btn.textContent = 'Connect Stripe'; }
+        return;
+      }
+      window.location.href = data.url;
+    } catch(e){
+      alert('Network error. Please try again.');
+      if(btn){ btn.disabled = false; btn.textContent = 'Connect Stripe'; }
+    }
   }
 
   function openRoster(){

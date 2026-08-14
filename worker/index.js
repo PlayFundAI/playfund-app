@@ -694,10 +694,6 @@ var index_default = {
       }));
       return json({ athletes: enriched });
     }
-    if (method === "GET" && path === "/debug") {
-      const res = await supabase(env, "GET", "/clubs?select=id,name,code,active");
-      return json({ supabase_url: env.SUPABASE_URL, result: res });
-    }
     if (method === "POST" && path.startsWith("/club/") && path.endsWith("/stripe-onboard")) {
       const clubId = path.split("/")[2];
       if (!clubId) return err("Club ID required");
@@ -981,6 +977,17 @@ var index_default = {
       }, 201);
     }
     if (method === "POST" && path === "/team") {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!callerRes.ok) return err("Invalid token", 401);
+      const callerData = await callerRes.json();
+      const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id`);
+      const callerProfile = callerProfileRes.data?.[0];
+      if (!callerProfile) return err("Forbidden", 403);
       let body;
       try {
         body = await request.json();
@@ -996,6 +1003,8 @@ var index_default = {
         resolvedClubId = clubRes.data[0].id;
       }
       if (!resolvedClubId) return err("club_id or club_code required");
+      const isAllowed = callerProfile.role === "playfund_admin" || callerProfile.role === "club_admin" && callerProfile.club_id === resolvedClubId;
+      if (!isAllowed) return err("Forbidden", 403);
       const insertData = {
         club_id: resolvedClubId,
         name: name.trim(),

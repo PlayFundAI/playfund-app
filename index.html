@@ -2978,12 +2978,16 @@ var usStates = ["Virginia"];
     if(totalDues <= 0)  { errEl.textContent = 'Add at least one fee amount.'; return; }
     if(!c)              { errEl.textContent = 'No club loaded. Please log in again.'; return; }
 
+    var clubSession = null;
+    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    if(!clubSession || !clubSession.access_token){ errEl.textContent = 'Session expired. Please sign in again.'; return; }
+
     errEl.textContent = 'Saving\u2026'; errEl.classList.add('loading-msg');
 
     try {
       var res = await fetch(WORKER_URL + '/team', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + clubSession.access_token },
         body: JSON.stringify({
           club_id:       c.id,
           club_code:     c.code,

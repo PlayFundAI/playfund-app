@@ -1455,90 +1455,6 @@
     <button onclick="showScreen('faq')" style="background:none; border:none; margin-top:14px; font-size:12.5px; color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; text-decoration:underline;">How does PlayFund work?</button>
   </div>
 
-  <!-- SCREEN: pay now (hidden shell — keeps DOM elements updateFeeBreakdowns needs) -->
-  <!-- SCREEN: terms — payment schedule selection -->
-  <div class="screen sezzle-screen" id="screen-terms">
-    <div class="sezzle-modal-header">
-      <div class="sezzle-wordmark">
-        <span>Play<span class="wordmark-fund">Fund</span></span>
-      </div>
-      <button class="sezzle-close" onclick="goBack()" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <h1 class="title" style="font-size:21px;">Choose a payment schedule</h1>
-    <p class="sezzle-order-total" id="termsSubtitle">Your order total is <b>$1,000.00</b>.</p>
-
-    <div class="sezzle-option" data-weeks="4" onclick="selectTerm(this, 4)">
-      <div class="sezzle-option-radio"></div>
-      <div class="sezzle-option-body">
-        <div class="sezzle-option-top"><span>4 weekly payments</span><span class="term-amt-display">$250.00/week</span></div>
-        <div class="sezzle-option-sub">First payment today, then every week for 4 weeks.</div>
-      </div>
-    </div>
-
-    <div class="sezzle-option selected" data-weeks="8" onclick="selectTerm(this, 8)">
-      <div class="sezzle-option-radio"></div>
-      <div class="sezzle-option-body">
-        <div class="sezzle-option-top"><span>8 weekly payments</span><span class="term-amt-display">$118.75/week</span></div>
-        <div class="sezzle-option-sub">First payment today, then every week for 8 weeks.</div>
-      </div>
-    </div>
-
-    <div class="sezzle-option" data-weeks="12" onclick="selectTerm(this, 12)">
-      <div class="sezzle-option-radio"></div>
-      <div class="sezzle-option-body">
-        <div class="sezzle-option-top"><span>12 weekly payments</span><span class="term-amt-display">$79.17/week</span></div>
-        <div class="sezzle-option-sub">First payment today, then every week for 12 weeks.</div>
-      </div>
-    </div>
-
-    <p style="font-size:11px; color:var(--ink-soft); line-height:1.5; margin:14px 2px 18px;">
-      On-time installments carry no interest or fees. A missed or late payment would accrue interest at a 20% APR until brought current.
-    </p>
-
-    <div class="footer-spacer"></div>
-    <button class="sezzle-btn" onclick="initiateBnpl()">Continue to payment</button>
-    <p class="sezzle-footer">Payments processed securely by Stripe</p>
-  </div>
-
-  <!-- SCREEN: terms payment method — confirm schedule + complete order -->
-  <div class="screen sezzle-screen" id="screen-terms-method">
-    <div class="sezzle-modal-header">
-      <div class="sezzle-wordmark">
-        <span>Play<span class="wordmark-fund">Fund</span></span>
-      </div>
-      <button class="sezzle-close" onclick="goBack()" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <h1 class="title" style="font-size:21px;">Complete your order</h1>
-    <p class="sezzle-order-total" id="termsMethodSub">Review your payment schedule for your season dues at Basketball Club.</p>
-
-    <div id="sezzleTimeline">
-      <div class="sezzle-timeline-item">
-        <div class="sezzle-timeline-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-        </div>
-        <div style="flex:1;">
-          <div class="sezzle-timeline-label">Down payment due today</div>
-        </div>
-        <div class="sezzle-timeline-amt">$125.00</div>
-      </div>
-    </div>
-
-    <p style="font-size:12px; color:var(--ink-soft); line-height:1.5; margin:16px 0;">
-      You'll enter your payment details securely on the next screen, powered by Stripe.
-    </p>
-
-    <p class="sezzle-consent">By selecting "Complete order" I agree to the <a href="#" onclick="return false;">PlayFund Payment Agreement</a> and authorize PlayFund to charge my payment method in the amounts and on the dates listed above.</p>
-
-    <div class="footer-spacer"></div>
-    <button class="sezzle-btn" onclick="initiateBnpl()">Complete order</button>
-    <p class="sezzle-footer">Payments processed securely by Stripe</p>
-  </div>
-
-  <!-- SCREEN: confirm now -->
   <!-- SCREEN: confirm now (pay in full) -->
   <div class="screen" id="screen-confirm-now">
     <div class="step-progress">
@@ -2786,11 +2702,10 @@ var usStates = ["Virginia"];
             if(team){
               state.parentTeam = team;
               openAthleteDetail(existing.id);
-              // If method specified, navigate directly to payment screen
-              if(method === 'full'){
-                setTimeout(function(){ showScreen('paynow'); }, 100);
-              } else if(method === 'bnpl'){
-                setTimeout(function(){ showScreen('terms'); }, 100);
+              // If method specified, go straight into real Stripe checkout —
+              // same flow as the in-app payment buttons.
+              if(method === 'full' || method === 'bnpl'){
+                setTimeout(function(){ openStripeCheckout(method); }, 100);
               }
               return;
             }
@@ -3167,8 +3082,6 @@ var usStates = ["Virginia"];
   function sportVisual(sport){
     return sportVisuals[sport] || { color: 'var(--ink-soft)', bg: 'var(--paper-dim)', icon: '' };
   }
-
-  updateFeeBreakdowns();
 
   // Computes a deterministic roster + funded/collected summary for one team.
   function teamSummary(club, team){
@@ -3937,7 +3850,6 @@ var usStates = ["Virginia"];
     // Shallow-copy the team so we can safely set a display name without mutating
     // the shared clubs/teams dataset (ct.team is a direct reference into it).
     state.parentClub = Object.assign({}, ct.team, { name: ct.club.name + ' \u2014 ' + ct.team.name });
-    updateFeeBreakdowns();
     buildBreakdown(ct.club.sport, ct.team.dues);
 
     // Show manage plan button if they have an active BNPL plan
@@ -4987,85 +4899,6 @@ var usStates = ["Virginia"];
   function initiateKlarna(){ openStripeCheckout('bnpl'); }
   function initiateBnpl(){   openStripeCheckout('bnpl'); }
 
-  // ---------- pay now method toggle ----------
-  function setMethod(method){
-    document.getElementById('methodCard').classList.toggle('active', method === 'card');
-    document.getElementById('methodAch').classList.toggle('active', method === 'ach');
-    document.getElementById('cardFields').style.display = method === 'card' ? 'block' : 'none';
-    document.getElementById('achFields').style.display = method === 'ach' ? 'block' : 'none';
-    state.paymentMethod = method;
-    syncPaynowButton();
-  }
-  function syncPaynowButton(){
-    var dues = (state.parentClub && state.parentClub.dues) || 1000;
-    var method = state.paymentMethod || 'card';
-    var total = method === 'ach' ? dues * 1.01 : dues * 1.03;
-    var el = document.getElementById('paynowBtnAmt');
-    if(el) el.textContent = fmtUSD(total);
-  }
-  function updateFeeBreakdowns(){
-    var dues = (state.parentClub && state.parentClub.dues) || 1000;
-    var cardTotal = dues * 1.03;
-    var achTotal  = dues * 1.01;
-    var ct = document.getElementById('cardFeeTotal');
-    var at = document.getElementById('achFeeTotal');
-    var ps = document.getElementById('paynowSub');
-    if(ct) ct.textContent = fmtUSD(cardTotal);
-    if(at) at.textContent = fmtUSD(achTotal);
-    if(ps) ps.textContent = '$' + dues.toLocaleString() + ' due in full today.';
-    syncPaynowButton();
-    var ts = document.getElementById('termsSubtitle');
-    if(ts) ts.innerHTML = 'Your order total is <b>' + fmtUSD(dues) + '</b>.';
-    rebuildTermCards(dues);
-    var selectedCard = document.querySelector('.sezzle-option.selected') || document.querySelector('.sezzle-option[data-weeks="8"]');
-    if(selectedCard) selectTerm(selectedCard, parseInt(selectedCard.dataset.weeks, 10));
-  }
-
-  // ---------- term selection (Sezzle schedule cards) ----------
-  function rebuildTermCards(dues){
-    [4, 8, 12].forEach(function(weeks){
-      var perWeek = dues / weeks;
-      var card = document.querySelector('.sezzle-option[data-weeks="' + weeks + '"]');
-      if(card) card.querySelector('.term-amt-display').textContent = fmtUSD(perWeek) + '/week';
-    });
-  }
-  function selectTerm(el, weeks){
-    document.querySelectorAll('.sezzle-option').forEach(function(t){ t.classList.remove('selected'); });
-    el.classList.add('selected');
-    var dues = (state.parentClub && state.parentClub.dues) || 1000;
-    var perWeekAmt = dues / weeks;
-    var perWeek = fmtUSD(perWeekAmt);
-    var clubName = (state.parentClub && state.parentClub.name) || 'Hawks Travel Basketball';
-    state.selectedTermWeeks = weeks;
-
-    var tms = document.getElementById('termsMethodSub');
-    if(tms) tms.textContent =
-      'Review your payment schedule for your season dues at ' + clubName + '.';
-
-    // Build the itemized timeline
-    var timelineEl = document.getElementById('sezzleTimeline');
-    if(timelineEl){
-      var rows = '<div class="sezzle-timeline-item">' +
-        '<div class="sezzle-timeline-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>' +
-        '<div style="flex:1;"><div class="sezzle-timeline-label">Down payment due today</div></div>' +
-        '<div class="sezzle-timeline-amt">' + perWeek + '</div></div>';
-      var today = new Date();
-      for(var i = 1; i < weeks; i++){
-        var d = new Date(today);
-        d.setDate(d.getDate() + i * 7);
-        var dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        rows += '<div class="sezzle-timeline-item">' +
-          '<div class="sezzle-timeline-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>' +
-          '<div style="flex:1;"><div class="sezzle-timeline-label">Payment ' + (i + 1) + '</div><div class="sezzle-timeline-date">' + dateStr + '</div></div>' +
-          '<div class="sezzle-timeline-amt">' + perWeek + '</div></div>';
-      }
-      timelineEl.innerHTML = rows;
-    }
-
-    var cts = document.getElementById('confirmTermsSub');
-    if(cts) cts.textContent =
-      clubName + ' has been paid ' + fmtUSD(dues) + ' in full. You\'re set up for ' + weeks + ' weekly payments of ' + perWeek + '.';
-  }
 </script>
 
 </body>

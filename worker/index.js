@@ -42,7 +42,16 @@ function toStripeFormParams(obj, prefix) {
   for (const [key, value] of Object.entries(obj)) {
     const paramKey = prefix ? `${prefix}[${key}]` : key;
     if (value === undefined || value === null) continue;
-    if (typeof value === "object" && !Array.isArray(value)) {
+    if (Array.isArray(value)) {
+      value.forEach((item, i) => {
+        const itemKey = `${paramKey}[${i}]`;
+        if (item !== null && typeof item === "object") {
+          params.push(...toStripeFormParams(item, itemKey));
+        } else {
+          params.push([itemKey, String(item)]);
+        }
+      });
+    } else if (typeof value === "object") {
       params.push(...toStripeFormParams(value, paramKey));
     } else {
       params.push([paramKey, String(value)]);
@@ -111,7 +120,138 @@ async function verifyStripeSignature(body, sigHeader, secret) {
   return computed === signature;
 }
 __name(verifyStripeSignature, "verifyStripeSignature");
+async function sendReminderEmail(env, club, team, athlete) {
+  const RESEND_API_KEY = env.RESEND_API_KEY;
+  if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY not configured" };
+  if (!athlete.parent_email) return { ok: false, skipped: true };
+  const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
+  const dues = (team.dues_cents || 0) / 100;
+  const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
+  </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
+  <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;"><tr><td align="center" style="padding:32px 16px;">
+  <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <tr><td style="background:#004643;padding:18px 28px;">
+      <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+    </td></tr>
+    <tr><td style="padding:28px;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Action needed</p>
+      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name}'s registration is still open.</h2>
+      <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
+        ${club.name} is waiting for ${athlete.name}'s registration to be completed.
+        The season is coming up — take a moment to register and choose how you'd like to pay.
+      </p>
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
+        <tr><td style="padding:16px;">
+          <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-size:13px;color:#6B7280;">Season dues</td>
+              <td align="right" style="font-size:16px;font-weight:800;color:#004643;">$${dues.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+      <table cellpadding="0" cellspacing="0" width="100%"><tr>
+        <td width="48%" style="padding:14px;background:#004643;border-radius:10px;text-align:center;">
+          <p style="margin:0 0 4px;font-size:11px;color:#5BA888;font-weight:700;text-transform:uppercase;">Pay in full</p>
+          <p style="margin:0 0 10px;font-size:20px;font-weight:800;color:#fff;">$${dues.toLocaleString()}</p>
+          <a href="${payUrl}&method=full" style="display:inline-block;background:#5BA888;color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;">Pay now</a>
+        </td>
+        <td width="4%"></td>
+        <td width="48%" style="padding:14px;background:#F4F7F6;border-radius:10px;text-align:center;">
+          <p style="margin:0 0 4px;font-size:11px;color:#9CA3AF;font-weight:700;text-transform:uppercase;">Installments</p>
+          <p style="margin:0 0 10px;font-size:20px;font-weight:800;color:#004643;">$${Math.round(dues / 4)}<span style="font-size:13px;font-weight:500;color:#9CA3AF;">/mo</span></p>
+          <a href="${payUrl}&method=bnpl" style="display:inline-block;background:#004643;color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;">Set up plan</a>
+        </td>
+      </tr></table>
+      <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
+        Questions? Reply to this email or contact ${club.name} directly.
+      </p>
+    </td></tr>
+  </table>
+  </td></tr></table>
+  </body></html>`;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: `${club.name} via PlayFund <hello@playfundai.com>`,
+      to: [athlete.parent_email],
+      subject: `Reminder: ${athlete.name}'s registration for ${club.name}`,
+      html
+    })
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("Resend failed for", athlete.parent_email, errText);
+    return { ok: false, error: errText, status: res.status };
+  }
+  await supabase(env, "PATCH", `/athletes?id=eq.${athlete.id}`, { last_reminder_sent_at: (/* @__PURE__ */ new Date()).toISOString() });
+  return { ok: true };
+}
+__name(sendReminderEmail, "sendReminderEmail");
+async function runScheduledReminders(env) {
+  const clubsRes = await supabase(
+    env,
+    "GET",
+    "/clubs?reminders_enabled=eq.true&select=id,name,code,reminder_pre_due_days,reminder_recurring_interval_days"
+  );
+  const clubs = clubsRes.data || [];
+  let totalSent = 0;
+  const errors = [];
+  for (const club of clubs) {
+    const teamsRes = await supabase(
+      env,
+      "GET",
+      `/teams?club_id=eq.${club.id}&active=eq.true&dues_due_date=not.is.null&select=id,name,dues_cents,dues_due_date`
+    );
+    const teams = teamsRes.data || [];
+    for (const team of teams) {
+      const athRes = await supabase(
+        env,
+        "GET",
+        `/athletes?team_id=eq.${team.id}&select=id,name,parent_email,payment_status,last_reminder_sent_at&or=(payment_status.eq.unpaid,payment_status.is.null)`
+      );
+      const athletes = athRes.data || [];
+      const today = new Date((/* @__PURE__ */ new Date()).toISOString().slice(0, 10) + "T00:00:00Z");
+      const due = new Date(team.dues_due_date + "T00:00:00Z");
+      const daysUntilDue = Math.round((due - today) / 864e5);
+      for (const athlete of athletes) {
+        if (!athlete.parent_email) continue;
+        let eligible = false;
+        if (club.reminder_pre_due_days != null && daysUntilDue === club.reminder_pre_due_days && !athlete.last_reminder_sent_at) {
+          eligible = true;
+        }
+        if (!eligible && club.reminder_recurring_interval_days && daysUntilDue < 0) {
+          if (!athlete.last_reminder_sent_at) {
+            eligible = true;
+          } else {
+            const daysSinceLast = Math.floor((Date.now() - new Date(athlete.last_reminder_sent_at).getTime()) / 864e5);
+            if (daysSinceLast >= club.reminder_recurring_interval_days) eligible = true;
+          }
+        }
+        if (eligible) {
+          const r = await sendReminderEmail(env, club, team, athlete);
+          if (r.ok) totalSent++;
+          else errors.push({ athlete: athlete.name, email: athlete.parent_email, error: r.error || "unknown" });
+        }
+      }
+    }
+  }
+  console.log(`Scheduled reminders: sent ${totalSent}`);
+  return { sent: totalSent, errors };
+}
+__name(runScheduledReminders, "runScheduledReminders");
 var index_default = {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runScheduledReminders(env));
+  },
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -120,14 +260,33 @@ var index_default = {
       return new Response(null, { status: 204, headers: CORS });
     }
     if (method === "POST" && path === "/remind") {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!callerRes.ok) return err("Invalid token", 401);
+      const callerData = await callerRes.json();
+      const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id,team_id`);
+      const callerProfile = callerProfileRes.data?.[0];
+      if (!callerProfile) return err("Forbidden", 403);
       let body;
       try {
         body = await request.json();
       } catch {
         return err("Invalid JSON");
       }
-      const { team_id, club_code } = body;
+      const { team_id } = body;
       if (!team_id) return err("team_id required");
+      const teamRes = await supabase(env, "GET", `/teams?select=id,name,dues_cents,club_id&id=eq.${team_id}`);
+      const team = teamRes.data?.[0];
+      if (!team) return err("Team not found", 404);
+      const isAllowed = callerProfile.role === "playfund_admin" || callerProfile.role === "club_admin" && callerProfile.club_id === team.club_id || callerProfile.role === "team_admin" && callerProfile.team_id === team_id;
+      if (!isAllowed) return err("Forbidden", 403);
+      const clubRes = await supabase(env, "GET", `/clubs?select=id,name,code&id=eq.${team.club_id}`);
+      const club = clubRes.data?.[0];
+      if (!club) return err("Club not found", 404);
       const athRes = await supabase(
         env,
         "GET",
@@ -135,94 +294,12 @@ var index_default = {
       );
       const athletes = athRes.data || [];
       if (!athletes.length) return json({ sent: 0, message: "No unpaid athletes found" });
-      const teamRes = await supabase(
-        env,
-        "GET",
-        `/teams?select=id,name,dues_cents,club_id&id=eq.${team_id}`
-      );
-      const team = teamRes.data?.[0];
-      if (!team) return err("Team not found", 404);
-      const clubRes = await supabase(
-        env,
-        "GET",
-        `/clubs?select=id,name,code&id=eq.${team.club_id}`
-      );
-      const club = clubRes.data?.[0];
-      if (!club) return err("Club not found", 404);
-      const RESEND_API_KEY = env.RESEND_API_KEY;
-      if (!RESEND_API_KEY) return err("RESEND_API_KEY not configured", 500);
-      const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
-      const dues = (team.dues_cents || 0) / 100;
       let sent = 0;
       const skipped = [];
       for (const athlete of athletes) {
-        if (!athlete.parent_email) {
-          skipped.push(athlete.name);
-          continue;
-        }
-        const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
-        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-          body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
-        </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
-        <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;"><tr><td align="center" style="padding:32px 16px;">
-        <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-          <tr><td style="background:#004643;padding:18px 28px;">
-            <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
-            <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
-          </td></tr>
-          <tr><td style="padding:28px;">
-            <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Action needed</p>
-            <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name}'s registration is still open.</h2>
-            <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
-              ${club.name} is waiting for ${athlete.name}'s registration to be completed.
-              The season is coming up — take a moment to register and choose how you'd like to pay.
-            </p>
-            <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
-              <tr><td style="padding:16px;">
-                <table cellpadding="0" cellspacing="0" width="100%">
-                  <tr>
-                    <td style="font-size:13px;color:#6B7280;">Season dues</td>
-                    <td align="right" style="font-size:16px;font-weight:800;color:#004643;">$${dues.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td>
-                    <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td>
-                  </tr>
-                </table>
-              </td></tr>
-            </table>
-            <table cellpadding="0" cellspacing="0" width="100%"><tr>
-              <td width="48%" style="padding:14px;background:#004643;border-radius:10px;text-align:center;">
-                <p style="margin:0 0 4px;font-size:11px;color:#5BA888;font-weight:700;text-transform:uppercase;">Pay in full</p>
-                <p style="margin:0 0 10px;font-size:20px;font-weight:800;color:#fff;">$${dues.toLocaleString()}</p>
-                <a href="${payUrl}&method=full" style="display:inline-block;background:#5BA888;color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;">Pay now</a>
-              </td>
-              <td width="4%"></td>
-              <td width="48%" style="padding:14px;background:#F4F7F6;border-radius:10px;text-align:center;">
-                <p style="margin:0 0 4px;font-size:11px;color:#9CA3AF;font-weight:700;text-transform:uppercase;">Installments</p>
-                <p style="margin:0 0 10px;font-size:20px;font-weight:800;color:#004643;">$${Math.round(dues / 4)}<span style="font-size:13px;font-weight:500;color:#9CA3AF;">/mo</span></p>
-                <a href="${payUrl}&method=bnpl" style="display:inline-block;background:#004643;color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;">Set up plan</a>
-              </td>
-            </tr></table>
-            <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
-              Questions? Reply to this email or contact ${club.name} directly.
-            </p>
-          </td></tr>
-        </table>
-        </td></tr></table>
-        </body></html>`;
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: `${club.name} via PlayFund <hello@getplayfund.com>`,
-            to: [athlete.parent_email],
-            subject: `Reminder: ${athlete.name}'s registration for ${club.name}`,
-            html
-          })
-        });
-        if (res.ok) sent++;
-        else console.error("Resend failed for", athlete.parent_email, await res.text());
+        const r = await sendReminderEmail(env, club, team, athlete);
+        if (r.ok) sent++;
+        else if (r.skipped) skipped.push(athlete.name);
       }
       return json({ sent, skipped, total: athletes.length });
     }
@@ -336,6 +413,46 @@ var index_default = {
         }
       });
     }
+    if (method === "POST" && path === "/admin/run-reminders") {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!userRes.ok) return err("Invalid token", 401);
+      const userData = await userRes.json();
+      const profileRes = await supabase(env, "GET", `/user_profiles?id=eq.${userData.id}&select=role`);
+      if (profileRes.data?.[0]?.role !== "playfund_admin") return err("Forbidden", 403);
+      if (url.searchParams.get("debug") === "1") {
+        const clubsRes2 = await supabase(env, "GET", "/clubs?reminders_enabled=eq.true&select=id,name,reminder_pre_due_days,reminder_recurring_interval_days");
+        const clubs2 = clubsRes2.data || [];
+        const trace = [];
+        for (const club of clubs2) {
+          const teamsRes2 = await supabase(env, "GET", `/teams?club_id=eq.${club.id}&active=eq.true&dues_due_date=not.is.null&select=id,name,dues_due_date`);
+          const teams2 = teamsRes2.data || [];
+          for (const team of teams2) {
+            const athRes2 = await supabase(env, "GET", `/athletes?team_id=eq.${team.id}&select=id,name,parent_email,last_reminder_sent_at&or=(payment_status.eq.unpaid,payment_status.is.null)`);
+            const today2 = new Date((/* @__PURE__ */ new Date()).toISOString().slice(0, 10) + "T00:00:00Z");
+            const due2 = new Date(team.dues_due_date + "T00:00:00Z");
+            trace.push({
+              club: club.name,
+              team: team.name,
+              dues_due_date: team.dues_due_date,
+              nowISO: (/* @__PURE__ */ new Date()).toISOString(),
+              todayComputed: today2.toISOString(),
+              dueComputed: due2.toISOString(),
+              daysUntilDue: Math.round((due2 - today2) / 864e5),
+              reminder_pre_due_days: club.reminder_pre_due_days,
+              athletes: athRes2.data
+            });
+          }
+        }
+        return json({ trace });
+      }
+      const result = await runScheduledReminders(env);
+      return json(result);
+    }
     if (method === "PATCH" && path.startsWith("/admin/clubs/")) {
       const clubId = path.split("/")[3];
       if (!clubId) return err("Club ID required");
@@ -355,13 +472,33 @@ var index_default = {
       } catch {
         return err("Invalid JSON");
       }
-      const { fee_bps } = body;
-      if (!Number.isInteger(fee_bps) || fee_bps < 0 || fee_bps > 10000) {
-        return err("fee_bps must be an integer between 0 and 10000");
+      const updateData = {};
+      if (body.fee_bps !== void 0) {
+        if (!Number.isInteger(body.fee_bps) || body.fee_bps < 0 || body.fee_bps > 10000) {
+          return err("fee_bps must be an integer between 0 and 10000");
+        }
+        updateData.fee_bps = body.fee_bps;
       }
-      const updateRes = await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, { fee_bps });
-      if (!updateRes.ok) return err("Failed to update fee", 500);
-      return json({ success: true, fee_bps });
+      if (body.reminders_enabled !== void 0) {
+        if (typeof body.reminders_enabled !== "boolean") return err("reminders_enabled must be a boolean");
+        updateData.reminders_enabled = body.reminders_enabled;
+      }
+      if (body.reminder_pre_due_days !== void 0) {
+        if (body.reminder_pre_due_days !== null && (!Number.isInteger(body.reminder_pre_due_days) || body.reminder_pre_due_days < 0)) {
+          return err("reminder_pre_due_days must be a non-negative integer or null");
+        }
+        updateData.reminder_pre_due_days = body.reminder_pre_due_days;
+      }
+      if (body.reminder_recurring_interval_days !== void 0) {
+        if (body.reminder_recurring_interval_days !== null && (!Number.isInteger(body.reminder_recurring_interval_days) || body.reminder_recurring_interval_days < 1)) {
+          return err("reminder_recurring_interval_days must be a positive integer or null");
+        }
+        updateData.reminder_recurring_interval_days = body.reminder_recurring_interval_days;
+      }
+      if (Object.keys(updateData).length === 0) return err("No valid fields to update");
+      const updateRes = await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, updateData);
+      if (!updateRes.ok) return err("Failed to update club: " + JSON.stringify(updateRes.data), 500);
+      return json({ success: true, ...updateData });
     }
     if (method === "GET" && path === "/admin/clubs") {
       const authHeader = request.headers.get("Authorization") || "";
@@ -377,7 +514,7 @@ var index_default = {
       const clubsRes = await supabase(
         env,
         "GET",
-        "/clubs?select=id,name,sport,city,state,code,active,fee_bps&order=name.asc"
+        "/clubs?select=id,name,sport,city,state,code,active,fee_bps,reminders_enabled,reminder_pre_due_days,reminder_recurring_interval_days&order=name.asc"
       );
       if (!clubsRes.ok) return err("Failed to fetch clubs", 500);
       const clubs = clubsRes.data || [];
@@ -824,6 +961,56 @@ var index_default = {
       });
       if (!insertRes.ok) return err("Failed to register athlete", 500);
       return json({ athlete: insertRes.data[0] }, 201);
+    }
+    if (method === "POST" && path.startsWith("/athlete/") && path.endsWith("/checkout")) {
+      const athleteId = path.split("/")[2];
+      if (!athleteId) return err("Athlete ID required");
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return err("Invalid JSON");
+      }
+      const { payment_type } = body;
+      if (!["full", "bnpl"].includes(payment_type)) return err("payment_type must be 'full' or 'bnpl'");
+      const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=id,name,team_id,club_id`);
+      const athlete = athleteRes.data?.[0];
+      if (!athlete) return err("Athlete not found", 404);
+      const teamRes = await supabase(env, "GET", `/teams?id=eq.${athlete.team_id}&select=id,name,dues_cents`);
+      const team = teamRes.data?.[0];
+      if (!team) return err("Team not found", 404);
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name,code,stripe_account_id,fee_bps`);
+      const club = clubRes.data?.[0];
+      if (!club) return err("Club not found", 404);
+      if (!club.stripe_account_id) return err("This club hasn't connected Stripe yet", 400);
+      const duesCents = team.dues_cents;
+      if (!duesCents) return err("Team has no dues configured", 400);
+      const feeBps = club.fee_bps != null ? club.fee_bps : 500;
+      const applicationFeeAmount = Math.round(duesCents * feeBps / 1e4);
+      const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
+      const paymentMethodTypes = payment_type === "bnpl" ? ["klarna"] : ["card", "us_bank_account"];
+      const sessionRes = await stripe(env, "POST", "/checkout/sessions", {
+        mode: "payment",
+        payment_method_types: paymentMethodTypes,
+        line_items: [{
+          price_data: {
+            currency: "usd",
+            product_data: { name: `${athlete.name} — ${team.name} season dues` },
+            unit_amount: duesCents
+          },
+          quantity: 1
+        }],
+        payment_intent_data: {
+          application_fee_amount: applicationFeeAmount,
+          transfer_data: { destination: club.stripe_account_id },
+          metadata: { athlete_id: athleteId }
+        },
+        metadata: { athlete_id: athleteId },
+        success_url: `${APP_URL}?checkout=success&athlete=${athleteId}`,
+        cancel_url: `${APP_URL}?checkout=cancel&athlete=${athleteId}`
+      });
+      if (!sessionRes.ok) return err("Failed to create checkout session: " + JSON.stringify(sessionRes.data), 500);
+      return json({ url: sessionRes.data.url });
     }
     if (method === "GET" && path.startsWith("/athlete/")) {
       const athleteId = path.split("/")[2];

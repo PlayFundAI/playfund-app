@@ -1301,6 +1301,10 @@
       <label>Athlete's name</label>
       <input type="text" id="athleteNameInput" placeholder="e.g. Jordan Smith" autocomplete="off">
     </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Your email</label>
+      <input type="email" id="parentEmailInput" placeholder="you@email.com" autocomplete="email">
+    </div>
     <div class="field" style="margin-bottom:6px;">
       <label>Club code</label>
       <input type="text" id="codeInput" placeholder="e.g. BBALL1" autocomplete="off" autocapitalize="characters" oninput="this.value=this.value.toUpperCase(); clearCodeError();">
@@ -1381,7 +1385,7 @@
         On Stripe's checkout, enter your card or bank details and tap <b>Pay</b>. The full season dues will be charged once.
       </div>
       <div class="payment-btn-row">
-        <button class="payment-method-btn" onclick="openStripeCheckout('pay-card', 'confirm-now', 'full')">
+        <button class="payment-method-btn" onclick="openStripeCheckout('full')">
           <div class="payment-method-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           </div>
@@ -1390,7 +1394,7 @@
             <div class="payment-method-sub">Visa, Mastercard, Amex</div>
           </div>
         </button>
-        <button class="payment-method-btn" onclick="openStripeCheckout('pay-ach', 'confirm-now', 'full')">
+        <button class="payment-method-btn" onclick="openStripeCheckout('full')">
           <div class="payment-method-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
           </div>
@@ -1428,7 +1432,7 @@
         </div>
       </div>
       <div class="payment-btn-row">
-        <button class="payment-method-btn" onclick="openStripeCheckout('klarna', 'confirm-terms', 'bnpl')">
+        <button class="payment-method-btn" onclick="openStripeCheckout('bnpl')">
           <div class="payment-method-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           </div>
@@ -2249,7 +2253,7 @@
 
     <div style="margin-top:20px; padding:14px; background:var(--paper-dim); border-radius:10px;">
       <p style="margin:0; font-size:12.5px; color:var(--ink-soft); line-height:1.6;">
-        Payments are managed by PlayFund and processed via Stripe. To change a payment date or cancel, reply to your confirmation email or contact <a href="mailto:hello@getplayfund.com" style="color:var(--fund-green);">hello@getplayfund.com</a>.
+        Payments are managed by PlayFund and processed via Stripe. To change a payment date or cancel, reply to your confirmation email or contact <a href="mailto:hello@playfundai.com" style="color:var(--fund-green);">hello@playfundai.com</a>.
       </p>
     </div>
   </div>
@@ -2300,7 +2304,7 @@
         <div class="faq-question-text">Can I change my card or payment date?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Yes. You can update your card on file any time before your next payment date. To change a payment date, contact hello@getplayfund.com — we'll do our best to accommodate. Changes must be requested at least 48 hours before the scheduled charge.</div>
+      <div class="faq-answer">Yes. You can update your card on file any time before your next payment date. To change a payment date, contact hello@playfundai.com — we'll do our best to accommodate. Changes must be requested at least 48 hours before the scheduled charge.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -2362,7 +2366,7 @@
         <div class="faq-question-text">How do I contact PlayFund?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Email us at hello@getplayfund.com — we typically respond within a few hours. For club partnerships, reach Jackson directly at jackson@getplayfund.com.</div>
+      <div class="faq-answer">Email us at hello@playfundai.com — we typically respond within a few hours. For club partnerships, reach Jackson directly at jackson@playfundai.com.</div>
     </div>
 
     <div class="footer-spacer"></div>
@@ -2489,45 +2493,6 @@
     </div>
   </div>
 
-</div>
-
-<!-- Stripe payment interstitial — opens Stripe checkout in a new tab -->
-<div id="stripeModal" style="display:none;" role="dialog" aria-label="Stripe payment">
-  <div class="stripe-modal-backdrop" onclick="if(event.target===this) closeStripeModal(false)">
-    <div class="stripe-modal-sheet">
-      <div class="stripe-modal-header">
-        <div class="stripe-modal-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <span id="stripeModalTitle">Complete payment</span>
-        </div>
-        <button class="stripe-modal-close" onclick="closeStripeModal(false)" aria-label="Cancel payment">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-
-      <div class="stripe-interstitial-body">
-        <div class="stripe-interstitial-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#635BFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-        </div>
-        <div class="stripe-interstitial-title" id="stripeInterstitialTitle">Pay now</div>
-        <p class="stripe-interstitial-desc" id="stripeInterstitialDesc">
-          You'll complete payment on <b>Stripe's secure checkout page</b>. Tap the button below — when you're done, come back here to see your confirmation.
-        </p>
-        <a class="stripe-pay-btn" id="stripePayBtn" href="#" target="_blank" rel="noopener" onclick="onStripePayTapped()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          Open Stripe checkout
-        </a>
-        <button class="stripe-return-btn" id="stripeReturnBtn" style="display:none;" onclick="closeStripeModal(true)">
-          ✓ I've completed payment — show my confirmation
-        </button>
-      </div>
-
-      <div class="stripe-modal-footer">
-        <svg viewBox="0 0 24 24" fill="#635BFF" stroke="none"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.31 2.564-3.346 2.564-5.732 0-4.103-2.539-5.897-6.63-7.305z"/></svg>
-        Powered by Stripe &middot; SSL encrypted
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- Send reminder modal (outside app div, overlays everything) -->
@@ -2698,6 +2663,50 @@ var usStates = ["Virginia"];
         if(!params.get('stripe_onboard')) return;
         history.replaceState(null, '', window.location.pathname);
         setTimeout(function(){ enterClubMode(); }, 1100);
+      } catch(e){}
+    })();
+
+    // Returning from a real Stripe Checkout session (parent payment)
+    // Supports: ?checkout=success|cancel&athlete=UUID
+    // Payment status is verified against the server (webhook-driven), never trusted
+    // from the redirect alone.
+    (function handleCheckoutReturn(){
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var checkout = params.get('checkout');
+        var athId    = params.get('athlete');
+        if(!checkout || !athId) return;
+        history.replaceState(null, '', window.location.pathname);
+        if(checkout !== 'success') { setTimeout(function(){ showScreen('home', true); }, 1100); return; }
+
+        setTimeout(async function(){
+          var localAthlete = loadAthletes().find(function(a){ return a.supabaseId === athId; });
+          if(!localAthlete){ showScreen('home', true); return; }
+          state.athletes = loadAthletes();
+          state.activeAthleteId = localAthlete.id;
+
+          var funded = false, method = 'full';
+          for(var i = 0; i < 5 && !funded; i++){
+            try {
+              var res  = await fetch(WORKER_URL + '/athlete/' + athId);
+              var data = await res.json();
+              var status = data.athlete && data.athlete.payment_status;
+              if(status && status !== 'unpaid'){
+                funded = true;
+                method = (status === 'bnpl_active' || status === 'bnpl_complete') ? 'bnpl' : 'full';
+                break;
+              }
+            } catch(e){}
+            if(!funded) await new Promise(function(r){ setTimeout(r, 1500); });
+          }
+
+          if(funded){
+            recordAthletePayment(method, state.selectedTermWeeks);
+          } else {
+            alert("We're still confirming your payment with Stripe. This can take a minute — check back shortly and your registration will update automatically.");
+            showScreen('home', true);
+          }
+        }, 1100);
       } catch(e){}
     })();
 
@@ -3618,24 +3627,45 @@ var usStates = ["Virginia"];
   }
 
   async function submitCode(){
-    var name = document.getElementById('athleteNameInput').value.trim();
-    var raw  = document.getElementById('codeInput').value.trim();
+    var name  = document.getElementById('athleteNameInput').value.trim();
+    var email = document.getElementById('parentEmailInput').value.trim();
+    var raw   = document.getElementById('codeInput').value.trim();
     var errEl = document.getElementById('codeError');
 
-    if(!name){ errEl.textContent = "Enter the athlete's name first."; return; }
-    if(!raw)  { errEl.textContent = "Enter the club code."; return; }
+    if(!name)  { errEl.textContent = "Enter the athlete's name first."; return; }
+    if(!email) { errEl.textContent = "Enter your email."; return; }
+    if(!raw)   { errEl.textContent = "Enter the club code."; return; }
 
     errEl.textContent = 'Looking up club…'; errEl.classList.add('loading-msg');
     var club = await fetchClub(raw);
     if(!club){
       errEl.textContent = "We couldn't find a club with that code. Try BBALL1.";
+      errEl.classList.remove('loading-msg');
       return;
     }
 
     var team = pickTeamForAthlete(club, name);
+    errEl.textContent = 'Registering…';
+
+    var created = null;
+    try {
+      var res = await fetch(WORKER_URL + '/athlete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ club_code: raw, team_id: team.id, athlete_name: name, parent_email: email })
+      });
+      var data = await res.json();
+      if(!res.ok){ errEl.textContent = data.error || 'Failed to register athlete.'; errEl.classList.remove('loading-msg'); return; }
+      created = data.athlete;
+    } catch(e){
+      errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg');
+      return;
+    }
+
     state.athletes = loadAthletes();
     var athlete = {
       id: 'athlete_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      supabaseId: created.id,
       name: name,
       clubId: club.id,
       clubCode: raw,
@@ -3648,8 +3678,9 @@ var usStates = ["Virginia"];
     saveAthletes(state.athletes);
 
     document.getElementById('athleteNameInput').value = '';
+    document.getElementById('parentEmailInput').value = '';
     document.getElementById('codeInput').value = '';
-    errEl.textContent = '';
+    errEl.textContent = ''; errEl.classList.remove('loading-msg');
     renderAthleteList();
     showScreen('parent-home');
   }
@@ -3984,11 +4015,11 @@ var usStates = ["Virginia"];
   }
 
   function openStripeUpdateCard(){
-    alert('Card update is handled via Stripe. In the live version, this opens Stripe\'s secure card update page. Check your confirmation email for a management link, or contact hello@getplayfund.com.');
+    alert('Card update is handled via Stripe. In the live version, this opens Stripe\'s secure card update page. Check your confirmation email for a management link, or contact hello@playfundai.com.');
   }
 
   function downloadReceipt(){
-    alert('Your receipt was emailed when you registered. Check your inbox for an email from PlayFund. Contact hello@getplayfund.com if you need a copy.');
+    alert('Your receipt was emailed when you registered. Check your inbox for an email from PlayFund. Contact hello@playfundai.com if you need a copy.');
   }
 
   // ---------- send reminders ----------
@@ -4029,7 +4060,7 @@ var usStates = ["Virginia"];
         csvEscape(team.name || ''),
         statusLabels[status] || status,
         methodLabels[method] || method,
-        '$' + dues.toLocaleString()
+        csvEscape('$' + dues.toLocaleString())
       ].join(',');
     });
 
@@ -4108,6 +4139,16 @@ var usStates = ["Virginia"];
 
     var btn = document.getElementById('reminderSendBtn');
     var errEl = document.getElementById('reminderModalError');
+
+    var token = adminSession;
+    if(!token){
+      try {
+        var clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null');
+        if(clubSession && clubSession.access_token) token = clubSession.access_token;
+      } catch(e){}
+    }
+    if(!token){ errEl.textContent = 'Session expired. Please sign in again.'; return; }
+
     btn.textContent = 'Sending\u2026';
     btn.disabled = true;
     errEl.textContent = '';
@@ -4115,8 +4156,8 @@ var usStates = ["Virginia"];
     try {
       var res = await fetch(WORKER_URL + '/remind', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team_id: team.id, club_code: club.code })
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ team_id: team.id })
       });
       var data = await res.json();
       closeReminderModal();
@@ -4851,77 +4892,32 @@ var usStates = ["Virginia"];
     showScreen('club-settings');
   }
 
-  // ---------- Stripe payment links ----------
-  // Test mode — swap for live links when ready for pilot.
-  var STRIPE_LINKS = {
-    'pay-card': 'https://buy.stripe.com/test_5kQcN4gYt1bhb1LgIB3Je00',
-    'pay-ach':  'https://buy.stripe.com/test_3cIcN4bE98DJedXcsl3Je01',
-    'klarna':   'https://buy.stripe.com/test_5kQcN4gYt1bhb1LgIB3Je00'
-    // ↑ Replace 'klarna' with a Stripe Payment Link that has Klarna enabled
-    // in your Stripe dashboard → Settings → Payment methods → Klarna
-  };
-
-  var stripeReturnScreen = null;
-  var stripePaymentType  = null;
-
-  // Called from the new payment section buttons on the athlete detail screen.
-  // linkKey: 'pay-card' | 'pay-ach' | 'klarna'
-  // returnScreen: 'confirm-now' | 'confirm-terms'
-  // paymentType: 'full' | 'bnpl'
-  function openStripeCheckout(linkKey, returnScreen, paymentType){
-    var url = STRIPE_LINKS[linkKey];
-    if(!url){ console.warn('PlayFund: no Stripe link configured for', linkKey); return; }
-    stripeReturnScreen = returnScreen;
-    stripePaymentType  = paymentType;
-
-    var isKlarna = linkKey === 'klarna';
-
-    var titleEl = document.getElementById('stripeInterstitialTitle');
-    var descEl  = document.getElementById('stripeInterstitialDesc');
-    var btnEl   = document.getElementById('stripePayBtn');
-    var retEl   = document.getElementById('stripeReturnBtn');
-    var modal   = document.getElementById('stripeModal');
-
-    if(!titleEl || !descEl || !btnEl || !retEl || !modal){
-      // Fallback: just open the link directly if the modal DOM is missing
-      window.open(url, '_blank', 'noopener');
+  // ---------- Stripe checkout ----------
+  // paymentType: 'full' | 'bnpl' (Klarna)
+  async function openStripeCheckout(paymentType){
+    var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
+    if(!athlete || !athlete.supabaseId){
+      alert('This athlete isn\'t fully registered yet. Please try re-adding them.');
       return;
     }
-
-    titleEl.textContent = isKlarna ? 'Set up installment plan' : 'Pay in full';
-    descEl.innerHTML = isKlarna
-      ? 'On Stripe\'s checkout, enter your details then tap <b>"Pay later with Klarna"</b> to select your installment plan. No interest on on-time payments.'
-      : 'On Stripe\'s checkout, enter your card or bank details and tap <b>Pay</b>. Your full season dues will be charged once.';
-    btnEl.href = url;
-    retEl.style.display = 'none';
-
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
+    try {
+      var res = await fetch(WORKER_URL + '/athlete/' + athlete.supabaseId + '/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_type: paymentType })
+      });
+      var data = await res.json();
+      if(!res.ok || !data.url){ alert(data.error || 'Unable to start checkout. Please try again.'); return; }
+      window.location.href = data.url;
+    } catch(e){
+      alert('Network error. Please try again.');
+    }
   }
 
   // Kept for backward compatibility with any remaining references
-  function initiatePayNow(){ openStripeCheckout('pay-card', 'confirm-now', 'full'); }
-  function initiateKlarna(){ openStripeCheckout('klarna', 'confirm-terms', 'bnpl'); }
-  function initiateBnpl(){   openStripeCheckout('klarna', 'confirm-terms', 'bnpl'); }
-
-  // Called when parent taps "Open Stripe checkout" — reveals the return button after a delay
-  function onStripePayTapped(){
-    setTimeout(function(){
-      var el = document.getElementById('stripeReturnBtn');
-      if(el) el.style.display = 'block';
-    }, 1500);
-  }
-
-  // Called by the × button (paymentCompleted=false) or the return button (paymentCompleted=true)
-  function closeStripeModal(paymentCompleted){
-    var modal = document.getElementById('stripeModal');
-    if(modal) modal.style.display = 'none';
-    document.body.style.overflow = '';
-    if(paymentCompleted && stripeReturnScreen){
-      if(stripePaymentType) recordAthletePayment(stripePaymentType, state.selectedTermWeeks);
-      showScreen(stripeReturnScreen);
-    }
-  }
+  function initiatePayNow(){ openStripeCheckout('full'); }
+  function initiateKlarna(){ openStripeCheckout('bnpl'); }
+  function initiateBnpl(){   openStripeCheckout('bnpl'); }
 
   // ---------- pay now method toggle ----------
   function setMethod(method){

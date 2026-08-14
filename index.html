@@ -626,6 +626,9 @@
   }
 
   /* ── Payment schedule ── */
+  .payment-schedule {
+    width: 100%; text-align: left; margin-top: 20px;
+  }
   .payment-schedule-title {
     font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.07em;
@@ -633,13 +636,15 @@
   }
   .payment-schedule-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 9px 0; border-bottom: 1px solid var(--line);
+    gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line);
     font-size: 13px;
   }
   .payment-schedule-row:last-child { border-bottom: none; }
   .payment-schedule-status {
-    font-size: 11px; font-weight: 700; margin-top: 2px;
+    font-size: 11px; font-weight: 700; margin-top: 2px; color: var(--paid);
   }
+  .payment-schedule-dot--paid     { background: var(--paid); }
+  .payment-schedule-dot--upcoming { background: var(--ink-faint); }
 
   /* ── Admin screens ── */
   .admin-club-card {
@@ -3497,6 +3502,31 @@ var usStates = ["Virginia"];
     await Promise.all(codes.map(function(code){ return fetchClub(code); }));
   }
 
+  // Local paymentStatus can go stale (e.g. a payment that finished processing
+  // after the tab closed) — refresh it from the server's real payment_status
+  // whenever the parent's athlete list loads. Requires clubCache to already be
+  // hydrated (buildAthleteHistory needs the athlete's team/dues).
+  async function syncPaymentStatuses(athletes){
+    var changed = false;
+    await Promise.all(athletes.map(async function(a){
+      if(!a.supabaseId) return;
+      try {
+        var res = await fetch(WORKER_URL + '/athlete/' + a.supabaseId);
+        if(!res.ok) return;
+        var data = await res.json();
+        var status = data.athlete && data.athlete.payment_status;
+        var method = (status === 'bnpl_active' || status === 'bnpl_complete') ? 'bnpl'
+                    : (status && status !== 'unpaid') ? 'full' : null;
+        if(method !== a.paymentStatus){
+          a.paymentStatus = method;
+          a.history = method ? buildAthleteHistory(a) : null;
+          changed = true;
+        }
+      } catch(e){}
+    }));
+    if(changed) saveAthletes(athletes);
+  }
+
   var PARENT_SESSION_KEY = 'pf_parent_session';
 
   async function enterParentMode(){
@@ -3513,6 +3543,7 @@ var usStates = ["Virginia"];
     state.athletes = loadAthletes();
     if(state.athletes.length > 0){
       await hydrateClubCache(state.athletes);
+      await syncPaymentStatuses(state.athletes);
       renderAthleteList();
       showScreen('parent-home');
       return;

@@ -196,6 +196,68 @@ async function sendReminderEmail(env, club, team, athlete) {
   return { ok: true };
 }
 __name(sendReminderEmail, "sendReminderEmail");
+async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus) {
+  const RESEND_API_KEY = env.RESEND_API_KEY;
+  if (!RESEND_API_KEY || !athlete.parent_email) return;
+  const amount = (amountCents / 100).toLocaleString();
+  const isKlarna = paymentMethod === "klarna";
+  const statusLine = isKlarna
+    ? (newStatus === "bnpl_complete" ? "Your Klarna installment plan is now fully paid off." : "This payment is part of your Klarna installment plan — Klarna will continue billing your remaining installments directly.")
+    : "This covers the full season dues. Nothing else is due.";
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
+  </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
+  <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;"><tr><td align="center" style="padding:32px 16px;">
+  <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <tr><td style="background:#004643;padding:18px 28px;">
+      <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+    </td></tr>
+    <tr><td style="padding:28px;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Payment received</p>
+      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">$${amount} received for ${athlete.name}</h2>
+      <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">${statusLine}</p>
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;">
+        <tr><td style="padding:16px;">
+          <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-size:13px;color:#6B7280;">Amount paid</td>
+              <td align="right" style="font-size:16px;font-weight:800;color:#004643;">$${amount}</td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;color:#6B7280;padding-top:6px;">Payment method</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${isKlarna ? "Klarna" : paymentMethod === "us_bank_account" ? "Bank transfer" : "Card"}</td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;color:#6B7280;padding-top:6px;">Club</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${club.name}</td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+      <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
+        Questions about this payment? Reply to this email or contact ${club.name} directly.
+      </p>
+    </td></tr>
+  </table>
+  </td></tr></table>
+  </body></html>`;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: `${club.name} via PlayFund <hello@playfundai.com>`,
+        to: [athlete.parent_email],
+        subject: `Receipt: $${amount} for ${athlete.name} — ${club.name}`,
+        html
+      })
+    });
+  } catch (e) {
+    console.error("Receipt email failed for", athlete.parent_email, e);
+  }
+}
+__name(sendReceiptEmail, "sendReceiptEmail");
 async function runScheduledReminders(env) {
   const clubsRes = await supabase(
     env,
@@ -1084,7 +1146,7 @@ var index_default = {
         const athleteRes = await supabase(
           env,
           "GET",
-          `/athletes?id=eq.${athleteId}&select=team_id,payment_status`
+          `/athletes?id=eq.${athleteId}&select=name,team_id,club_id,payment_status,parent_email`
         );
         const athlete = athleteRes.data?.[0];
         if (!athlete) return json({ received: true });
@@ -1112,6 +1174,9 @@ var index_default = {
           `/athletes?id=eq.${athleteId}`,
           { payment_status: newStatus, payment_method: paymentMethod }
         );
+        const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name`);
+        const club = clubRes.data?.[0];
+        if (club) await sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus);
       } else if (eventType === "payment_intent.payment_failed") {
         const pi = event.data.object;
         await supabase(env, "POST", "/payments", {

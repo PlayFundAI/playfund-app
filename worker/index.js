@@ -765,7 +765,7 @@ var index_default = {
       } catch {
         return err("Invalid JSON");
       }
-      const { club_id, club_code, name, age_group, dues_cents, fees, season_start, season_end, dues_due_date } = body;
+      const { club_id, club_code, name, age_group, dues_cents, season_start, season_end, dues_due_date } = body;
       if (!name || !dues_cents) return err("name and dues_cents are required");
       let resolvedClubId = club_id;
       if (!resolvedClubId && club_code) {
@@ -784,9 +784,8 @@ var index_default = {
         dues_due_date: dues_due_date || null,
         active: true
       };
-      if (fees && fees.length) insertData.fees = JSON.stringify(fees);
       const insertRes = await supabase(env, "POST", "/teams", insertData);
-      if (!insertRes.ok) return err("Failed to create team", 500);
+      if (!insertRes.ok) return err("Failed to create team: " + JSON.stringify(insertRes.data), 500);
       return json({ team: insertRes.data[0] }, 201);
     }
     if (method === "POST" && path === "/athlete") {

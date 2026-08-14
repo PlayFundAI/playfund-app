@@ -295,11 +295,48 @@ var index_default = {
         }
       });
     }
+    if (method === "PATCH" && path.startsWith("/admin/clubs/")) {
+      const clubId = path.split("/")[3];
+      if (!clubId) return err("Club ID required");
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!userRes.ok) return err("Invalid token", 401);
+      const userData = await userRes.json();
+      const profileRes = await supabase(env, "GET", `/user_profiles?id=eq.${userData.id}&select=role`);
+      if (profileRes.data?.[0]?.role !== "playfund_admin") return err("Forbidden", 403);
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return err("Invalid JSON");
+      }
+      const { fee_bps } = body;
+      if (!Number.isInteger(fee_bps) || fee_bps < 0 || fee_bps > 10000) {
+        return err("fee_bps must be an integer between 0 and 10000");
+      }
+      const updateRes = await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, { fee_bps });
+      if (!updateRes.ok) return err("Failed to update fee", 500);
+      return json({ success: true, fee_bps });
+    }
     if (method === "GET" && path === "/admin/clubs") {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!userRes.ok) return err("Invalid token", 401);
+      const userData = await userRes.json();
+      const profileRes = await supabase(env, "GET", `/user_profiles?id=eq.${userData.id}&select=role`);
+      if (profileRes.data?.[0]?.role !== "playfund_admin") return err("Forbidden", 403);
       const clubsRes = await supabase(
         env,
         "GET",
-        "/clubs?select=id,name,sport,city,state,code,active&order=name.asc"
+        "/clubs?select=id,name,sport,city,state,code,active,fee_bps&order=name.asc"
       );
       if (!clubsRes.ok) return err("Failed to fetch clubs", 500);
       const clubs = clubsRes.data || [];
@@ -456,6 +493,17 @@ var index_default = {
       });
     }
     if (method === "POST" && path === "/invite") {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!callerRes.ok) return err("Invalid token", 401);
+      const callerData = await callerRes.json();
+      const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id`);
+      const callerProfile = callerProfileRes.data?.[0];
+      if (!callerProfile) return err("Forbidden", 403);
       let body;
       try {
         body = await request.json();
@@ -467,6 +515,12 @@ var index_default = {
       if (!["club_admin", "team_admin"].includes(role)) return err("Invalid role");
       if (role === "team_admin" && !team_id) return err("team_id required for team_admin");
       if (!club_id) return err("club_id required");
+      if (callerProfile.role === "club_admin") {
+        if (callerProfile.club_id !== club_id) return err("Forbidden", 403);
+        if (role !== "team_admin") return err("Forbidden", 403);
+      } else if (callerProfile.role !== "playfund_admin") {
+        return err("Forbidden", 403);
+      }
       const inviteRes = await fetch(`${env.SUPABASE_URL}/auth/v1/invite`, {
         method: "POST",
         headers: {

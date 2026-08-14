@@ -1885,6 +1885,20 @@
       <div class="admin-recovery-label" id="adminDetailRecoveryLabel"><b>0%</b> of advances recovered</div>
     </div>
 
+    <!-- PlayFund fee -->
+    <div class="admin-recovery-bar" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+      <div>
+        <div class="admin-fin-label" style="margin-bottom:4px;">PlayFund fee for this club</div>
+        <p id="adminDetailFeeMsg" style="font-size:11px; min-height:14px; margin:0;"></p>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <input type="number" id="adminDetailFeeInput" min="0" max="100" step="0.1"
+          style="width:70px; padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font-family:'Inter',sans-serif; font-size:14px; font-weight:700; text-align:right;">
+        <span style="font-size:14px; font-weight:700; color:var(--ink);">%</span>
+        <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="saveClubFee()">Save</button>
+      </div>
+    </div>
+
     <div class="roster-section-label">Teams</div>
     <div id="adminTeamList"></div>
   </div>
@@ -4128,6 +4142,7 @@ var usStates = ["Virginia"];
 
   // ---------- PlayFund admin ----------
   var adminSession = null; // holds access_token for the session
+  var adminDetailClubId = null; // club currently shown on admin club-detail screen
 
   async function submitAdminEmailLogin(){
     var email    = (document.getElementById('adminEmailInput').value || '').trim();
@@ -4474,10 +4489,14 @@ var usStates = ["Virginia"];
     if(!email)  { errEl.textContent = 'Enter their email.'; return; }
     if(!teamId) { errEl.textContent = 'Select a team.'; return; }
     if(!state.club){ errEl.textContent = 'No club loaded.'; return; }
+    var clubSession = null;
+    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    if(!clubSession || !clubSession.access_token){ errEl.textContent = 'Session expired. Please sign in again.'; return; }
     errEl.textContent = 'Sending invite\u2026'; errEl.classList.add('loading-msg');
     try {
       var res = await fetch(WORKER_URL + '/invite', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + clubSession.access_token },
         body: JSON.stringify({ email, display_name: name, role: 'team_admin', club_id: state.club.id, team_id: teamId })
       });
       var data = await res.json();
@@ -4519,8 +4538,18 @@ var usStates = ["Virginia"];
     document.getElementById('adminClubList').innerHTML = '';
 
     try {
-      var res = await fetch(WORKER_URL + '/admin/clubs');
+      var res = await fetch(WORKER_URL + '/admin/clubs', {
+        headers: { 'Authorization': 'Bearer ' + adminSession }
+      });
       var data = await res.json();
+      if(!res.ok){
+        document.getElementById('adminClubList').innerHTML =
+          '<p style="color:var(--unpaid); font-size:14px; text-align:center; padding:32px 0;">' + (data.error || 'Failed to load clubs.') + '</p>';
+        ['adminTotalClubs','adminTotalTeams','adminTotalAthletes'].forEach(function(id){
+          document.getElementById(id).classList.remove('loading-msg');
+        });
+        return;
+      }
       var clubs = data.clubs || [];
       var totals = data.totals || {};
 
@@ -4583,6 +4612,11 @@ var usStates = ["Virginia"];
 
   function openAdminClubDetail(club){
     document.getElementById('adminClubDetailName').textContent = club.name;
+    adminDetailClubId = club.id;
+    var feeInput = document.getElementById('adminDetailFeeInput');
+    if(feeInput) feeInput.value = ((club.fee_bps != null ? club.fee_bps : 500) / 100);
+    var feeMsg = document.getElementById('adminDetailFeeMsg');
+    if(feeMsg) feeMsg.textContent = '';
 
     // Total Dues across all athletes
     var totalDues = 0;
@@ -4635,6 +4669,31 @@ var usStates = ["Virginia"];
     });
 
     showScreen('admin-club-detail');
+  }
+
+  async function saveClubFee(){
+    var input = document.getElementById('adminDetailFeeInput');
+    var msg   = document.getElementById('adminDetailFeeMsg');
+    if(!adminDetailClubId || !input) return;
+    var pct = parseFloat(input.value);
+    if(isNaN(pct) || pct < 0 || pct > 100){
+      msg.textContent = 'Enter a fee between 0 and 100%.'; msg.style.color = 'var(--unpaid)'; return;
+    }
+    var feeBps = Math.round(pct * 100);
+    msg.textContent = 'Saving…'; msg.style.color = 'var(--ink-soft)';
+    try {
+      var res = await fetch(WORKER_URL + '/admin/clubs/' + adminDetailClubId, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + adminSession
+        },
+        body: JSON.stringify({ fee_bps: feeBps })
+      });
+      var data = await res.json();
+      if(!res.ok){ msg.textContent = data.error || 'Failed to save.'; msg.style.color = 'var(--unpaid)'; return; }
+      msg.textContent = 'Saved.'; msg.style.color = 'var(--paid)';
+    } catch(e){ msg.textContent = 'Network error.'; msg.style.color = 'var(--unpaid)'; }
   }
 
   async function openAdminTeamRoster(club, team){

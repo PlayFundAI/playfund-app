@@ -1288,6 +1288,7 @@
       <button class="btn btn-secondary" onclick="showInviteAdminScreen()" style="flex:1;">+ Invite coach</button>
     </div>
     <button class="btn btn-secondary" onclick="exportRosterCSV()" style="margin-top:8px; width:100%;">⬇ Export roster as CSV</button>
+    <button class="btn btn-secondary" onclick="openReminderModal()" style="margin-top:8px; width:100%;">📧 Send reminders to unpaid families</button>
   </div>
 
   <!-- SCREEN: parent home -->
@@ -1650,12 +1651,13 @@
       </div>
     </div>
     <div class="field">
-      <label>Dues due date</label>
+      <label>When should the fees be due?</label>
       <input type="date" id="addTeamDue" tabindex="5">
     </div>
 
     <div class="section-label" style="margin-top:20px;">Fee breakdown</div>
     <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px; line-height:1.5;">List every fee families will pay. This is what appears on their registration email.</p>
+    <p id="addTeamEstimateHint" style="font-size:12.5px; color:var(--ink-faint); margin:-6px 0 12px; display:none;"></p>
     <div id="addTeamFeeList"></div>
     <button onclick="addTeamFeeRow()" style="background:none; border:none; font-size:13px; font-weight:700; color:var(--fund-green); cursor:pointer; font-family:'Inter',sans-serif; padding:6px 0; margin-bottom:12px;">+ Add fee item</button>
 
@@ -2931,6 +2933,15 @@ var usStates = ["Virginia"];
     document.getElementById('addTeamEnd').value   = '';
     document.getElementById('addTeamDue').value   = '';
     document.getElementById('addTeamError').textContent = '';
+    var hintEl = document.getElementById('addTeamEstimateHint');
+    if(hintEl){
+      if(c && c.fees_per_athlete){
+        hintEl.textContent = 'You estimated about $' + Math.round(c.fees_per_athlete).toLocaleString() + ' per athlete when you registered.';
+        hintEl.style.display = 'block';
+      } else {
+        hintEl.style.display = 'none';
+      }
+    }
     // Seed with one fee row
     addTeamFees = [{ label: 'Season fee', amount: 0 }];
     renderAddTeamFees();
@@ -3204,8 +3215,20 @@ var usStates = ["Virginia"];
     try {
       var res  = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-status');
       var data = await res.json();
-      if(data.charges_enabled){ banner.style.display = 'none'; return; }
+      if(data.charges_enabled){
+        banner.style.display = 'block';
+        banner.style.background = 'var(--paid-bg)';
+        banner.style.borderColor = 'var(--paid)';
+        msg.style.color = 'var(--paid)';
+        msg.innerHTML = '✓ <b>Stripe connected successfully.</b> You\'re ready to accept payments.';
+        btn.style.display = 'none';
+        return;
+      }
       banner.style.display = 'block';
+      banner.style.background = 'var(--paper-dim)';
+      banner.style.borderColor = 'var(--line)';
+      msg.style.color = 'var(--ink-soft)';
+      btn.style.display = 'block';
       if(data.connected){
         msg.textContent = "Stripe setup isn't finished yet — parents can't pay until it is.";
         btn.textContent = 'Finish Stripe setup';

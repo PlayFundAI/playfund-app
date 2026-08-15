@@ -551,22 +551,26 @@
   /* ── Payment screens ── */
   .payment-method-btn {
     display: flex; align-items: center; gap: 14px;
-    background: var(--white); border: 1.5px solid var(--line);
-    border-radius: var(--r-lg); padding: 16px;
+    background: var(--paper-dim); border: 1.5px solid var(--fund-green);
+    border-radius: var(--r-lg); padding: 14px 16px;
     cursor: pointer; width: 100%; margin-bottom: 10px;
     text-align: left; font-family: 'Inter', sans-serif;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   }
-  .payment-method-btn:hover { border-color: var(--ink-faint); box-shadow: var(--shadow); }
+  .payment-method-btn:hover { background: var(--white); box-shadow: var(--shadow); }
   .payment-method-btn:active { transform: scale(0.99); }
   .payment-method-icon {
     width: 40px; height: 40px; border-radius: var(--r-sm);
-    background: var(--paper-dim);
+    background: var(--fund-green);
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-  .payment-method-icon svg { width: 20px; height: 20px; color: var(--ink); }
+  .payment-method-icon svg { width: 20px; height: 20px; color: var(--white); }
   .payment-method-label { font-weight: 700; font-size: 14.5px; color: var(--ink); }
+  .payment-method-chevron {
+    margin-left: auto; flex-shrink: 0; color: var(--fund-green);
+    width: 18px; height: 18px;
+  }
   .payment-method-sub   { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
 
   /* ── Sezzle / BNPL ── */
@@ -705,7 +709,7 @@
   .team-banner-funded-num { font-size: 13px; font-weight: 700; color: var(--paid); }
 
   /* ── Klarna steps ── */
-  .klarna-steps { margin-bottom: 14px; }
+  .klarna-steps { margin-bottom: 14px; padding: 0 16px; }
   .klarna-step {
     display: flex; gap: 12px; padding: 8px 0;
     border-bottom: 1px solid var(--line);
@@ -1002,10 +1006,10 @@
 
   /* ── Payment section / schedule ── */
   .pay-method-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: var(--r-pill); background: var(--paper-dim); color: var(--ink-soft); }
-  .payment-btn-row { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
-  .payment-instruction { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin-bottom: 10px; }
+  .payment-btn-row { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; padding: 0 16px 16px; }
+  .payment-instruction { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin-bottom: 10px; padding: 0 16px; }
   .payment-section { background: var(--white); border: 1.5px solid var(--line); border-radius: var(--r-lg); margin-bottom: 10px; overflow: hidden; }
-  .payment-section-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+  .payment-section-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
   .payment-section-icon { width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--paper-dim); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .payment-section-icon svg { width: 17px; height: 17px; color: var(--ink); }
   .payment-section-title { font-size: 14px; font-weight: 700; color: var(--ink); }
@@ -1411,6 +1415,7 @@
             <div class="payment-method-label">Pay by card</div>
             <div class="payment-method-sub">Visa, Mastercard, Amex</div>
           </div>
+          <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
         <button class="payment-method-btn" onclick="openStripeCheckout('full')">
           <div class="payment-method-icon">
@@ -1420,6 +1425,7 @@
             <div class="payment-method-label">Pay by bank transfer</div>
             <div class="payment-method-sub">ACH · lower processing fee</div>
           </div>
+          <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
     </div>
@@ -1458,6 +1464,7 @@
             <div class="payment-method-label">Set up Klarna installments</div>
             <div class="payment-method-sub">4 bi-weekly payments · no interest</div>
           </div>
+          <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
       <button onclick="showDeclineScreen()" style="background:none; border:none; width:100%; padding:10px 0 4px; font-size:12.5px; color:var(--ink-faint); cursor:pointer; font-family:'Inter',sans-serif; text-align:center;">Klarna couldn't approve me — other options</button>

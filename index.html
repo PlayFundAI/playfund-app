@@ -975,7 +975,8 @@
   .funded-stat-num { font-family: 'Anton', sans-serif; font-size: 26px; color: var(--ink); }
   .funded-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); margin-top: 2px; }
   .funded-stat-divider { width: 1px; background: var(--line); }
-  .funded-note { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin-top: 10px; }
+  .funded-note { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin-top: 10px; }
+  .funded-note svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: var(--paid); }
   .stat-bar { height: 4px; background: var(--line); border-radius: var(--r-pill); overflow: hidden; margin-top: 8px; }
   .stat-bar-fill { height: 100%; background: var(--fund-green); border-radius: var(--r-pill); transition: width 0.5s ease; }
 
@@ -1275,10 +1276,7 @@
         </div>
       </div>
       <div class="stat-bar"><div class="stat-bar-fill" id="statBarFill" style="width:0%"></div></div>
-      <div class="funded-note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-        Club balance fully funded by PlayFund — no waiting on family payments.
-      </div>
+      <div class="funded-note" id="fundedNote"></div>
     </div>
 
     <div class="roster-section-label">Roster &middot; 0 athletes</div>
@@ -3286,6 +3284,41 @@ var usStates = ["Virginia"];
 
     var labelEl = document.querySelector('#screen-roster .roster-section-label');
     if(labelEl) labelEl.textContent = 'Roster \u00b7 ' + athletes.length + ' athlete' + (athletes.length!==1?'s':'');
+
+    // Funded stats \u2014 computed from real per-athlete status, not placeholders.
+    var fundedCount = athletes.filter(function(a){
+      var s = a.payment_status || 'unpaid';
+      return s !== 'unpaid' && s !== 'defaulted';
+    }).length;
+    var totalCount = athletes.length;
+    var frontedAmt = Math.round(fundedCount * dues * 0.95);
+    var pct = totalCount > 0 ? Math.round(fundedCount / totalCount * 100) : 0;
+
+    var fracEl = document.getElementById('statFundedFraction');
+    var collEl = document.getElementById('statCollected');
+    var barEl  = document.getElementById('statBarFill');
+    if(fracEl) fracEl.textContent = fundedCount + '/' + totalCount;
+    if(collEl) collEl.textContent = '$' + frontedAmt.toLocaleString();
+    if(barEl)  barEl.style.width  = pct + '%';
+
+    var noteEl = document.getElementById('fundedNote');
+    if(noteEl){
+      var checkIcon  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>';
+      var clockIcon  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+      if(totalCount === 0){
+        noteEl.style.color = 'var(--ink-soft)';
+        noteEl.innerHTML = clockIcon + 'Add athletes to start tracking payments.';
+      } else if(fundedCount === totalCount){
+        noteEl.style.color = 'var(--paid)';
+        noteEl.innerHTML = checkIcon + '<span style="color:var(--ink-soft);">Club balance fully funded by PlayFund \u2014 no waiting on family payments.</span>';
+      } else if(fundedCount === 0){
+        noteEl.style.color = '#F59E0B';
+        noteEl.innerHTML = clockIcon + '<span style="color:var(--ink-soft);">No families have paid yet \u2014 send a reminder to get things moving.</span>';
+      } else {
+        noteEl.style.color = '#F59E0B';
+        noteEl.innerHTML = clockIcon + '<span style="color:var(--ink-soft);">' + fundedCount + ' of ' + totalCount + ' families have paid. You\'ve already been advanced their share \u2014 the rest lands as each family completes payment.</span>';
+      }
+    }
 
     var listEl = document.getElementById('rosterList');
     listEl.innerHTML = '';

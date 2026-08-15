@@ -1079,7 +1079,7 @@
   /* ── Parent account screens ── */
   .parent-account-header {
     background: var(--ink); padding: 22px 20px 20px;
-    margin: -24px -20px 24px; flex-shrink: 0;
+    margin: 0 0 24px; flex-shrink: 0;
   }
   .parent-account-eyebrow {
     font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -3926,6 +3926,14 @@ var usStates = ["Virginia"];
     var athlete = state.athletes.find(function(a){ return a.id === athleteId; });
     if(!athlete) return;
     state.activeAthleteId = athleteId;
+
+    // Already paid — show their receipt/confirmation, not the payment picker again.
+    if(athlete.paymentStatus === 'full' || athlete.paymentStatus === 'bnpl'){
+      recordAthletePayment(athlete.paymentStatus, athlete.termWeeks);
+      showScreen(athlete.paymentStatus === 'bnpl' ? 'confirm-terms' : 'confirm-now', true);
+      return;
+    }
+
     var ct = getAthleteClubTeam(athlete);
     document.getElementById('athleteDetailTitle').textContent = athlete.name + "'s season dues";
     document.getElementById('parentClubLabel').textContent = ct.club.name + ' \u2014 ' + ct.team.name;

@@ -1386,7 +1386,6 @@
       </div>
       <div class="breakdown-heading">What this covers</div>
       <div class="breakdown-panel" id="breakdownPanel"></div>
-      <div class="receipt-stamp"><b>Travel isn't charged here.</b> We show it so the number can't surprise you later.</div>
     </div>
 
     <!-- Option 1: Pay in full -->
@@ -2702,7 +2701,7 @@ var usStates = ["Virginia"];
                 if(a){
                   var newAth = {
                     id: 'deep_' + athId, supabaseId: athId,
-                    name: a.name, clubCode: code.toUpperCase(),
+                    name: a.name, clubCode: code.toUpperCase(), clubId: club.id,
                     teamId: a.team_id, paymentStatus: a.payment_status || 'unpaid'
                   };
                   state.athletes.push(newAth);
@@ -3465,9 +3464,6 @@ var usStates = ["Virginia"];
 
     var tournaments = SPORT_TOURNAMENTS[sport] || [];
 
-    // Travel estimate — shown but not charged
-    var travelEstimate = Math.round(dues * 0.30 / 10) * 10;
-
     panel.innerHTML = rows.map(function(row){
       var chevronHtml = row.isTournament
         ? ' <span id="tournamentChevron" style="font-size:11px; color:var(--ink-soft); transition:transform 0.2s ease; display:inline-block;">&#8250;</span>'
@@ -3488,15 +3484,7 @@ var usStates = ["Virginia"];
           }).join('') + '</div>';
       }
       return rowHtml;
-    }).join('') +
-    // Travel estimate row — not charged
-    '<div class="breakdown-row" style="opacity:0.6; border-top: 1px dashed var(--line); margin-top:4px; padding-top:10px;">' +
-      '<div class="breakdown-row-left">' +
-        '<div class="breakdown-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="19" r="1"/><circle cx="20" cy="19" r="1"/></svg></div>' +
-        '<div class="breakdown-row-label">Travel (hotels &amp; gas)<br><span style="font-size:10px; color:var(--ink-soft);">Estimated · not charged here</span></div>' +
-      '</div>' +
-      '<div class="breakdown-row-amt" style="color:var(--ink-soft);">~' + fmtUSD(travelEstimate) + '</div>' +
-    '</div>';
+    }).join('');
   }
 
   function toggleTournaments(){

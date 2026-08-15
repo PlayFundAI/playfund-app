@@ -251,6 +251,15 @@
     color: var(--ink-faint);
     margin: 20px 0 10px;
   }
+  .roster-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    margin: 16px 0 6px;
+  }
+  .roster-group-label:first-child { margin-top: 4px; }
 
   /* ── Buttons ── */
   .btn {
@@ -939,8 +948,8 @@
   .summary-strip { background: var(--ink); border-radius: var(--r-lg); padding: 16px 18px; margin-bottom: 16px; color: var(--white); }
   .summary-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px; }
   .summary-club { font-weight: 800; font-size: 15px; color: var(--white); }
-  .summary-dues { font-size: 12px; color: rgba(255,255,255,0.65); }
-  .summary-dues b { color: var(--white); }
+  .summary-dues { font-size: 12px; color: rgba(255,255,255,0.65); display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .summary-dues b { color: var(--white); font-size: 18px; }
   .summary-location { font-size: 12px; color: rgba(255,255,255,0.55); margin-bottom: 10px; }
   .season-dates { display: flex; }
   .season-date-item { flex: 1; }
@@ -972,9 +981,9 @@
   /* ── Funded stats ── */
   .funded-row { display: flex; gap: 10px; margin-bottom: 12px; }
   .funded-stat { text-align: center; }
-  .funded-stat-num { font-family: 'Anton', sans-serif; font-size: 26px; color: var(--ink); }
-  .funded-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); margin-top: 2px; }
-  .funded-stat-divider { width: 1px; background: var(--line); }
+  .funded-stat-num { font-family: 'Anton', sans-serif; font-size: 26px; color: var(--white); }
+  .funded-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.55); margin-top: 2px; }
+  .funded-stat-divider { width: 1px; background: rgba(255,255,255,0.15); }
   .funded-note { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin-top: 10px; }
   .funded-note svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: var(--paid); }
   .stat-bar { height: 4px; background: var(--line); border-radius: var(--r-pill); overflow: hidden; margin-top: 8px; }
@@ -1279,6 +1288,8 @@
       <div class="funded-note" id="fundedNote"></div>
     </div>
 
+    <button class="btn btn-secondary" onclick="openReminderModal()" style="margin-bottom:16px; width:100%;">📧 Send reminders to unpaid families</button>
+
     <div class="roster-section-label">Roster &middot; 0 athletes</div>
     <div id="rosterList"></div>
     <div style="display:flex; gap:10px; margin-top:12px;">
@@ -1286,7 +1297,6 @@
       <button class="btn btn-secondary" onclick="showInviteAdminScreen()" style="flex:1;">+ Invite coach</button>
     </div>
     <button class="btn btn-secondary" onclick="exportRosterCSV()" style="margin-top:8px; width:100%;">⬇ Export roster as CSV</button>
-    <button class="btn btn-secondary" onclick="openReminderModal()" style="margin-top:8px; width:100%;">📧 Send reminders to unpaid families</button>
   </div>
 
   <!-- SCREEN: parent home -->
@@ -3328,7 +3338,12 @@ var usStates = ["Virginia"];
       var statusLabels   = {paid_full:'Paid',bnpl_active:'BNPL Active',bnpl_complete:'Complete',unpaid:'Not Paid',defaulted:'Defaulted'};
       var statusColorVar = {paid_full:'--paid',bnpl_active:'--paid',bnpl_complete:'--paid',unpaid:'--unpaid',defaulted:'--unpaid'};
       var statusBgVar    = {paid_full:'--paid-bg',bnpl_active:'--paid-bg',bnpl_complete:'--paid-bg',unpaid:'--unpaid-bg',defaulted:'--unpaid-bg'};
-      athletes.forEach(function(a){
+
+      var byName = function(a, b){ return (a.name||'').localeCompare(b.name||''); };
+      var pending = athletes.filter(function(a){ var s = a.payment_status||'unpaid'; return s==='unpaid' || s==='defaulted'; }).sort(byName);
+      var paid    = athletes.filter(function(a){ var s = a.payment_status||'unpaid'; return s!=='unpaid' && s!=='defaulted'; }).sort(byName);
+
+      var buildRow = function(a){
         var status = a.payment_status || 'unpaid';
         var isPaid = status!=='unpaid' && status!=='defaulted';
         var methodTag = a.payment_method ? '<div class="pay-method-tag">'+(a.payment_method==='klarna'?'Klarna':a.payment_method==='ach'?'ACH':'Card')+'</div>' : '';
@@ -3348,8 +3363,19 @@ var usStates = ["Virginia"];
             '<div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div>'+
             methodTag+
           '</div>';
-        listEl.appendChild(row);
-      });
+        return row;
+      };
+
+      var addGroup = function(label, list){
+        if(!list.length) return;
+        var header = document.createElement('div');
+        header.className = 'roster-group-label';
+        header.textContent = label + ' · ' + list.length;
+        listEl.appendChild(header);
+        list.forEach(function(a){ listEl.appendChild(buildRow(a)); });
+      };
+      addGroup('Pending', pending);
+      addGroup('Paid', paid);
     }
     showScreen('roster');
   }

@@ -771,7 +771,7 @@ var index_default = {
       const clubRes = await supabase(
         env,
         "GET",
-        `/clubs?select=id,name,sport,city,state,code,active&code=eq.${code}`
+        `/clubs?select=id,name,sport,city,state,code,active,fees_per_athlete&code=eq.${code}`
       );
       if (!clubRes.ok || !clubRes.data?.length) return err("Club not found", 404);
       const club = clubRes.data[0];
@@ -819,7 +819,7 @@ var index_default = {
         const athletesRes = await supabase(
           env,
           "GET",
-          `/athletes?team_id=in.(${teamIds.join(",")})&select=id,name,age,team_id,payment_status,payment_method,enrolled_at&order=name.asc`
+          `/athletes?team_id=in.(${teamIds.join(",")})&select=id,name,age,team_id,payment_status,payment_method,approval_status,enrolled_at&order=name.asc`
         );
         athletes = athletesRes.data || [];
       }
@@ -893,17 +893,20 @@ var index_default = {
         body: JSON.stringify({ email })
       });
       const inviteData = await inviteRes.json();
+      let userId = inviteData?.id;
       if (!inviteRes.ok) {
-        const existRes = await supabase(
-          env,
-          "GET",
-          `/user_profiles?select=id&id=in.(select id from auth.users where email=eq.${encodeURIComponent(email)})`
-        );
-        if (!existRes.data?.length) {
-          return err(inviteData.message || "Failed to invite user", 400);
+        if (inviteData?.error_code === "email_exists") {
+          const usersRes = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, {
+            headers: { "apikey": env.SUPABASE_SERVICE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}` }
+          });
+          const usersData = await usersRes.json();
+          const existingUser = (usersData.users || []).find((u) => u.email?.toLowerCase() === email.toLowerCase());
+          if (!existingUser) return err("A user with this email already exists but couldn't be found.", 500);
+          userId = existingUser.id;
+        } else {
+          return err(inviteData?.msg || inviteData?.message || inviteData?.error_description || "Failed to invite user", 400);
         }
       }
-      const userId = inviteData?.id;
       if (!userId) return err("Could not retrieve user ID after invite", 500);
       const existingProfile = await supabase(
         env,
@@ -1080,6 +1083,31 @@ var index_default = {
         `/teams?id=eq.${team_id}&club_id=eq.${clubId}&select=id,dues_cents`
       );
       if (!teamRes.data?.length) return err("Team not found for this club", 404);
+
+      // An athlete added by an authenticated club/team admin (or PlayFund admin)
+      // for their own club/team is trusted automatically. Anyone else — the
+      // normal parent self-serve path — can't be verified against the real
+      // roster, so the athlete stays pending until the club confirms them.
+      // No payment link works for a pending athlete.
+      let approvalStatus = "pending";
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (token) {
+        const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+          headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+        });
+        if (callerRes.ok) {
+          const callerData = await callerRes.json();
+          const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id,team_id`);
+          const callerProfile = callerProfileRes.data?.[0];
+          if (callerProfile) {
+            if (callerProfile.role === "playfund_admin") approvalStatus = "approved";
+            else if (callerProfile.role === "club_admin" && callerProfile.club_id === clubId) approvalStatus = "approved";
+            else if (callerProfile.role === "team_admin" && callerProfile.team_id === team_id) approvalStatus = "approved";
+          }
+        }
+      }
+
       const insertRes = await supabase(env, "POST", "/athletes", {
         club_id: clubId,
         team_id,
@@ -1088,9 +1116,10 @@ var index_default = {
         parent_email: parent_email.toLowerCase().trim(),
         parent_phone: parent_phone || null,
         payment_status: "unpaid",
+        approval_status: approvalStatus,
         enrolled_at: (/* @__PURE__ */ new Date()).toISOString()
       });
-      if (!insertRes.ok) return err("Failed to register athlete", 500);
+      if (!insertRes.ok) return err("Failed to register athlete: " + JSON.stringify(insertRes.data), 500);
       return json({ athlete: insertRes.data[0] }, 201);
     }
     if (method === "POST" && path.startsWith("/athlete/") && path.endsWith("/notify-club")) {
@@ -1175,9 +1204,10 @@ var index_default = {
       }
       const { payment_type } = body;
       if (!["full", "bnpl"].includes(payment_type)) return err("payment_type must be 'full' or 'bnpl'");
-      const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=id,name,team_id,club_id`);
+      const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=id,name,team_id,club_id,approval_status`);
       const athlete = athleteRes.data?.[0];
       if (!athlete) return err("Athlete not found", 404);
+      if (athlete.approval_status === "pending") return err("This athlete is still waiting on the club to confirm they're on the roster before you can pay.", 403);
       const teamRes = await supabase(env, "GET", `/teams?id=eq.${athlete.team_id}&select=id,name,dues_cents`);
       const team = teamRes.data?.[0];
       if (!team) return err("Team not found", 404);
@@ -1220,7 +1250,7 @@ var index_default = {
       const athleteRes = await supabase(
         env,
         "GET",
-        `/athletes?id=eq.${athleteId}&select=id,name,age,payment_status,payment_method,enrolled_at,team_id,club_id`
+        `/athletes?id=eq.${athleteId}&select=id,name,age,payment_status,payment_method,approval_status,enrolled_at,team_id,club_id`
       );
       if (!athleteRes.data?.length) return err("Athlete not found", 404);
       const athlete = athleteRes.data[0];
@@ -1247,6 +1277,52 @@ var index_default = {
         },
         payments
       });
+    }
+    if (method === "POST" && path.startsWith("/athlete/") && path.endsWith("/approve")) {
+      const athleteId = path.split("/")[2];
+      if (!athleteId) return err("Athlete ID required");
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!callerRes.ok) return err("Invalid token", 401);
+      const callerData = await callerRes.json();
+      const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id,team_id`);
+      const callerProfile = callerProfileRes.data?.[0];
+      if (!callerProfile) return err("Forbidden", 403);
+      const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=id,club_id,team_id`);
+      const athlete = athleteRes.data?.[0];
+      if (!athlete) return err("Athlete not found", 404);
+      const isAllowed = callerProfile.role === "playfund_admin" || callerProfile.role === "club_admin" && callerProfile.club_id === athlete.club_id || callerProfile.role === "team_admin" && callerProfile.team_id === athlete.team_id;
+      if (!isAllowed) return err("Forbidden", 403);
+      const updateRes = await supabase(env, "PATCH", `/athletes?id=eq.${athleteId}`, { approval_status: "approved" });
+      if (!updateRes.ok) return err("Failed to approve athlete: " + JSON.stringify(updateRes.data), 500);
+      return json({ success: true });
+    }
+    if (method === "DELETE" && path.startsWith("/athlete/")) {
+      const athleteId = path.split("/")[2];
+      if (!athleteId) return err("Athlete ID required");
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!callerRes.ok) return err("Invalid token", 401);
+      const callerData = await callerRes.json();
+      const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id,team_id`);
+      const callerProfile = callerProfileRes.data?.[0];
+      if (!callerProfile) return err("Forbidden", 403);
+      const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=id,club_id,team_id`);
+      const athlete = athleteRes.data?.[0];
+      if (!athlete) return err("Athlete not found", 404);
+      const isAllowed = callerProfile.role === "playfund_admin" || callerProfile.role === "club_admin" && callerProfile.club_id === athlete.club_id || callerProfile.role === "team_admin" && callerProfile.team_id === athlete.team_id;
+      if (!isAllowed) return err("Forbidden", 403);
+      const deleteRes = await supabase(env, "DELETE", `/athletes?id=eq.${athleteId}`);
+      if (!deleteRes.ok) return err("Failed to remove athlete: " + JSON.stringify(deleteRes.data), 500);
+      return json({ success: true });
     }
     if (method === "POST" && path === "/webhook/stripe") {
       const rawBody = await request.text();

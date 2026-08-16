@@ -1200,6 +1200,16 @@
       <button class="btn btn-primary" id="stripeConnectBtn" style="width:100%; font-size:13px;" onclick="startStripeOnboarding()">Connect Stripe</button>
     </div>
 
+    <!-- Pending athlete approval banner -->
+    <div id="pendingApprovalOverviewBanner" style="display:none; margin-bottom:14px; padding:14px; border-radius:var(--r-md); border:1.5px solid #E8B800; background:#FFF7E6;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#7A5C00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div style="font-size:13.5px; font-weight:700; color:#7A5C00;" id="pendingApprovalOverviewTitle">1 athlete needs approval</div>
+      </div>
+      <div style="font-size:12.5px; color:#7A5C00; margin-bottom:8px;">Added directly by a parent. Confirm they're actually on the roster before any payment can be collected.</div>
+      <div id="pendingApprovalOverviewList"></div>
+    </div>
+
     <!-- Payout hero -->
     <div class="payout-hero">
       <div class="payout-hero-eyebrow">Landing in your account</div>
@@ -1408,7 +1418,7 @@
 
     <div id="pendingApprovalBanner" style="display:none; background:var(--flag-bg,#FFF7E6); border:1.5px solid var(--flag-border,#E8B800); border-radius:10px; padding:16px 18px; margin-bottom:20px; font-size:13.5px; color:var(--flag-text,#7A5C00); line-height:1.6;">
       <b style="display:block; margin-bottom:4px; font-size:14px;">Waiting on the club to confirm this athlete</b>
-      This athlete was added directly by a parent rather than through a club-issued link, so the club needs to confirm they're actually on the roster before any payment can be collected. You'll be able to pay once that's done — no action needed from you right now.
+      This athlete was added directly by a parent rather than through a club-issued link, so the club needs to confirm they're actually on the roster before any payment can be collected. You'll be able to pay once that's done, no action needed from you right now.
     </div>
 
     <div id="paymentOptionsWrap">
@@ -3184,6 +3194,8 @@ var usStates = ["Virginia"];
     var teamListEl = document.getElementById('teamList');
     teamListEl.innerHTML = '';
 
+    var pendingApprovals = [];
+
     c.teams.forEach(function(team){
       var athletes = team.athletes || [];
       var dues = team.dues || (team.dues_cents ? team.dues_cents / 100 : 0);
@@ -3191,6 +3203,7 @@ var usStates = ["Virginia"];
 
       var teamFunded = 0, teamPending = 0;
       athletes.forEach(function(a){
+        if(a.approval_status === 'pending') pendingApprovals.push({ athlete: a, team: team });
         var s = a.payment_status || 'unpaid';
         totalAthletes++;
         totalDuesCents += dues * 100;
@@ -3240,6 +3253,26 @@ var usStates = ["Virginia"];
     document.getElementById('bucketPendingAmt').textContent     = '$' + Math.round(pendingCents / 100).toLocaleString();
     document.getElementById('bucketDefaultedCount').textContent = totalDefaulted;
     document.getElementById('bucketDefaultedAmt').textContent   = '$' + Math.round(defaultedCents / 100).toLocaleString();
+
+    var approvalBanner = document.getElementById('pendingApprovalOverviewBanner');
+    var approvalList    = document.getElementById('pendingApprovalOverviewList');
+    if(pendingApprovals.length > 0){
+      document.getElementById('pendingApprovalOverviewTitle').textContent =
+        pendingApprovals.length + ' athlete' + (pendingApprovals.length !== 1 ? 's' : '') + ' need' + (pendingApprovals.length === 1 ? 's' : '') + ' approval';
+      approvalList.innerHTML = '';
+      pendingApprovals.forEach(function(p){
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:#fff; border-radius:8px; margin-bottom:6px; cursor:pointer; font-size:12.5px;';
+        row.innerHTML =
+          '<span style="color:var(--ink); font-weight:600;">' + (p.athlete.name || '') + '</span>' +
+          '<span style="color:#7A5C00;">' + p.team.name + ' &rsaquo;</span>';
+        row.addEventListener('click', function(){ state.team = p.team; openRoster(); });
+        approvalList.appendChild(row);
+      });
+      approvalBanner.style.display = 'block';
+    } else {
+      approvalBanner.style.display = 'none';
+    }
 
     showScreen('club-overview');
     refreshStripeBanner();
@@ -3393,11 +3426,11 @@ var usStates = ["Virginia"];
             '<div class="roster-name-block">'+
               '<div class="roster-name">'+(a.name||'')+'</div>'+
               (a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+
-              '<div class="roster-age">Added by parent — not yet confirmed</div>'+
+              (a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+
             '</div>'+
             '<div class="roster-action-row">'+
-              '<button class="roster-action-btn approve" title="Approve — confirm this athlete is on the roster" onclick="approvePendingAthlete(\''+a.id+'\')">'+checkIcon2+'</button>'+
-              '<button class="roster-action-btn danger" title="Remove — this athlete is not on the roster" onclick="deleteRosterAthlete(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+trashIcon+'</button>'+
+              '<button class="roster-action-btn approve" title="Approve this athlete" onclick="approvePendingAthlete(\''+a.id+'\')">'+checkIcon2+'</button>'+
+              '<button class="roster-action-btn danger" title="Remove this athlete" onclick="deleteRosterAthlete(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+trashIcon+'</button>'+
             '</div>';
           return row;
         }
@@ -4727,7 +4760,25 @@ var usStates = ["Virginia"];
       }
       listEl.innerHTML = '';
       var statusLabels = { paid_full:'Paid', bnpl_active:'BNPL Active', bnpl_complete:'Complete', unpaid:'Not Paid', defaulted:'Defaulted' };
-      athletes.forEach(function(a){
+      var taTrashIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>';
+      var taCheckIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      var byNameTA = function(a, b){ return (a.name||'').localeCompare(b.name||''); };
+      var needsApprovalTA = athletes.filter(function(a){ return a.approval_status === 'pending'; }).sort(byNameTA);
+      var restTA = athletes.filter(function(a){ return a.approval_status !== 'pending'; }).sort(byNameTA);
+
+      needsApprovalTA.forEach(function(a){
+        var row = document.createElement('div');
+        row.className = 'roster-row';
+        row.innerHTML =
+          '<div class="roster-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>'+
+          '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+(a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+'</div>'+
+          '<div class="roster-action-row">'+
+            '<button class="roster-action-btn approve" title="Approve" onclick="approveAthleteTeamAdmin(\''+a.id+'\')">'+taCheckIcon+'</button>'+
+            '<button class="roster-action-btn danger" title="Remove" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>'+
+          '</div>';
+        listEl.appendChild(row);
+      });
+      restTA.forEach(function(a){
         var status = a.payment_status || 'unpaid';
         var isPaid = status !== 'unpaid' && status !== 'defaulted';
         var row = document.createElement('div');
@@ -4737,10 +4788,41 @@ var usStates = ["Virginia"];
         row.innerHTML =
           '<div class="roster-icon">'+(isPaid?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>')+'</div>'+
           '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+'</div>'+
-          '<div class="roster-right"><div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div></div>';
+          '<div class="roster-right"><div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div></div>'+
+          '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>';
         listEl.appendChild(row);
       });
     } catch(e){ console.error('openTeamAdminView error:', e); }
+  }
+
+  async function approveAthleteTeamAdmin(athleteId){
+    var s = state.teamAdminSession;
+    if(!s || !s.access_token){ alert('Session expired. Please sign in again.'); return; }
+    try {
+      var res = await fetch(WORKER_URL + '/athlete/' + athleteId + '/approve', {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + s.access_token }
+      });
+      var data = await res.json();
+      if(!res.ok){ alert(data.error || 'Failed to approve athlete.'); return; }
+      openTeamAdminView(s);
+    } catch(e){ alert('Network error. Please try again.'); }
+  }
+
+  async function deleteAthleteTeamAdmin(athleteId, athleteName){
+    if(!confirm('Remove ' + (athleteName || 'this athlete') + ' from the roster? This can\'t be undone.')) return;
+    var s = state.teamAdminSession;
+    if(!s || !s.access_token){ alert('Session expired. Please sign in again.'); return; }
+    try {
+      var res = await fetch(WORKER_URL + '/athlete/' + athleteId, {
+        method: 'DELETE', headers: { 'Authorization': 'Bearer ' + s.access_token }
+      });
+      if(!res.ok){
+        var data = await res.json().catch(function(){ return {}; });
+        alert(data.error || 'Failed to remove athlete.');
+        return;
+      }
+      openTeamAdminView(s);
+    } catch(e){ alert('Network error. Please try again.'); }
   }
 
   function teamAdminSignOut(){
@@ -5063,8 +5145,7 @@ var usStates = ["Virginia"];
             '<div class="roster-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>' +
             '<div class="roster-name-block">' +
               '<div class="roster-name">' + a.name + '</div>' +
-              (a.parent_email ? '<div class="roster-age">' + a.parent_email + '</div>' : '') +
-              '<div class="roster-age">Added by parent — not yet confirmed</div>' +
+              (a.parent_email ? '<div class="roster-age">Added by ' + a.parent_email + '</div>' : '<div class="roster-age">Added by parent, not yet confirmed</div>') +
             '</div>' +
             '<div class="roster-action-row">' +
               '<button class="roster-action-btn approve" title="Approve" onclick="approveAthleteAdmin(\'' + a.id + '\')">' + adminCheckIcon + '</button>' +

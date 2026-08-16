@@ -266,6 +266,68 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
   }
 }
 __name(sendReceiptEmail, "sendReceiptEmail");
+async function sendPendingApprovalEmail(env, club, team, athlete) {
+  const RESEND_API_KEY = env.RESEND_API_KEY;
+  if (!RESEND_API_KEY || !club.admin_email) return;
+  const dues = ((team && team.dues_cents) || 0) / 100;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
+  </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
+  <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;"><tr><td align="center" style="padding:32px 16px;">
+  <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <tr><td style="background:#004643;padding:18px 28px;">
+      <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+    </td></tr>
+    <tr><td style="padding:28px;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">New pending athlete</p>
+      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name} was added by a parent</h2>
+      <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
+        This athlete was added directly by a parent, not through your team's registration link, so PlayFund can't confirm they're actually on the roster. No payment can be collected for them until you approve or remove them.
+      </p>
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
+        <tr><td style="padding:16px;">
+          <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-size:13px;color:#6B7280;">Athlete</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;">${athlete.name}</td>
+            </tr>
+            ${team ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td></tr>` : ""}
+            <tr>
+              <td style="font-size:13px;color:#6B7280;padding-top:6px;">Season dues</td>
+              <td align="right" style="font-size:16px;font-weight:800;color:#004643;padding-top:6px;">$${dues.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;color:#6B7280;padding-top:6px;">Parent email</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${athlete.parent_email}</td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+      <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;">
+        Sign in to PlayFund and open this team's roster to approve or remove them.
+      </p>
+    </td></tr>
+  </table>
+  </td></tr></table>
+  </body></html>`;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "PlayFund <hello@playfundai.com>",
+        to: [club.admin_email],
+        reply_to: athlete.parent_email || void 0,
+        subject: `${athlete.name} needs your approval before they can pay`,
+        html
+      })
+    });
+  } catch (e) {
+    console.error("Pending approval email failed for", club.admin_email, e);
+  }
+}
+__name(sendPendingApprovalEmail, "sendPendingApprovalEmail");
 async function runScheduledReminders(env) {
   const clubsRes = await supabase(
     env,
@@ -819,7 +881,7 @@ var index_default = {
         const athletesRes = await supabase(
           env,
           "GET",
-          `/athletes?team_id=in.(${teamIds.join(",")})&select=id,name,age,team_id,payment_status,payment_method,approval_status,enrolled_at&order=name.asc`
+          `/athletes?team_id=in.(${teamIds.join(",")})&select=id,name,age,team_id,payment_status,payment_method,approval_status,parent_email,enrolled_at&order=name.asc`
         );
         athletes = athletesRes.data || [];
       }
@@ -1073,16 +1135,18 @@ var index_default = {
       const clubRes = await supabase(
         env,
         "GET",
-        `/clubs?code=eq.${club_code.toUpperCase()}&select=id`
+        `/clubs?code=eq.${club_code.toUpperCase()}&select=id,name,admin_email`
       );
       if (!clubRes.data?.length) return err("Invalid club code", 404);
-      const clubId = clubRes.data[0].id;
+      const club = clubRes.data[0];
+      const clubId = club.id;
       const teamRes = await supabase(
         env,
         "GET",
-        `/teams?id=eq.${team_id}&club_id=eq.${clubId}&select=id,dues_cents`
+        `/teams?id=eq.${team_id}&club_id=eq.${clubId}&select=id,name,dues_cents`
       );
       if (!teamRes.data?.length) return err("Team not found for this club", 404);
+      const team = teamRes.data[0];
 
       // An athlete added by an authenticated club/team admin (or PlayFund admin)
       // for their own club/team is trusted automatically. Anyone else — the
@@ -1120,7 +1184,11 @@ var index_default = {
         enrolled_at: (/* @__PURE__ */ new Date()).toISOString()
       });
       if (!insertRes.ok) return err("Failed to register athlete: " + JSON.stringify(insertRes.data), 500);
-      return json({ athlete: insertRes.data[0] }, 201);
+      const newAthlete = insertRes.data[0];
+      if (approvalStatus === "pending") {
+        await sendPendingApprovalEmail(env, club, team, newAthlete);
+      }
+      return json({ athlete: newAthlete }, 201);
     }
     if (method === "POST" && path.startsWith("/athlete/") && path.endsWith("/notify-club")) {
       const athleteId = path.split("/")[2];

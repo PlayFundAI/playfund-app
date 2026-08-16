@@ -399,6 +399,177 @@ async function sendPendingApprovalEmail(env, club, team, athlete) {
   }
 }
 __name(sendPendingApprovalEmail, "sendPendingApprovalEmail");
+async function sendClubWelcomeEmail(env, club, setupUrl) {
+  const RESEND_API_KEY = env.RESEND_API_KEY;
+  if (!RESEND_API_KEY || !club.admin_email) return;
+  const fmt = (iso) => {
+    if (!iso) return null;
+    return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+  const adminFirst = (club.admin_name || "there").split(" ")[0];
+  const athleteCount = club.athlete_count || 0;
+  const feesTotal = club.fees_per_athlete || 0;
+  const totalDues = feesTotal * athleteCount;
+  const payout = Math.round(totalDues * 0.925);
+  let payoutDate = "TBD, confirmed on our call";
+  if (club.season_start) {
+    const d = new Date(club.season_start + "T00:00:00");
+    d.setDate(d.getDate() + 14);
+    payoutDate = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  }
+  const startStr = fmt(club.season_start);
+  const endStr = fmt(club.season_end);
+  const seasonDates = startStr && endStr ? `${startStr} to ${endStr}` : startStr || endStr || "TBD";
+  const cityVal = club.city || "";
+  const stateVal = club.state || "";
+  const location = cityVal && stateVal && !cityVal.includes(stateVal) ? `${cityVal}, ${stateVal}` : cityVal || stateVal || "TBD";
+  const duesStr = feesTotal > 0 ? `$${feesTotal.toLocaleString()}` : "TBD, confirmed on our call";
+  const totalStr = totalDues > 0 ? `$${totalDues.toLocaleString()}` : "TBD";
+  const payoutStr = payout > 0 ? `$${payout.toLocaleString()}` : "TBD";
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
+    body{margin:0;padding:0;background-color:#F4F7F6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;}
+  </style></head><body style="margin:0;padding:0;background-color:#F4F7F6;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#F4F7F6;"><tr><td align="center" style="padding:32px 16px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="560" style="background-color:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.08);">
+    <tr><td style="background-color:#004643;padding:20px 32px;">
+      <span style="font-size:22px;font-weight:800;color:#FFFFFF;">Play</span><span style="font-size:22px;font-weight:800;color:#5BA888;">Fund</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">Club Registration</span>
+    </td></tr>
+    <tr><td style="padding:36px 32px 28px;border-bottom:1px solid #E8EDEC;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">You're on the list</p>
+      <h1 style="margin:0 0 12px;font-size:28px;font-weight:800;color:#004643;line-height:1.2;">${adminFirst}, we received<br>${club.name}'s registration.</h1>
+      <p style="margin:0;font-size:15px;color:#6B7280;line-height:1.6;">A PlayFund team member will reach out within one business day to connect your bank account and get you live. Here's what you submitted.</p>
+    </td></tr>
+    <tr><td style="padding:0;background-color:#004643;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr><td style="padding:24px 32px 8px;">
+          <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Estimated Day 1 payout</p>
+          <p style="margin:0 0 6px;font-size:48px;font-weight:800;color:#FFFFFF;line-height:1;">${payoutStr}</p>
+          <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.6);">${athleteCount} athletes &middot; ${totalStr} total dues &middot; 7.5% PlayFund fee &middot; illustrative</p>
+        </td></tr>
+        <tr><td style="padding:12px 32px 24px;border-top:1px solid rgba(255,255,255,0.12);">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
+            <td style="font-size:13px;color:rgba(255,255,255,0.6);">Estimated payout date</td>
+            <td align="right" style="font-size:13px;font-weight:700;color:#FFFFFF;">${payoutDate}</td>
+          </tr></table>
+        </td></tr>
+      </table>
+    </td></tr>
+    <tr><td style="padding:24px 32px;border-bottom:1px solid #E8EDEC;">
+      <p style="margin:0 0 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#9CA3AF;">What you submitted</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Club name</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${club.name}</td></tr></table></td></tr>
+        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Sport</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${club.sport || "TBD"}</td></tr></table></td></tr>
+        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Location</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${location}</td></tr></table></td></tr>
+        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Season</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${seasonDates}</td></tr></table></td></tr>
+        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Athletes</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${athleteCount || "TBD"}</td></tr></table></td></tr>
+        <tr><td style="padding:9px 0;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Season dues per athlete</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${duesStr}</td></tr></table></td></tr>
+      </table>
+    </td></tr>
+    <tr><td align="center" style="padding:24px 32px;border-bottom:1px solid #E8EDEC;">
+      <p style="margin:0 0 14px;font-size:14px;color:#6B7280;line-height:1.5;">Start by setting up your dashboard login, it only takes a minute.</p>
+      ${setupUrl ? `<a href="${setupUrl}" style="display:inline-block;background-color:#004643;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:700;padding:14px 36px;border-radius:10px;letter-spacing:0.02em;">Set up your account</a>
+      <p style="margin:12px 0 0;font-size:11px;color:#9CA3AF;">This link expires in 24 hours. Contact us if it's expired.</p>` : `<p style="margin:0;font-size:13px;color:#9CA3AF;">We'll follow up separately with your setup link.</p>`}
+    </td></tr>
+    <tr><td style="padding:24px 32px;border-bottom:1px solid #E8EDEC;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
+        <td style="padding:16px;background-color:#FFF8E8;border-radius:12px;border-left:3px solid #F59E0B;">
+          <p style="margin:0 0 5px;font-size:13px;font-weight:700;color:#92400E;">Before our call, have these ready</p>
+          <p style="margin:0;font-size:13px;color:#78350F;line-height:1.6;">&bull; Club EIN (Employer Identification Number)<br>&bull; Bank account and routing number<br>&bull; Final roster with parent emails</p>
+        </td>
+      </tr></table>
+    </td></tr>
+    <tr><td style="padding:28px 32px;">
+      <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Talk soon,</p>
+      <p style="margin:0;font-size:14px;font-weight:700;color:#004643;">Jackson Watkins</p>
+      <p style="margin:0;font-size:13px;color:#9CA3AF;">Co-founder, PlayFund &middot; <a href="mailto:jackson@playfundai.com" style="color:#5BA888;text-decoration:none;">jackson@playfundai.com</a></p>
+    </td></tr>
+  </table>
+  </td></tr></table>
+  </body></html>`;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Jackson at PlayFund <jackson@playfundai.com>",
+        to: [club.admin_email],
+        subject: `${club.name}, you're on the PlayFund list`,
+        html
+      })
+    });
+  } catch (e) {
+    console.error("Club welcome email failed for", club.admin_email, e);
+  }
+}
+__name(sendClubWelcomeEmail, "sendClubWelcomeEmail");
+async function sendInternalClubAlert(env, club) {
+  const RESEND_API_KEY = env.RESEND_API_KEY;
+  if (!RESEND_API_KEY) return;
+  const dues = club.fees_per_athlete || 0;
+  const athletes = club.athlete_count || 0;
+  const totalDues = dues * athletes;
+  const payout = Math.round(totalDues * 0.925);
+  const cityVal = club.city || "";
+  const stateVal = club.state || "";
+  const location = cityVal && stateVal && !cityVal.includes(stateVal) ? `${cityVal}, ${stateVal}` : cityVal || stateVal || "Not provided";
+  const fmt = (iso) => {
+    if (!iso) return "Not provided";
+    return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+  const seasonDates = club.season_start || club.season_end ? `${fmt(club.season_start)} to ${fmt(club.season_end)}` : "Not provided";
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
+    table{width:100%;border-collapse:collapse;}
+    td{padding:9px 0;font-size:14px;border-bottom:1px solid #E8EDEC;}
+    td:last-child{text-align:right;font-weight:700;color:#004643;}
+    td:first-child{color:#6B7280;}
+  </style></head><body>
+  <div style="max-width:520px;margin:32px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:#004643;padding:18px 28px;">
+      <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">New club registration</span>
+    </div>
+    <div style="padding:24px 28px;">
+      <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5BA888;">New club signed up</p>
+      <h2 style="margin:0 0 4px;font-size:22px;font-weight:800;color:#004643;">${club.name}</h2>
+      <p style="margin:0 0 20px;font-size:14px;color:#6B7280;">Submitted ${(/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
+      <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5BA888;">Estimated payout</p>
+      <div style="font-size:36px;font-weight:800;color:#004643;margin:8px 0 4px;">$${payout > 0 ? payout.toLocaleString() : "TBD"}</div>
+      <p style="font-size:13px;color:#9CA3AF;margin:0 0 20px;">${athletes} athletes &middot; ${payout > 0 ? "$" + totalDues.toLocaleString() : "TBD"} total dues</p>
+      <table>
+        <tr><td>Contact</td><td>${club.admin_name || "unknown"} (${club.admin_email || "no email"})</td></tr>
+        <tr><td>Sport</td><td>${club.sport || "unknown"}</td></tr>
+        <tr><td>Location</td><td>${location}</td></tr>
+        <tr><td>Season</td><td>${seasonDates}</td></tr>
+        <tr><td>Athletes</td><td>${athletes || "unknown"}</td></tr>
+        <tr><td>Dues per athlete</td><td>${dues > 0 ? "$" + dues.toLocaleString() : "unknown"}</td></tr>
+        <tr><td>Club code</td><td style="font-family:monospace;">${club.code || "unknown"}</td></tr>
+      </table>
+      <div style="margin-top:20px;padding:14px;background:#F4F7F6;border-radius:10px;">
+        <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#004643;">Next step: reach out within 1 business day</p>
+        <p style="margin:0;font-size:13px;color:#6B7280;">Reply to ${club.admin_email || "the club"} to schedule the onboarding call. They need EIN and bank details.</p>
+      </div>
+    </div>
+  </div>
+  </body></html>`;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "PlayFund Alerts <alerts@playfundai.com>",
+        to: ["jackson@playfundai.com", "clyde@playfundai.com"],
+        subject: `New club: ${club.name} (${location}), est. $${payout > 0 ? payout.toLocaleString() : "TBD"} payout`,
+        html
+      })
+    });
+  } catch (e) {
+    console.error("Internal club alert failed", e);
+  }
+}
+__name(sendInternalClubAlert, "sendInternalClubAlert");
 async function runScheduledReminders(env) {
   const clubsRes = await supabase(
     env,
@@ -1143,6 +1314,10 @@ var index_default = {
           console.error("Generate invite link error:", e);
         }
       }
+      await Promise.all([
+        sendClubWelcomeEmail(env, club, inviteUrl),
+        sendInternalClubAlert(env, club)
+      ]);
       return json({
         club: { ...club, teams: createdTeams },
         invite_url: inviteUrl,
@@ -1258,6 +1433,8 @@ var index_default = {
       const newAthlete = insertRes.data[0];
       if (approvalStatus === "pending") {
         await sendPendingApprovalEmail(env, club, team, newAthlete);
+      } else {
+        await sendApprovalEmail(env, club, team, newAthlete);
       }
       return json({ athlete: newAthlete }, 201);
     }

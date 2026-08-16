@@ -204,6 +204,77 @@ async function sendReminderEmail(env, club, team, athlete) {
   return { ok: true };
 }
 __name(sendReminderEmail, "sendReminderEmail");
+async function sendApprovalEmail(env, club, team, athlete) {
+  const RESEND_API_KEY = env.RESEND_API_KEY;
+  if (!RESEND_API_KEY || !athlete.parent_email) return;
+  const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
+  const dues = (team.dues_cents || 0) / 100;
+  const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
+  </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
+  <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;"><tr><td align="center" style="padding:32px 16px;">
+  <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <tr><td style="background:#004643;padding:18px 28px;">
+      <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+    </td></tr>
+    <tr><td style="padding:28px;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">You're confirmed</p>
+      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name} is confirmed on the roster.</h2>
+      <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
+        ${club.name} has confirmed ${athlete.name} is on the team. You can now complete payment for the season.
+      </p>
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
+        <tr><td style="padding:16px;">
+          <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td style="font-size:13px;color:#6B7280;">Season dues</td>
+              <td align="right" style="font-size:16px;font-weight:800;color:#004643;">$${dues.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+      <table cellpadding="0" cellspacing="0" width="100%"><tr>
+        <td width="48%" style="padding:14px;background:#004643;border-radius:10px;text-align:center;">
+          <p style="margin:0 0 4px;font-size:11px;color:#5BA888;font-weight:700;text-transform:uppercase;">Pay in full</p>
+          <p style="margin:0 0 10px;font-size:20px;font-weight:800;color:#fff;">$${dues.toLocaleString()}</p>
+          <a href="${payUrl}&method=full" style="display:inline-block;background:#5BA888;color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;">Pay now</a>
+        </td>
+        <td width="4%"></td>
+        <td width="48%" style="padding:14px;background:#F4F7F6;border-radius:10px;text-align:center;">
+          <p style="margin:0 0 4px;font-size:11px;color:#9CA3AF;font-weight:700;text-transform:uppercase;">Installments</p>
+          <p style="margin:0 0 10px;font-size:20px;font-weight:800;color:#004643;">$${Math.round(dues / 4)}<span style="font-size:13px;font-weight:500;color:#9CA3AF;">/mo</span></p>
+          <a href="${payUrl}&method=bnpl" style="display:inline-block;background:#004643;color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;">Set up plan</a>
+        </td>
+      </tr></table>
+      <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
+        Questions? Reply to this email or contact ${club.name} directly.
+      </p>
+    </td></tr>
+  </table>
+  </td></tr></table>
+  </body></html>`;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: `${club.name} via PlayFund <hello@playfundai.com>`,
+        to: [athlete.parent_email],
+        subject: `${athlete.name} is confirmed, you can now pay for ${club.name}`,
+        html
+      })
+    });
+  } catch (e) {
+    console.error("Approval email failed for", athlete.parent_email, e);
+  }
+}
+__name(sendApprovalEmail, "sendApprovalEmail");
 async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !athlete.parent_email) return;
@@ -1360,13 +1431,22 @@ var index_default = {
       const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id,team_id`);
       const callerProfile = callerProfileRes.data?.[0];
       if (!callerProfile) return err("Forbidden", 403);
-      const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=id,club_id,team_id`);
+      const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=id,name,parent_email,club_id,team_id`);
       const athlete = athleteRes.data?.[0];
       if (!athlete) return err("Athlete not found", 404);
       const isAllowed = callerProfile.role === "playfund_admin" || callerProfile.role === "club_admin" && callerProfile.club_id === athlete.club_id || callerProfile.role === "team_admin" && callerProfile.team_id === athlete.team_id;
       if (!isAllowed) return err("Forbidden", 403);
       const updateRes = await supabase(env, "PATCH", `/athletes?id=eq.${athleteId}`, { approval_status: "approved" });
       if (!updateRes.ok) return err("Failed to approve athlete: " + JSON.stringify(updateRes.data), 500);
+      const [clubForEmailRes, teamForEmailRes] = await Promise.all([
+        supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name,code`),
+        supabase(env, "GET", `/teams?id=eq.${athlete.team_id}&select=id,name,dues_cents`)
+      ]);
+      const clubForEmail = clubForEmailRes.data?.[0];
+      const teamForEmail = teamForEmailRes.data?.[0];
+      if (clubForEmail && teamForEmail) {
+        await sendApprovalEmail(env, clubForEmail, teamForEmail, athlete);
+      }
       return json({ success: true });
     }
     if (method === "DELETE" && path.startsWith("/athlete/")) {

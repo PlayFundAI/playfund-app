@@ -2121,7 +2121,7 @@
     <div style="background:var(--paper-dim); border-radius:12px; padding:14px 16px; margin-top:8px; margin-bottom:16px;">
       <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:4px;">Estimated Day 1 payout</div>
       <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="reg2PayoutPreview">$0</div>
-      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;" id="reg2PayoutSub">Based on 0 athletes · 7.5% PlayFund fee</div>
+      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;" id="reg2PayoutSub">Based on 0 athletes · 5% PlayFund fee</div>
       <div style="font-size:12px; color:var(--fund-green); font-weight:700; margin-top:6px;" id="reg2PayoutDate"></div>
     </div>
 
@@ -2284,7 +2284,7 @@
         <div class="faq-question-text">How does the club advance work?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Once your roster is locked, PlayFund's lending partner disburses the full season dues (less the 7.5% service fee) directly to your bank account — typically within 14 days of your roster lock date. Your club gets paid in full regardless of how families choose to pay.</div>
+      <div class="faq-answer">Each family's payment lands in your account (less PlayFund's service fee) as they pay, whether that's a card payment settling right away or a Klarna installment plan where Klarna pays your club upfront and collects from the family over time. Either way, your club gets paid in full regardless of how families choose to pay, you're never waiting on a family's installment schedule.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -2300,7 +2300,7 @@
         <div class="faq-question-text">What does it cost the club?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">PlayFund charges a flat 7.5% service fee on total season dues, deducted from the advance before it lands in your account. There are no setup fees, monthly fees, or hidden costs. Families pay no extra fees.</div>
+      <div class="faq-answer">PlayFund charges a service fee on total season dues, deducted before funds land in your account. The exact percentage is set for your club during onboarding, there are no setup fees, monthly fees, or hidden costs, and families pay no extra fees.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -4580,9 +4580,9 @@ var usStates = ["Virginia"];
     var dues  = parseFloat(raw) || 0;
     var count = regState.athleteCount || 0;
     var total = dues * count;
-    var payout = Math.round(total * 0.925);
+    var payout = Math.round(total * 0.95);
     document.getElementById('reg2PayoutPreview').textContent = '$' + payout.toLocaleString();
-    document.getElementById('reg2PayoutSub').textContent = 'Based on ' + count + ' athlete' + (count!==1?'s':'') + ' · 7.5% PlayFund fee';
+    document.getElementById('reg2PayoutSub').textContent = 'Based on ' + count + ' athlete' + (count!==1?'s':'') + ' · 5% PlayFund fee';
     // Payout date — 5 days before season start
     var dateEl = document.getElementById('reg2PayoutDate');
     if(regState.seasonStart){
@@ -4607,7 +4607,7 @@ var usStates = ["Virginia"];
 
   async function submitRegistration(){
     var total  = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
-    var payout = Math.round(total * regState.athleteCount * 0.925);
+    var payout = Math.round(total * regState.athleteCount * 0.95);
 
     // Compute payout date
     var payoutDateStr = '';
@@ -4642,10 +4642,10 @@ var usStates = ["Virginia"];
       ? regState.adminName.split(' ')[0] + ', you\'re on the list.'
       : 'You\'re on the list.';
     document.getElementById('reg4Sub').textContent =
-      'Check your email — we sent you a link to set up your account.';
+      'Check your email, we sent you a link to set up your account.';
     document.getElementById('reg4Payout').textContent = '$' + payout.toLocaleString();
 
-    var subParts = ['Illustrative · ' + regState.athleteCount + ' athletes · $' + Math.round(total).toLocaleString() + ' dues · 7.5% fee'];
+    var subParts = ['Illustrative · ' + regState.athleteCount + ' athletes · $' + Math.round(total).toLocaleString() + ' dues · 5% fee'];
     if(payoutDateStr) subParts.push('Estimated payout: ' + payoutDateStr);
     document.getElementById('reg4PayoutSub').textContent = subParts.join(' · ');
 

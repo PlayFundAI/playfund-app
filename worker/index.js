@@ -410,7 +410,8 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   const athleteCount = club.athlete_count || 0;
   const feesTotal = club.fees_per_athlete || 0;
   const totalDues = feesTotal * athleteCount;
-  const payout = Math.round(totalDues * 0.925);
+  const feeBps = club.fee_bps || 500;
+  const payout = Math.round(totalDues * (1 - feeBps / 10000));
   let payoutDate = "TBD, confirmed on our call";
   if (club.season_start) {
     const d = new Date(club.season_start + "T00:00:00");
@@ -446,7 +447,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
         <tr><td style="padding:24px 32px 8px;">
           <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Estimated Day 1 payout</p>
           <p style="margin:0 0 6px;font-size:48px;font-weight:800;color:#FFFFFF;line-height:1;">${payoutStr}</p>
-          <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.6);">${athleteCount} athletes &middot; ${totalStr} total dues &middot; 7.5% PlayFund fee &middot; illustrative</p>
+          <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.6);">${athleteCount} athletes &middot; ${totalStr} total dues &middot; ${(feeBps / 100).toString().replace(/\.0$/, "")}% PlayFund fee &middot; illustrative</p>
         </td></tr>
         <tr><td style="padding:12px 32px 24px;border-top:1px solid rgba(255,255,255,0.12);">
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
@@ -510,7 +511,8 @@ async function sendInternalClubAlert(env, club) {
   const dues = club.fees_per_athlete || 0;
   const athletes = club.athlete_count || 0;
   const totalDues = dues * athletes;
-  const payout = Math.round(totalDues * 0.925);
+  const feeBps = club.fee_bps || 500;
+  const payout = Math.round(totalDues * (1 - feeBps / 10000));
   const cityVal = club.city || "";
   const stateVal = club.state || "";
   const location = cityVal && stateVal && !cityVal.includes(stateVal) ? `${cityVal}, ${stateVal}` : cityVal || stateVal || "Not provided";

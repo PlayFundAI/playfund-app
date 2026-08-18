@@ -2195,26 +2195,17 @@
           <span class="payment-mgmt-row-label">Next payment</span>
           <span class="payment-mgmt-row-value" id="pmNextDate">—</span>
         </div>
-        <div class="payment-mgmt-row">
-          <span class="payment-mgmt-row-label">Card on file</span>
-          <span class="payment-mgmt-row-value" id="pmCard">Visa ···4821</span>
-        </div>
       </div>
     </div>
 
     <!-- Schedule -->
-    <div class="roster-section-label">Payment schedule</div>
+    <div class="roster-section-label">Payment schedule (estimated)</div>
+    <p style="font-size:12px; color:var(--ink-soft); margin:-4px 0 10px;">Based on the plan you selected. Klarna is the source of truth for your actual dates and amounts.</p>
     <div id="pmScheduleList"></div>
-
-    <!-- Actions -->
-    <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
-      <button class="btn btn-secondary" onclick="openStripeUpdateCard()">Update card on file</button>
-      <button class="btn btn-secondary" onclick="downloadReceipt()">Download receipt</button>
-    </div>
 
     <div style="margin-top:20px; padding:14px; background:var(--paper-dim); border-radius:10px;">
       <p style="margin:0; font-size:12.5px; color:var(--ink-soft); line-height:1.6;">
-        Payments are managed by PlayFund and processed via Stripe. To change a payment date or cancel, reply to your confirmation email or contact <a href="mailto:hello@playfundai.com" style="color:var(--fund-green);">hello@playfundai.com</a>.
+        This is a Klarna installment plan. Klarna, not PlayFund, holds your card on file and manages your payment schedule directly, log in at <a href="https://www.klarna.com" target="_blank" style="color:var(--fund-green);">klarna.com</a> to update your card or see your exact next charge. For anything else, contact <a href="mailto:hello@playfundai.com" style="color:var(--fund-green);">hello@playfundai.com</a>.
       </p>
     </div>
   </div>
@@ -4134,7 +4125,6 @@ var usStates = ["Virginia"];
     document.getElementById('pmNextDate').textContent = next
       ? (next.date instanceof Date ? next.date.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : String(next.date))
       : 'All paid ✓';
-    document.getElementById('pmCard').textContent = 'Visa ···4821'; // placeholder until live Stripe
 
     // Build schedule
     var listEl = document.getElementById('pmScheduleList');
@@ -4165,14 +4155,6 @@ var usStates = ["Virginia"];
     });
 
     showScreen('payment-mgmt');
-  }
-
-  function openStripeUpdateCard(){
-    alert('Card update is handled via Stripe. In the live version, this opens Stripe\'s secure card update page. Check your confirmation email for a management link, or contact hello@playfundai.com.');
-  }
-
-  function downloadReceipt(){
-    alert('Your receipt was emailed when you registered. Check your inbox for an email from PlayFund. Contact hello@playfundai.com if you need a copy.');
   }
 
   // ---------- send reminders ----------

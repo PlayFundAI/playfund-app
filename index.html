@@ -1474,7 +1474,7 @@
       <div class="klarna-steps">
         <div class="klarna-step">
           <div class="klarna-step-num">1</div>
-          <div class="klarna-step-text">You'll go straight to Klarna, who'll ask for a few quick details — <b>name, address, and date of birth</b> — to make an instant approval decision.</div>
+          <div class="klarna-step-text">You'll go straight to Klarna, who'll ask for a few quick details (<b>name, address, and date of birth</b>) to make an instant approval decision.</div>
         </div>
         <div class="klarna-step">
           <div class="klarna-step-num">2</div>
@@ -1482,7 +1482,7 @@
         </div>
         <div class="klarna-step">
           <div class="klarna-step-num">3</div>
-          <div class="klarna-step-text">Approval and repayment terms are set by Klarna, not PlayFund — using Klarna may affect your credit depending on the plan you're offered.</div>
+          <div class="klarna-step-text">Approval and repayment terms are set by Klarna, not PlayFund. Using Klarna may affect your credit depending on the plan you're offered.</div>
         </div>
       </div>
       <div class="payment-btn-row">
@@ -1634,7 +1634,7 @@
       <div class="settings-row-label">Notification preferences</div>
     </div>
 
-    <p class="settings-placeholder-note">This is a shell for illustrative purposes — settings aren't functional in this mockup.</p>
+    <p class="settings-placeholder-note">This is a shell for illustrative purposes. Settings aren't functional in this mockup.</p>
   </div>
 
   <!-- SCREEN: club settings (shell) -->
@@ -1667,7 +1667,7 @@
       <div class="settings-row-label">Notification preferences</div>
     </div>
 
-    <p class="settings-placeholder-note">This is a shell for illustrative purposes — settings aren't functional in this mockup.</p>
+    <p class="settings-placeholder-note">This is a shell for illustrative purposes. Settings aren't functional in this mockup.</p>
     <div style="margin-top:24px; padding-top:20px; border-top:1px solid var(--line);">
       <button onclick="clubSignOut()" style="background:none; border:none; font-size:13px; font-weight:700; color:#555; cursor:pointer; font-family:'Inter',sans-serif;">Sign out</button>
     </div>
@@ -2327,7 +2327,7 @@
         <div class="faq-question-text">How do I contact PlayFund?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Email us at hello@playfundai.com — we typically respond within a few hours. For club partnerships, reach Jackson directly at jackson@playfundai.com.</div>
+      <div class="faq-answer">Email us at hello@playfundai.com, we typically respond within a few hours. For club partnerships, reach Jackson directly at jackson@playfundai.com.</div>
     </div>
 
     <div class="footer-spacer"></div>
@@ -2346,55 +2346,26 @@
       <div class="step-progress-sep">›</div>
       <div class="step-progress-item"><div class="step-progress-dot"></div>Confirmed</div>
     </div>
-    <h1 class="title" style="font-size:26px; margin-bottom:6px;">Both players,<br>one plan.</h1>
+    <h1 class="title" style="font-size:26px; margin-bottom:6px;">Multiple athletes,<br>one club.</h1>
     <p class="subtitle" id="combinedPlanClub" style="margin-bottom:16px;">Team Richmond AAU Basketball</p>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 16px; line-height:1.6;">Each athlete is paid for separately, no cap or minimum on how many you register. Tap an athlete below to pay for them on Stripe's checkout page.</p>
 
     <!-- Athletes in plan -->
     <div id="combinedAthleteList" style="margin-bottom:4px;"></div>
 
     <!-- Total -->
     <div class="sibling-total-row">
-      <div class="sibling-total-label">Season total</div>
+      <div class="sibling-total-label">Combined season total</div>
       <div class="sibling-total-amt" id="combinedTotal">$0</div>
     </div>
-    <p style="font-size:11.5px; color:var(--ink-soft); margin:4px 0 20px;">No cap, no minimum. Adding a second athlete never breaks your payment plan.</p>
-
-    <!-- Pay options -->
-    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
-
-      <!-- Pay in full -->
-      <div style="background:var(--paper-dim); border-radius:14px; padding:18px; border:1.5px solid var(--line);">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
-          <div>
-            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); margin-bottom:3px;">Pay in full</div>
-            <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="combinedFullAmt">$0</div>
-          </div>
-          <div style="font-size:12px; color:var(--ink-soft); text-align:right; max-width:120px;">One charge today. Done for the season.</div>
-        </div>
-        <button onclick="openCombinedCheckout('full')" class="btn btn-primary" style="width:100%; margin-top:6px;">Pay in full →</button>
-      </div>
-
-      <!-- Installments -->
-      <div style="background:var(--ink); border-radius:14px; padding:18px;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
-          <div>
-            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--fund-green); margin-bottom:3px;">Installment plan</div>
-            <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--white);" id="combinedInstAmt">$0<span style="font-size:14px; font-weight:400; color:rgba(255,255,255,0.5);">/mo</span></div>
-          </div>
-          <div style="font-size:12px; color:rgba(255,255,255,0.6); text-align:right; max-width:120px;" id="combinedInstSub">4 monthly payments</div>
-        </div>
-        <p style="font-size:12px; color:rgba(255,255,255,0.6); margin:0 0 12px; line-height:1.5;">No added cost to you. <span id="combinedClubName">Your club</span> covers the fee.</p>
-        <button onclick="openCombinedCheckout('bnpl')" style="width:100%; background:var(--fund-green); border:none; border-radius:10px; padding:13px 0; font-size:14px; font-weight:700; color:var(--white); cursor:pointer; font-family:'Inter',sans-serif;">Set up installments →</button>
-      </div>
-
-    </div>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin:4px 0 20px;">Shown for reference only. Pay for each athlete individually using the button next to their name above.</p>
 
     <p style="font-size:11.5px; color:var(--ink-soft); text-align:center; line-height:1.6;">
       Secured by Stripe · No PlayFund account required
     </p>
 
     <div class="footer-spacer"></div>
-    <button class="btn btn-secondary" onclick="goBack()">Pay athletes separately instead</button>
+    <button class="btn btn-secondary" onclick="goBack()">Back</button>
   </div>
 
   <!-- SCREEN: parent save account (shown after payment confirmation) -->
@@ -3990,15 +3961,15 @@ var usStates = ["Virginia"];
     // Populate the screen
     var clubName = group.club.name;
     document.getElementById('combinedPlanClub').textContent = clubName;
-    document.getElementById('combinedClubName').textContent = clubName;
 
-    // Build athlete list
+    // Build athlete list, each with its own real "Pay" button
     var listEl = document.getElementById('combinedAthleteList');
     listEl.innerHTML = '';
     var totalDues = 0;
     group.athletes.forEach(function(entry){
       var dues = entry.team ? (entry.team.dues || 0) : 0;
       totalDues += dues;
+      var alreadyPaid = entry.athlete.paymentStatus === 'full' || entry.athlete.paymentStatus === 'bnpl';
       var row = document.createElement('div');
       row.className = 'sibling-athlete-row';
       row.innerHTML =
@@ -4006,64 +3977,24 @@ var usStates = ["Virginia"];
           '<div class="sibling-athlete-name">' + entry.athlete.name + '</div>' +
           '<div class="sibling-athlete-sub">' + (entry.team ? entry.team.name : clubName) + '</div>' +
         '</div>' +
-        '<div class="sibling-athlete-amt">$' + dues.toLocaleString() + '</div>';
+        '<div style="display:flex; align-items:center; gap:10px;">' +
+          '<div class="sibling-athlete-amt">$' + dues.toLocaleString() + '</div>' +
+          (alreadyPaid
+            ? '<span class="status-pill status-paid">Paid</span>'
+            : '<button class="btn btn-secondary" style="padding:8px 14px; font-size:12.5px;" onclick="payCombinedAthlete(\'' + entry.athlete.id + '\')">Pay</button>') +
+        '</div>';
       listEl.appendChild(row);
     });
 
-    var instAmt = Math.round(totalDues / 4);
-    document.getElementById('combinedTotal').textContent    = '$' + totalDues.toLocaleString();
-    document.getElementById('combinedFullAmt').textContent  = '$' + totalDues.toLocaleString();
-    document.getElementById('combinedInstAmt').textContent  = '$' + instAmt.toLocaleString();
-    document.getElementById('combinedInstSub').textContent  = '4 monthly payments · ' +
-      group.athletes.map(function(e){ return e.athlete.name.split(' ')[0]; }).join(' & ');
+    document.getElementById('combinedTotal').textContent = '$' + totalDues.toLocaleString();
 
     showScreen('combined-plan');
   }
 
-  function openCombinedCheckout(method){
-    var group = state.combinedPlan;
-    if(!group) return;
-    var totalDues = group.athletes.reduce(function(s, e){
-      return s + (e.team ? (e.team.dues || 0) : 0);
-    }, 0);
-    // Use the appropriate Stripe link — in live mode these would be
-    // dynamically created Checkout Sessions with the combined amount
-    var link = method === 'full' ? STRIPE_LINKS['pay-card'] : STRIPE_LINKS['klarna'];
-    var confirmScreen = method === 'full' ? 'confirm-now' : 'confirm-terms';
-
-    // Mark all athletes in the plan
-    group.athletes.forEach(function(entry){
-      var athlete = entry.athlete;
-      athlete.paymentStatus = method === 'full' ? 'full' : 'bnpl';
-      athlete.termWeeks = method === 'full' ? null : 4;
-      athlete.history = buildAthleteHistory(athlete);
-    });
-    saveAthletes(state.athletes);
-    renderAthleteList();
-
-    // Populate confirmation for combined plan
-    var names = group.athletes.map(function(e){ return e.athlete.name.split(' ')[0]; }).join(' and ');
-    if(method === 'full'){
-      var nowTitle = document.getElementById('confirmNowTitle');
-      var nowSub   = document.getElementById('confirmNowSub');
-      var nowSched = document.getElementById('confirmNowSchedule');
-      if(nowTitle) nowTitle.textContent = names + ' are registered.';
-      if(nowSub)   nowSub.textContent   = group.club.name + ' has been paid in full for the season.';
-      if(nowSched) nowSched.innerHTML   = '<div class="payment-schedule-title">Your payment</div>' +
-        renderScheduleRow({ label: 'Combined season dues — paid in full', date: new Date(), amount: totalDues, status: 'paid' });
-    } else {
-      var termTitle = document.getElementById('confirmTermsTitle');
-      var termSub   = document.getElementById('confirmTermsSub');
-      if(termTitle) termTitle.textContent = names + ' are registered.';
-      if(termSub)   termSub.textContent   = group.club.name + ' has been paid in full. Your 4 monthly payments are scheduled below.';
-    }
-
-    // Open Stripe then show confirmation
-    window.open(link, '_blank');
-    showScreen(confirmScreen);
+  function payCombinedAthlete(localAthleteId){
+    state.activeAthleteId = localAthleteId;
+    openAthleteDetail(localAthleteId);
   }
-
-
 
   function openAthleteDetail(athleteId){
     var athlete = state.athletes.find(function(a){ return a.id === athleteId; });

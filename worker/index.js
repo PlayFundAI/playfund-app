@@ -149,7 +149,7 @@ async function sendReminderEmail(env, club, team, athlete) {
       <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name}'s registration is still open.</h2>
       <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
         ${club.name} is waiting for ${athlete.name}'s registration to be completed.
-        The season is coming up — take a moment to register and choose how you'd like to pay.
+        The season is coming up, take a moment to register and choose how you'd like to pay.
       </p>
       <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
         <tr><td style="padding:16px;">
@@ -281,7 +281,7 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
   const amount = (amountCents / 100).toLocaleString();
   const isKlarna = paymentMethod === "klarna";
   const statusLine = isKlarna
-    ? (newStatus === "bnpl_complete" ? "Your Klarna installment plan is now fully paid off." : "This payment is part of your Klarna installment plan — Klarna will continue billing your remaining installments directly.")
+    ? (newStatus === "bnpl_complete" ? "Your Klarna installment plan is now fully paid off." : "This payment is part of your Klarna installment plan. Klarna will continue billing your remaining installments directly.")
     : "This covers the full season dues. Nothing else is due.";
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}

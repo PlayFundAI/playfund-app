@@ -4695,25 +4695,33 @@ var usStates = ["Virginia"];
       var taCheckIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
       var byNameTA = function(a, b){ return (a.name||'').localeCompare(b.name||''); };
       var needsApprovalTA = athletes.filter(function(a){ return a.approval_status === 'pending'; }).sort(byNameTA);
-      var restTA = athletes.filter(function(a){ return a.approval_status !== 'pending'; }).sort(byNameTA);
+      var pendingTA = athletes.filter(function(a){ var s = a.payment_status||'unpaid'; return a.approval_status !== 'pending' && (s==='unpaid' || s==='defaulted'); }).sort(byNameTA);
+      var paidTA    = athletes.filter(function(a){ var s = a.payment_status||'unpaid'; return a.approval_status !== 'pending' && s!=='unpaid' && s!=='defaulted'; }).sort(byNameTA);
 
-      needsApprovalTA.forEach(function(a){
+      var addGroupTA = function(label, list){
+        if(!list.length) return;
+        var header = document.createElement('div');
+        header.className = 'roster-group-label';
+        header.textContent = label + ' · ' + list.length;
+        listEl.appendChild(header);
+        list.forEach(function(a){ listEl.appendChild(buildRowTA(a)); });
+      };
+
+      function buildRowTA(a){
         var row = document.createElement('div');
         row.className = 'roster-row';
-        row.innerHTML =
-          '<div class="roster-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>'+
-          '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+(a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+'</div>'+
-          '<div class="roster-action-row">'+
-            '<button class="roster-action-btn approve" title="Approve" onclick="approveAthleteTeamAdmin(\''+a.id+'\')">'+taCheckIcon+'</button>'+
-            '<button class="roster-action-btn danger" title="Remove" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>'+
-          '</div>';
-        listEl.appendChild(row);
-      });
-      restTA.forEach(function(a){
+        if(a.approval_status === 'pending'){
+          row.innerHTML =
+            '<div class="roster-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>'+
+            '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+(a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+'</div>'+
+            '<div class="roster-action-row">'+
+              '<button class="roster-action-btn approve" title="Approve" onclick="approveAthleteTeamAdmin(\''+a.id+'\')">'+taCheckIcon+'</button>'+
+              '<button class="roster-action-btn danger" title="Remove" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>'+
+            '</div>';
+          return row;
+        }
         var status = a.payment_status || 'unpaid';
         var isPaid = status !== 'unpaid' && status !== 'defaulted';
-        var row = document.createElement('div');
-        row.className = 'roster-row';
         row.style.setProperty('--status-color','var('+(isPaid?'--paid':'--unpaid')+')');
         row.style.setProperty('--status-bg','var('+(isPaid?'--paid-bg':'--unpaid-bg')+')');
         row.innerHTML =
@@ -4721,8 +4729,12 @@ var usStates = ["Virginia"];
           '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+'</div>'+
           '<div class="roster-right"><div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div></div>'+
           '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>';
-        listEl.appendChild(row);
-      });
+        return row;
+      }
+
+      addGroupTA('Needs approval', needsApprovalTA);
+      addGroupTA('Pending', pendingTA);
+      addGroupTA('Paid', paidTA);
     } catch(e){ console.error('openTeamAdminView error:', e); }
   }
 
@@ -5062,7 +5074,13 @@ var usStates = ["Virginia"];
       var statusLabels = { paid_full:'Paid', bnpl_active:'BNPL Active', bnpl_complete:'Complete', unpaid:'Not Paid', defaulted:'Defaulted' };
       var adminTrashIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>';
       var adminCheckIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-      athletes.forEach(function(a){
+
+      var byNameAdmin = function(a, b){ return (a.name||'').localeCompare(b.name||''); };
+      var needsApprovalAdmin = athletes.filter(function(a){ return a.approval_status === 'pending'; }).sort(byNameAdmin);
+      var pendingAdmin = athletes.filter(function(a){ var s = a.payment_status||'unpaid'; return a.approval_status !== 'pending' && (s==='unpaid' || s==='defaulted'); }).sort(byNameAdmin);
+      var paidAdmin    = athletes.filter(function(a){ var s = a.payment_status||'unpaid'; return a.approval_status !== 'pending' && s!=='unpaid' && s!=='defaulted'; }).sort(byNameAdmin);
+
+      function buildRowAdmin(a){
         var status = a.payment_status || 'unpaid';
         var isPaid = status !== 'unpaid' && status !== 'defaulted';
         var needsApproval = a.approval_status === 'pending';
@@ -5082,8 +5100,7 @@ var usStates = ["Virginia"];
               '<button class="roster-action-btn approve" title="Approve" onclick="approveAthleteAdmin(\'' + a.id + '\')">' + adminCheckIcon + '</button>' +
               '<button class="roster-action-btn danger" title="Remove" onclick="deleteAthleteAdmin(\'' + a.id + '\', \'' + (a.name || 'this athlete').replace(/'/g,"\\'") + '\')">' + adminTrashIcon + '</button>' +
             '</div>';
-          listEl.appendChild(row);
-          return;
+          return row;
         }
 
         row.innerHTML =
@@ -5100,8 +5117,20 @@ var usStates = ["Virginia"];
             '<div class="status-pill ' + (isPaid ? 'status-paid' : 'status-unpaid') + '">' + (statusLabels[status] || 'Not Paid') + '</div>' +
           '</div>' +
           '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteAthleteAdmin(\'' + a.id + '\', \'' + (a.name || 'this athlete').replace(/'/g,"\\'") + '\')">' + adminTrashIcon + '</button>';
-        listEl.appendChild(row);
-      });
+        return row;
+      }
+
+      var addGroupAdmin = function(label, list){
+        if(!list.length) return;
+        var header = document.createElement('div');
+        header.className = 'roster-group-label';
+        header.textContent = label + ' · ' + list.length;
+        listEl.appendChild(header);
+        list.forEach(function(a){ listEl.appendChild(buildRowAdmin(a)); });
+      };
+      addGroupAdmin('Needs approval', needsApprovalAdmin);
+      addGroupAdmin('Pending', pendingAdmin);
+      addGroupAdmin('Paid', paidAdmin);
     } catch(e) {
       document.getElementById('adminRosterList').innerHTML = '<p style="color:var(--unpaid);">Error loading roster.</p>';
       console.error('openAdminTeamRoster error:', e);

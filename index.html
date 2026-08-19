@@ -2531,12 +2531,19 @@ var usStates = ["Virginia"];
 
   // ---------- splash ----------
   window.addEventListener('load', function(){
+    // A deep link (payment email, checkout return, Stripe Connect return,
+    // auth redirect) navigates asynchronously further down and can take
+    // longer than this splash sequence — don't let the splash's own
+    // "show home" timeout win that race and stomp the real destination.
+    var urlParams = new URLSearchParams(window.location.search);
+    var hasDeepLinkParams = !!(urlParams.get('code') || urlParams.get('checkout') || urlParams.get('stripe_onboard') || window.location.hash.indexOf('access_token') !== -1);
+
     setTimeout(function(){
       document.getElementById('splash').classList.add('fly');
     }, 650);
     setTimeout(function(){
       document.getElementById('header').classList.add('visible');
-      showScreen('home', true);
+      if(!hasDeepLinkParams) showScreen('home', true);
     }, 1050);
     setTimeout(function(){
       document.getElementById('splash').classList.add('done');
@@ -2676,16 +2683,27 @@ var usStates = ["Virginia"];
 
     // Deep link handling — parse URL params to pre-populate parent flow
     // Supports: ?code=BBALL1&athlete=UUID&method=full|bnpl
+    //
+    // The splash sequence above skips its own "show home" fallback whenever
+    // a deep link is present, so this function must always land on *some*
+    // screen itself, on every path, including failure paths — nothing else
+    // will show one if this doesn't.
     (async function handleDeepLink(){
-      try {
-        var params = new URLSearchParams(window.location.search);
-        var code   = params.get('code');
-        var athId  = params.get('athlete');
-        var method = params.get('method'); // 'full' or 'bnpl'
-        if(!code) return;
+      var params = new URLSearchParams(window.location.search);
+      var code   = params.get('code');
+      var athId  = params.get('athlete');
+      var method = params.get('method'); // 'full' or 'bnpl'
+      if(!code) return;
 
+      var fallback = function(){
+        var codeEl = document.getElementById('codeInput');
+        if(codeEl) codeEl.value = code.toUpperCase();
+        try { enterParentMode(); } catch(e){ showScreen('home', true); }
+      };
+
+      try {
         var club = await fetchClub(code.toUpperCase());
-        if(!club) return;
+        if(!club){ fallback(); return; }
 
         // If athlete UUID provided, find or create the athlete in local state
         if(athId){
@@ -2702,7 +2720,8 @@ var usStates = ["Virginia"];
                   var newAth = {
                     id: 'deep_' + athId, supabaseId: athId,
                     name: a.name, clubCode: code.toUpperCase(), clubId: club.id,
-                    teamId: a.team_id, paymentStatus: a.payment_status || 'unpaid'
+                    teamId: a.team_id, paymentStatus: a.payment_status || 'unpaid',
+                    approvalStatus: a.approval_status
                   };
                   state.athletes.push(newAth);
                   saveAthletes(state.athletes);
@@ -2730,11 +2749,10 @@ var usStates = ["Virginia"];
           }
         }
 
-        // No athlete ID — just pre-fill the club code
-        var codeEl = document.getElementById('codeInput');
-        if(codeEl) codeEl.value = code.toUpperCase();
-        enterParentMode();
-      } catch(e){ console.warn('Deep link handling error:', e); }
+        // No athlete ID, or athlete/team couldn't be resolved — pre-fill
+        // the club code so the parent can pick up from there.
+        fallback();
+      } catch(e){ console.warn('Deep link handling error:', e); fallback(); }
     })();
     var enterMap = [
       // [inputId(s), submitFn]

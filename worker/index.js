@@ -412,7 +412,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   const totalDues = feesTotal * athleteCount;
   const feeBps = club.fee_bps || 500;
   const payout = Math.round(totalDues * (1 - feeBps / 10000));
-  let payoutDate = "TBD, confirmed on our call";
+  let payoutDate = "TBD, set your team dues after signing in";
   if (club.season_start) {
     const d = new Date(club.season_start + "T00:00:00");
     d.setDate(d.getDate() + 14);
@@ -424,7 +424,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   const cityVal = club.city || "";
   const stateVal = club.state || "";
   const location = cityVal && stateVal && !cityVal.includes(stateVal) ? `${cityVal}, ${stateVal}` : cityVal || stateVal || "TBD";
-  const duesStr = feesTotal > 0 ? `$${feesTotal.toLocaleString()}` : "TBD, confirmed on our call";
+  const duesStr = feesTotal > 0 ? `$${feesTotal.toLocaleString()}` : "TBD, set after signing in";
   const totalStr = totalDues > 0 ? `$${totalDues.toLocaleString()}` : "TBD";
   const payoutStr = payout > 0 ? `$${payout.toLocaleString()}` : "TBD";
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -438,9 +438,9 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
       <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">Club Registration</span>
     </td></tr>
     <tr><td style="padding:36px 32px 28px;border-bottom:1px solid #E8EDEC;">
-      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">You're on the list</p>
-      <h1 style="margin:0 0 12px;font-size:28px;font-weight:800;color:#004643;line-height:1.2;">${adminFirst}, we received<br>${club.name}'s registration.</h1>
-      <p style="margin:0;font-size:15px;color:#6B7280;line-height:1.6;">A PlayFund team member will reach out within one business day to connect your bank account and get you live. Here's what you submitted.</p>
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">You're all set</p>
+      <h1 style="margin:0 0 12px;font-size:28px;font-weight:800;color:#004643;line-height:1.2;">${adminFirst}, ${club.name} is registered.</h1>
+      <p style="margin:0;font-size:15px;color:#6B7280;line-height:1.6;">Set up your account below to connect your bank and start collecting, no call needed. Here's what you submitted.</p>
     </td></tr>
     <tr><td style="padding:0;background-color:#004643;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
@@ -476,15 +476,15 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
     <tr><td style="padding:24px 32px;border-bottom:1px solid #E8EDEC;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
         <td style="padding:16px;background-color:#FFF8E8;border-radius:12px;border-left:3px solid #F59E0B;">
-          <p style="margin:0 0 5px;font-size:13px;font-weight:700;color:#92400E;">Before our call, have these ready</p>
-          <p style="margin:0;font-size:13px;color:#78350F;line-height:1.6;">&bull; Club EIN (Employer Identification Number)<br>&bull; Bank account and routing number<br>&bull; Final roster with parent emails</p>
+          <p style="margin:0 0 5px;font-size:13px;font-weight:700;color:#92400E;">Have these ready when you connect your bank</p>
+          <p style="margin:0;font-size:13px;color:#78350F;line-height:1.6;">&bull; Club EIN (Employer Identification Number)<br>&bull; Bank account and routing number<br>&bull; Your team roster with parent emails</p>
         </td>
       </tr></table>
     </td></tr>
     <tr><td style="padding:28px 32px;">
-      <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Talk soon,</p>
-      <p style="margin:0;font-size:14px;font-weight:700;color:#004643;">Jackson Watkins</p>
-      <p style="margin:0;font-size:13px;color:#9CA3AF;">Co-founder, PlayFund &middot; <a href="mailto:jackson@playfundai.com" style="color:#5BA888;text-decoration:none;">jackson@playfundai.com</a></p>
+      <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Questions? Just reply to this email.</p>
+      <p style="margin:0;font-size:14px;font-weight:700;color:#004643;">The PlayFund Team</p>
+      <p style="margin:0;font-size:13px;color:#9CA3AF;"><a href="mailto:hello@playfundai.com" style="color:#5BA888;text-decoration:none;">hello@playfundai.com</a></p>
     </td></tr>
   </table>
   </td></tr></table>
@@ -494,9 +494,9 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Jackson at PlayFund <jackson@playfundai.com>",
+        from: "PlayFund <hello@playfundai.com>",
         to: [club.admin_email],
-        subject: `${club.name}, you're on the PlayFund list`,
+        subject: `Welcome to PlayFund, ${club.name}`,
         html
       })
     });
@@ -1323,7 +1323,7 @@ var index_default = {
       return json({
         club: { ...club, teams: createdTeams },
         invite_url: inviteUrl,
-        message: "Registration received. A PlayFund team member will reach out to complete setup."
+        message: "Registration received. Check your email for a link to set up your account."
       }, 201);
     }
     if (method === "POST" && path === "/team") {

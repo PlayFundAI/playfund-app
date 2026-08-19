@@ -1383,7 +1383,7 @@ var index_default = {
       const clubRes = await supabase(
         env,
         "GET",
-        `/clubs?code=eq.${club_code.toUpperCase()}&select=id,name,admin_email`
+        `/clubs?code=eq.${club_code.toUpperCase()}&select=id,name,code,admin_email`
       );
       if (!clubRes.data?.length) return err("Invalid club code", 404);
       const club = clubRes.data[0];

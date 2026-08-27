@@ -826,13 +826,16 @@
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     padding: 20px 20px 40px;
     width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
     animation: slideUp 0.3s cubic-bezier(.4,0,.2,1);
     box-shadow: 0 -4px 24px rgba(0,70,67,0.12);
   }
   .stripe-modal-header {
     display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
   }
-  .stripe-modal-title { font-weight: 700; font-size: 15px; color: var(--ink); }
+  .stripe-modal-title { display: flex; align-items: center; gap: 8px; flex: 1; font-weight: 700; font-size: 15px; color: var(--ink); }
+  .stripe-modal-title svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--ink-soft); }
   .stripe-modal-sub   { font-size: 12.5px; color: var(--ink-soft); margin-top: 1px; }
   .stripe-modal-footer {
     display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -940,21 +943,20 @@
   .season-date-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.45); margin-bottom: 2px; }
   .season-date-val { font-size: 12px; font-weight: 600; color: var(--white); }
 
-  /* ── Breakdown (athlete detail) ── */
-  .breakdown-toggle { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; cursor: pointer; user-select: none; }
-  .breakdown-toggle-label { font-size: 13px; font-weight: 600; color: var(--ink); }
-  .breakdown-chevron { width: 18px; height: 18px; color: var(--ink-soft); transition: transform 0.2s ease; }
-  .breakdown-toggle.open .breakdown-chevron { transform: rotate(180deg); }
-  .breakdown-panel { display: none; padding-bottom: 8px; }
-  .breakdown-panel.open { display: block; }
+  /* ── Breakdown (athlete detail) — the true-cost receipt leads, always expanded ── */
+  .breakdown-heading { padding-top: 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); border-top: 1px solid var(--line); }
+  .breakdown-panel { padding-bottom: 4px; }
   .breakdown-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
   .breakdown-row:last-child { border-bottom: none; }
   .breakdown-row-left { display: flex; align-items: center; gap: 8px; }
   .breakdown-row-icon { width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--paper-dim); display: flex; align-items: center; justify-content: center; }
   .breakdown-row-icon svg { width: 14px; height: 14px; color: var(--ink-soft); }
   .breakdown-row-label { color: var(--ink); font-weight: 500; }
+  .breakdown-row-label small { display: block; font-weight: 400; font-size: 11px; color: var(--ink-soft); margin-top: 1px; }
   .breakdown-row-amt { font-weight: 700; color: var(--ink); }
   .breakdown-row-tournament { color: var(--ink-soft); font-size: 12px; }
+  .receipt-stamp { margin-top: 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--white); padding: 10px 12px; font-size: 12px; line-height: 1.5; color: var(--ink-soft); }
+  .receipt-stamp b { color: var(--ink); font-weight: 600; }
 
   /* ── Due banner ── */
   .due-banner { background: var(--paper-dim); border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 16px; }
@@ -1032,6 +1034,7 @@
   .stripe-modal-close { width: 30px; height: 30px; border-radius: 50%; background: var(--paper-dim); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .stripe-modal-close svg { width: 15px; height: 15px; color: var(--ink); }
   .stripe-pay-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 15px; border-radius: var(--r-md); background: #635BFF; color: var(--white); border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 15px; }
+  .stripe-pay-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
   .stripe-pay-btn:active { opacity: 0.88; }
   .stripe-return-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 13px; border-radius: var(--r-md); background: var(--white); color: var(--ink); border: 1.5px solid var(--line); cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; margin-top: 10px; }
 
@@ -1051,7 +1054,8 @@
 
   /* ── Misc ── */
   .term-amt-display { font-family: 'Anton', sans-serif; font-size: 32px; color: var(--ink); }
-  .tournament-list { display: flex; flex-direction: column; gap: 8px; }
+  .tournament-list { display: none; flex-direction: column; gap: 8px; }
+  .tournament-list.open { display: flex; }
   .tournament-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .tournament-item:last-child { border-bottom: none; }
   .tournament-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
@@ -1351,14 +1355,9 @@
         <div class="due-banner-label" id="parentClubLabel">Hawks Travel Basketball &middot; Fall season</div>
         <div class="due-banner-amt" id="parentDuesAmt">$1,000</div>
       </div>
-      <button class="breakdown-toggle" onclick="toggleBreakdown()" id="breakdownToggle">
-        <span class="breakdown-toggle-label">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          See what's included
-        </span>
-        <svg class="breakdown-chevron" id="breakdownChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
+      <div class="breakdown-heading">What this covers</div>
       <div class="breakdown-panel" id="breakdownPanel"></div>
+      <div class="receipt-stamp"><b>Travel isn't charged here.</b> We show it so the number can't surprise you later.</div>
     </div>
 
     <!-- Option 1: Pay in full -->
@@ -2474,37 +2473,39 @@
 
 <!-- Stripe payment interstitial — opens Stripe checkout in a new tab -->
 <div id="stripeModal" style="display:none;" role="dialog" aria-label="Stripe payment">
-  <div class="stripe-modal-backdrop">
-    <div class="stripe-modal-header">
-      <div class="stripe-modal-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-        <span id="stripeModalTitle">Complete payment</span>
+  <div class="stripe-modal-backdrop" onclick="if(event.target===this) closeStripeModal(false)">
+    <div class="stripe-modal-sheet">
+      <div class="stripe-modal-header">
+        <div class="stripe-modal-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <span id="stripeModalTitle">Complete payment</span>
+        </div>
+        <button class="stripe-modal-close" onclick="closeStripeModal(false)" aria-label="Cancel payment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-      <button class="stripe-modal-close" onclick="closeStripeModal(false)" aria-label="Cancel payment">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
 
-    <div class="stripe-interstitial-body">
-      <div class="stripe-interstitial-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#635BFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <div class="stripe-interstitial-body">
+        <div class="stripe-interstitial-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#635BFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        </div>
+        <div class="stripe-interstitial-title" id="stripeInterstitialTitle">Pay now</div>
+        <p class="stripe-interstitial-desc" id="stripeInterstitialDesc">
+          You'll complete payment on <b>Stripe's secure checkout page</b>. Tap the button below — when you're done, come back here to see your confirmation.
+        </p>
+        <a class="stripe-pay-btn" id="stripePayBtn" href="#" target="_blank" rel="noopener" onclick="onStripePayTapped()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open Stripe checkout
+        </a>
+        <button class="stripe-return-btn" id="stripeReturnBtn" style="display:none;" onclick="closeStripeModal(true)">
+          ✓ I've completed payment — show my confirmation
+        </button>
       </div>
-      <div class="stripe-interstitial-title" id="stripeInterstitialTitle">Pay now</div>
-      <p class="stripe-interstitial-desc" id="stripeInterstitialDesc">
-        You'll complete payment on <b>Stripe's secure checkout page</b>. Tap the button below — when you're done, come back here to see your confirmation.
-      </p>
-      <a class="stripe-pay-btn" id="stripePayBtn" href="#" target="_blank" rel="noopener" onclick="onStripePayTapped()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        Open Stripe checkout
-      </a>
-      <button class="stripe-return-btn" id="stripeReturnBtn" style="display:none;" onclick="closeStripeModal(true)">
-        ✓ I've completed payment — show my confirmation
-      </button>
-    </div>
 
-    <div class="stripe-modal-footer">
-      <svg viewBox="0 0 24 24" fill="#635BFF" stroke="none"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.31 2.564-3.346 2.564-5.732 0-4.103-2.539-5.897-6.63-7.305z"/></svg>
-      Powered by Stripe &middot; SSL encrypted
+      <div class="stripe-modal-footer">
+        <svg viewBox="0 0 24 24" fill="#635BFF" stroke="none"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.31 2.564-3.346 2.564-5.732 0-4.103-2.539-5.897-6.63-7.305z"/></svg>
+        Powered by Stripe &middot; SSL encrypted
+      </div>
     </div>
   </div>
 </div>
@@ -3285,26 +3286,26 @@ var usStates = ["Virginia"];
   };
 
   var SPORT_BREAKDOWNS = {
-    'Basketball':   [ { label: 'Tournament fees', pct: 0.45, icon: TROPHY_ICON, isTournament: true },
-                      { label: 'Practice gym rental', pct: 0.30, icon: GYM_ICON },
-                      { label: 'Uniforms', pct: 0.15, icon: KIT_ICON },
-                      { label: 'Coaching & staff', pct: 0.10, icon: COACH_ICON } ],
-    'Soccer':       [ { label: 'Tournament fees', pct: 0.40, icon: TROPHY_ICON, isTournament: true },
-                      { label: 'Field rental', pct: 0.35, icon: GYM_ICON },
-                      { label: 'Uniforms', pct: 0.15, icon: KIT_ICON },
-                      { label: 'Coaching & staff', pct: 0.10, icon: COACH_ICON } ],
-    'Baseball':     [ { label: 'Tournament fees', pct: 0.35, icon: TROPHY_ICON, isTournament: true },
-                      { label: 'Field rental', pct: 0.25, icon: GYM_ICON },
-                      { label: 'Equipment & uniforms', pct: 0.25, icon: KIT_ICON },
-                      { label: 'Coaching & staff', pct: 0.15, icon: COACH_ICON } ],
-    'Volleyball':   [ { label: 'Tournament fees', pct: 0.40, icon: TROPHY_ICON, isTournament: true },
-                      { label: 'Gym rental', pct: 0.35, icon: GYM_ICON },
-                      { label: 'Uniforms', pct: 0.15, icon: KIT_ICON },
-                      { label: 'Coaching & staff', pct: 0.10, icon: COACH_ICON } ],
-    'Youth Lacrosse':[ { label: 'Tournament fees', pct: 0.50, icon: TROPHY_ICON, isTournament: true },
-                       { label: 'Equipment & uniforms', pct: 0.25, icon: KIT_ICON },
-                       { label: 'Field rental', pct: 0.15, icon: GYM_ICON },
-                       { label: 'Coaching & staff', pct: 0.10, icon: COACH_ICON } ]
+    'Basketball':   [ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.45, icon: TROPHY_ICON, isTournament: true },
+                      { label: 'Practice gym rental', sub: 'Gym time for weekly practices', pct: 0.30, icon: GYM_ICON },
+                      { label: 'Uniforms', sub: 'Jerseys, shorts, warmups', pct: 0.15, icon: KIT_ICON },
+                      { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.10, icon: COACH_ICON } ],
+    'Soccer':       [ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.40, icon: TROPHY_ICON, isTournament: true },
+                      { label: 'Field rental', sub: 'Field time for weekly practices', pct: 0.35, icon: GYM_ICON },
+                      { label: 'Uniforms', sub: 'Jerseys, shorts, warmups', pct: 0.15, icon: KIT_ICON },
+                      { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.10, icon: COACH_ICON } ],
+    'Baseball':     [ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.35, icon: TROPHY_ICON, isTournament: true },
+                      { label: 'Field rental', sub: 'Field and cage time for practices', pct: 0.25, icon: GYM_ICON },
+                      { label: 'Equipment & uniforms', sub: "Uniforms, bats, catcher's gear", pct: 0.25, icon: KIT_ICON },
+                      { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.15, icon: COACH_ICON } ],
+    'Volleyball':   [ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.40, icon: TROPHY_ICON, isTournament: true },
+                      { label: 'Gym rental', sub: 'Gym time for weekly practices', pct: 0.35, icon: GYM_ICON },
+                      { label: 'Uniforms', sub: 'Jerseys, shorts, warmups', pct: 0.15, icon: KIT_ICON },
+                      { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.10, icon: COACH_ICON } ],
+    'Youth Lacrosse':[ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.50, icon: TROPHY_ICON, isTournament: true },
+                       { label: 'Equipment & uniforms', sub: 'Jerseys, pads, sticks', pct: 0.25, icon: KIT_ICON },
+                       { label: 'Field rental', sub: 'Field time for weekly practices', pct: 0.15, icon: GYM_ICON },
+                       { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.10, icon: COACH_ICON } ]
   };
 
   var tournamentOpen = false;
@@ -3321,7 +3322,7 @@ var usStates = ["Virginia"];
     amts[amts.indexOf(Math.max.apply(null, amts))] += (dues - total);
 
     var rows = items.map(function(item, i){
-      return { label: item.label, amt: amts[i], icon: item.icon, isTournament: !!item.isTournament };
+      return { label: item.label, sub: item.sub, amt: amts[i], icon: item.icon, isTournament: !!item.isTournament };
     });
 
     var tournaments = SPORT_TOURNAMENTS[sport] || [];
@@ -3337,7 +3338,7 @@ var usStates = ["Virginia"];
         (row.isTournament ? ' onclick="toggleTournaments()" style="cursor:pointer;"' : '') + '>' +
         '<div class="breakdown-row-left">' +
           '<div class="breakdown-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + row.icon + '</svg></div>' +
-          '<div class="breakdown-row-label">' + row.label + chevronHtml + '</div>' +
+          '<div class="breakdown-row-label">' + row.label + chevronHtml + (row.sub ? '<small>' + row.sub + '</small>' : '') + '</div>' +
         '</div>' +
         '<div class="breakdown-row-amt">' + fmtUSD(row.amt) + '</div>' +
       '</div>';
@@ -3369,14 +3370,6 @@ var usStates = ["Virginia"];
     if(chevron) chevron.style.transform = tournamentOpen ? 'rotate(90deg)' : '';
   }
 
-  function toggleBreakdown(){
-    var panel = document.getElementById('breakdownPanel');
-    var chevron = document.getElementById('breakdownChevron');
-    var isOpen = panel.classList.contains('open');
-    panel.classList.toggle('open', !isOpen);
-    chevron.classList.toggle('open', !isOpen);
-  }
-
   // ---------- parent: multi-athlete flow ----------
   var ATHLETES_STORAGE_KEY = 'playfund_parent_athletes';
 
@@ -3403,9 +3396,20 @@ var usStates = ["Virginia"];
     try { localStorage.setItem(ATHLETES_STORAGE_KEY, JSON.stringify(athletes)); } catch(e){}
   }
 
+  // clubCache is rebuilt empty on every page load, but stored athletes only carry
+  // a clubId — re-fetch each athlete's club by its saved clubCode so lookups
+  // (getAthleteClubTeam) resolve after a reload instead of silently dropping the athlete.
+  async function hydrateClubCache(athletes){
+    var codes = [];
+    athletes.forEach(function(a){
+      if(a.clubCode && codes.indexOf(a.clubCode) === -1) codes.push(a.clubCode);
+    });
+    await Promise.all(codes.map(function(code){ return fetchClub(code); }));
+  }
+
   var PARENT_SESSION_KEY = 'pf_parent_session';
 
-  function enterParentMode(){
+  async function enterParentMode(){
     // Check for existing parent session
     try {
       var saved = JSON.parse(sessionStorage.getItem(PARENT_SESSION_KEY) || 'null');
@@ -3418,6 +3422,7 @@ var usStates = ["Virginia"];
     // Check for locally stored athletes (legacy / non-account flow)
     state.athletes = loadAthletes();
     if(state.athletes.length > 0){
+      await hydrateClubCache(state.athletes);
       renderAthleteList();
       showScreen('parent-home');
       return;
@@ -3525,7 +3530,7 @@ var usStates = ["Virginia"];
     state.activeAthleteId = null;
     state.parentClub = null;
     try { sessionStorage.removeItem(PARENT_SESSION_KEY); } catch(e){}
-    try { localStorage.removeItem('playfund_athletes'); } catch(e){}
+    try { localStorage.removeItem(ATHLETES_STORAGE_KEY); } catch(e){}
     showScreen('home');
   }
 
@@ -3554,6 +3559,7 @@ var usStates = ["Virginia"];
       id: 'athlete_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       name: name,
       clubId: club.id,
+      clubCode: raw,
       teamId: team.id,
       paymentStatus: null,
       termWeeks: null,
@@ -3754,12 +3760,7 @@ var usStates = ["Virginia"];
     // the shared clubs/teams dataset (ct.team is a direct reference into it).
     state.parentClub = Object.assign({}, ct.team, { name: ct.club.name + ' \u2014 ' + ct.team.name });
     updateFeeBreakdowns();
-    // Populate cost breakdown and open it by default — parent should see costs immediately
     buildBreakdown(ct.club.sport, ct.team.dues);
-    var panel = document.getElementById('breakdownPanel');
-    var chevron = document.getElementById('breakdownChevron');
-    if(panel) panel.classList.add('open');
-    if(chevron) chevron.classList.add('open');
 
     // Show manage plan button if they have an active BNPL plan
     var mgmtBtn = document.getElementById('managePlanBtn');

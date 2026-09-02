@@ -978,6 +978,56 @@ var index_default = {
       }), { clubs: 0, teams: 0, athletes: 0, funded: 0, fronted_cents: 0, collected_cents: 0 });
       return json({ clubs: enriched, totals });
     }
+    if (method === "GET" && path.startsWith("/admin/clubs/") && path.endsWith("/payments")) {
+      const clubId = path.split("/")[3];
+      if (!clubId) return err("Club ID required");
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!userRes.ok) return err("Invalid token", 401);
+      const userData = await userRes.json();
+      const profileRes = await supabase(env, "GET", `/user_profiles?id=eq.${userData.id}&select=role,club_id`);
+      const profile = profileRes.data?.[0];
+      const isAllowed = profile && (profile.role === "playfund_admin" || profile.role === "club_admin" && profile.club_id === clubId);
+      if (!isAllowed) return err("Forbidden", 403);
+      const teamsRes = await supabase(env, "GET", `/teams?select=id,name&club_id=eq.${clubId}`);
+      const teams = teamsRes.data || [];
+      const teamMap = {};
+      teams.forEach((t) => { teamMap[t.id] = t.name; });
+      const teamIds = teams.map((t) => t.id);
+      let payments = [];
+      if (teamIds.length) {
+        const athRes = await supabase(
+          env,
+          "GET",
+          `/athletes?select=id,name,team_id&team_id=in.(${teamIds.join(",")})`
+        );
+        const athletes = athRes.data || [];
+        const athleteMap = {};
+        athletes.forEach((a) => { athleteMap[a.id] = a; });
+        const athleteIds = athletes.map((a) => a.id);
+        if (athleteIds.length) {
+          const paymentsRes = await supabase(
+            env,
+            "GET",
+            `/payments?select=id,created_at,amount_cents,status,payment_method,installment_number,athlete_id&athlete_id=in.(${athleteIds.join(",")})&order=created_at.desc`
+          );
+          payments = (paymentsRes.data || []).map((p) => {
+            const athlete = athleteMap[p.athlete_id] || {};
+            return {
+              ...p,
+              amount: (p.amount_cents || 0) / 100,
+              athlete_name: athlete.name || "Unknown",
+              team_name: teamMap[athlete.team_id] || "Unknown"
+            };
+          });
+        }
+      }
+      return json({ payments });
+    }
     if (method === "GET" && path === "/parent/athletes") {
       const authHeader = request.headers.get("Authorization") || "";
       const token = authHeader.replace("Bearer ", "").trim();

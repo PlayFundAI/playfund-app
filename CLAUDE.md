@@ -58,3 +58,4 @@ Don't invent answers to these in code. Flag them instead:
 - Work on a branch. Never commit directly to `main`.
 - This is a payments application handling minors' data. Prefer asking over assuming.
 - Small, reviewable commits.
+- **Claude handles git — commit and push without asking each time.** The user has explicitly delegated this; don't stop to confirm routine commits/pushes to the current feature branch. This does not extend to anything higher-risk: never push to `main`, never force-push, never skip hooks, and still ask before anything genuinely destructive (rewriting history, deleting a branch, etc.).

@@ -6,12 +6,12 @@ A running list of workstreams to tackle before the pilot, editable across sessio
 
 Grounded in: 6 email templates in `worker/index.js` (`sendReminderEmail`, `sendApprovalEmail`, `sendReceiptEmail`, `sendPendingApprovalEmail`, `sendClubWelcomeEmail`, `sendInternalClubAlert`).
 
-- [ ] Audit all 6 templates for one shared header/footer/sign-off pattern (they currently diverge)
-- [ ] Replace the amber/orange left-border callout box in `sendClubWelcomeEmail` (`#FFF8E8` bg / `#F59E0B` border, "Have these ready when you connect your bank") with a callout style that matches the brand palette, not an ad hoc color
-- [ ] Remove or soften specific response-time promises: the scholarship flow's "within 48 hours" (appears 3 times in `index.html`, around lines 1669, 1698, 1703), and the FAQ's "we typically respond within a few hours" (`index.html` around line 2432)
-- [ ] Decide one honest, deliberately vague standard phrase for "we'll get back to you" and use it everywhere instead of specific windows
-- [ ] Review `sendInternalClubAlert`'s "reach out within 1 business day" — this one's internal (goes to jackson@/clyde@, not the club), so it's a staff SLA reminder rather than a customer promise; decide if that's still the real target or just needs the same honesty pass
-- [ ] Roll in the hello@ → admin@ swap here too (see item 5) since it touches the same templates
+- [x] Audit all 6 templates for one shared header/footer/sign-off pattern — the 5 customer-facing ones (all but the internal alert) now close with the same "reply, contact the club, or reach admin@playfundai.com" line
+- [x] Replace the amber/orange left-border callout box in `sendClubWelcomeEmail` with a neutral card (`#F4F7F6` bg, no accent border) matching the rest of the template
+- [x] Remove or soften specific response-time promises: the scholarship flow's "within 48 hours" (was 3 places in `index.html`) and the FAQ's "we typically respond within a few hours" are gone
+- [x] Decided the standard: no specific time window anywhere customer-facing, just "we'll get back to you" / "reply to this email"
+- [x] Reviewed `sendInternalClubAlert`'s "reach out within 1 business day" — kept as-is, it's an internal staff SLA reminder (goes to jackson@/clyde@, never seen by a club), not a customer-facing promise
+- [x] Rolled in the hello@ → admin@ swap (item 5) across all 6 templates
 
 ## 2. Homepage direction
 
@@ -45,11 +45,11 @@ Depends on item 2 — need a homepage before "loading stuff in."
 
 ## 5. Replace hello@playfundai.com with admin@playfundai.com
 
-Grounded in: 14 occurrences across `worker/index.js` and `index.html` (from-addresses, footer mailto links, FAQ copy, decline-screen copy). Zero existing uses of admin@playfundai.com today.
+Grounded in: 11 occurrences across `worker/index.js` and `index.html` (from-addresses, footer mailto links, FAQ copy, decline-screen copy).
 
-- [ ] Confirm admin@playfundai.com is a real, monitored inbox before switching anything (sending "from" or displaying an unmonitored address is worse than today)
-- [ ] Update all 14 occurrences
-- [ ] Update the Resend sending identity/verified address if it's tied to hello@ specifically
+- [x] Confirmed admin@playfundai.com is a real, monitored inbox
+- [x] Updated all 11 occurrences
+- [x] No separate Resend identity update needed — sending is verified at the playfundai.com domain level, not per local-part, so admin@ sends the same as hello@ did
 
 ## 6. Stripe/Klarna: embedded vs. redirect
 
@@ -79,8 +79,8 @@ Grounded in: the TeamSnap/SportsEngine reporting teardown already done, and the 
 
 Grounded in: real patterns already in `worker/index.js`.
 
-- [ ] Flag the concrete bottleneck: `GET /admin/clubs` and `GET /admin/clubs/:clubId/payments` both fan out multiple sequential Supabase calls per club (teams, athletes, payments); Cloudflare Workers cap subrequests per invocation (50 on the free plan, 1000 on paid), so this degrades once there are more than a handful of clubs
-- [ ] Flag `syncPaymentStatuses` in `index.html`, which does one Supabase fetch per athlete on every parent app load
+- [x] Fixed: `GET /admin/clubs` now fetches teams/athletes/payments for all clubs in 3 batched queries total instead of 3 queries per club (was scaling linearly toward Cloudflare's 50-subrequest free-plan cap)
+- [x] Fixed: `syncPaymentStatuses` in `index.html` now calls one new bulk endpoint (`GET /athletes/status?ids=...`) instead of hitting `GET /athlete/:id` once per athlete on every parent app load
 - [ ] Check Supabase plan limits (connections, row counts, egress) against pilot-scale projections
 - [ ] Check Resend sending limits and domain reputation as email volume grows
 - [ ] None of this is urgent at 5 pilot clubs — the point is writing it down now so it's not forgotten before the next growth stage

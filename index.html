@@ -1666,7 +1666,7 @@
       <!-- Contact info -->
       <div class="field" style="margin-bottom:6px;">
         <label>Your email</label>
-        <input type="email" id="scholEmail" placeholder="We'll send you a decision within 48 hours" autocomplete="email">
+        <input type="email" id="scholEmail" placeholder="We'll send your decision here" autocomplete="email">
       </div>
       <div class="field" style="margin-bottom:6px;">
         <label>Your name</label>
@@ -1695,12 +1695,12 @@
       </div>
       <div class="eyebrow" style="text-align:center; margin-bottom:8px;">Application received</div>
       <h1 class="title" style="font-size:26px; text-align:center; margin-bottom:8px;">We're on it.</h1>
-      <p style="font-size:14px; color:var(--ink-soft); text-align:center; line-height:1.6; max-width:300px; margin:0 0 28px;">You'll hear back within 48 hours at the email you provided. If approved, we'll send you a link to complete your registration.</p>
+      <p style="font-size:14px; color:var(--ink-soft); text-align:center; line-height:1.6; max-width:300px; margin:0 0 28px;">You'll hear back at the email you provided. If approved, we'll send you a link to complete your registration.</p>
 
       <div class="confirm-reassurance" style="width:100%;">
         <p style="font-size:12px; font-weight:700; color:var(--ink); margin:0 0 8px;">What happens next:</p>
         <ul style="margin:0; padding-left:16px; list-style:none;">
-          <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:6px; padding-left:0;">① PlayFund reviews your application (within 48 hours)</li>
+          <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:6px; padding-left:0;">① PlayFund reviews your application</li>
           <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:6px; padding-left:0;">② We email you a decision and scholarship amount</li>
           <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:6px; padding-left:0;">③ You pay your share (if any) via a secure link</li>
           <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; padding-left:0;">④ Your athlete's spot is confirmed</li>
@@ -1977,6 +1977,12 @@
 
     <div class="roster-section-label">Teams</div>
     <div id="adminTeamList"></div>
+
+    <div class="roster-section-label" style="display:flex; align-items:center; justify-content:space-between;">
+      <span>Payments</span>
+      <button onclick="exportAdminClubPaymentsCSV()" style="background:none; border:none; padding:0; font-size:12px; font-weight:700; color:var(--fund-green); cursor:pointer; font-family:'Inter',sans-serif;">Export CSV</button>
+    </div>
+    <div id="adminClubPaymentsList"></div>
   </div>
 
   <!-- SCREEN: admin team roster (read-only) -->
@@ -2310,7 +2316,7 @@
 
     <div style="margin-top:20px; padding:14px; background:var(--paper-dim); border-radius:10px;">
       <p style="margin:0; font-size:12.5px; color:var(--ink-soft); line-height:1.6;">
-        This is a Klarna installment plan. Klarna, not PlayFund, holds your card on file and manages your payment schedule directly, log in at <a href="https://www.klarna.com" target="_blank" style="color:var(--fund-green);">klarna.com</a> to update your card or see your exact next charge. For anything else, contact <a href="mailto:hello@playfundai.com" style="color:var(--fund-green);">hello@playfundai.com</a>.
+        This is a Klarna installment plan. Klarna, not PlayFund, holds your card on file and manages your payment schedule directly, log in at <a href="https://www.klarna.com" target="_blank" style="color:var(--fund-green);">klarna.com</a> to update your card or see your exact next charge. For anything else, contact <a href="mailto:admin@playfundai.com" style="color:var(--fund-green);">admin@playfundai.com</a>.
       </p>
     </div>
   </div>
@@ -2353,7 +2359,7 @@
         <div class="faq-question-text">What if I miss a payment?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">If you paid in full, your card was only charged once, this shouldn't come up. If you're on a Klarna installment plan, Klarna manages your payment schedule directly and will contact you if a payment doesn't go through, not PlayFund. Contact your club or hello@playfundai.com if you're having trouble either way.</div>
+      <div class="faq-answer">If you paid in full, your card was only charged once, this shouldn't come up. If you're on a Klarna installment plan, Klarna manages your payment schedule directly and will contact you if a payment doesn't go through, not PlayFund. Contact your club or admin@playfundai.com if you're having trouble either way.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -2361,7 +2367,7 @@
         <div class="faq-question-text">Can I change my card or payment date?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">If you paid in full, that charge is already complete, there's nothing to change. If you're on a Klarna installment plan, your card and payment schedule are managed directly through Klarna, not PlayFund, so you'll need to contact Klarna for changes there. For anything else, reach out to hello@playfundai.com.</div>
+      <div class="faq-answer">If you paid in full, that charge is already complete, there's nothing to change. If you're on a Klarna installment plan, your card and payment schedule are managed directly through Klarna, not PlayFund, so you'll need to contact Klarna for changes there. For anything else, reach out to admin@playfundai.com.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -2423,7 +2429,7 @@
         <div class="faq-question-text">How do I contact PlayFund?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Email us at hello@playfundai.com, we typically respond within a few hours. For club partnerships, reach Jackson directly at jackson@playfundai.com.</div>
+      <div class="faq-answer">Email us at admin@playfundai.com and we'll get back to you. For club partnerships, reach Jackson directly at jackson@playfundai.com.</div>
     </div>
 
     <div class="footer-spacer"></div>
@@ -3858,28 +3864,32 @@ var usStates = ["Virginia"];
   // whenever the parent's athlete list loads. Requires clubCache to already be
   // hydrated (buildAthleteHistory needs the athlete's team/dues).
   async function syncPaymentStatuses(athletes){
+    var withIds = athletes.filter(function(a){ return a.supabaseId; });
+    if(!withIds.length) return;
     var changed = false;
-    await Promise.all(athletes.map(async function(a){
-      if(!a.supabaseId) return;
-      try {
-        var res = await fetch(WORKER_URL + '/athlete/' + a.supabaseId);
-        if(!res.ok) return;
-        var data = await res.json();
-        var status = data.athlete && data.athlete.payment_status;
-        var method = (status === 'bnpl_active' || status === 'bnpl_complete') ? 'bnpl'
-                    : (status && status !== 'unpaid') ? 'full' : null;
+    try {
+      var ids = withIds.map(function(a){ return a.supabaseId; }).join(',');
+      var res = await fetch(WORKER_URL + '/athletes/status?ids=' + encodeURIComponent(ids));
+      if(!res.ok) return;
+      var data = await res.json();
+      var byId = {};
+      (data.statuses || []).forEach(function(s){ byId[s.id] = s; });
+      withIds.forEach(function(a){
+        var s = byId[a.supabaseId];
+        if(!s) return;
+        var method = (s.payment_status === 'bnpl_active' || s.payment_status === 'bnpl_complete') ? 'bnpl'
+                    : (s.payment_status && s.payment_status !== 'unpaid') ? 'full' : null;
         if(method !== a.paymentStatus){
           a.paymentStatus = method;
           a.history = method ? buildAthleteHistory(a) : null;
           changed = true;
         }
-        var approval = data.athlete && data.athlete.approval_status;
-        if(approval && approval !== a.approvalStatus){
-          a.approvalStatus = approval;
+        if(s.approval_status && s.approval_status !== a.approvalStatus){
+          a.approvalStatus = s.approval_status;
           changed = true;
         }
-      } catch(e){}
-    }));
+      });
+    } catch(e){}
     if(changed) saveAthletes(athletes);
   }
 
@@ -5144,9 +5154,12 @@ var usStates = ["Virginia"];
     }
   }
 
+  var adminClubPayments = [];
+
   function openAdminClubDetail(club){
     document.getElementById('adminClubDetailName').textContent = club.name;
     adminDetailClubId = club.id;
+    loadAdminClubPayments(club.id);
     var feeInput = document.getElementById('adminDetailFeeInput');
     if(feeInput) feeInput.value = ((club.fee_bps != null ? club.fee_bps : 500) / 100);
     var feeMsg = document.getElementById('adminDetailFeeMsg');
@@ -5203,6 +5216,73 @@ var usStates = ["Virginia"];
     });
 
     showScreen('admin-club-detail');
+  }
+
+  async function loadAdminClubPayments(clubId){
+    var listEl = document.getElementById('adminClubPaymentsList');
+    if(!listEl) return;
+    listEl.innerHTML = '<p style="font-size:12.5px; color:var(--ink-soft);">Loading…</p>';
+    adminClubPayments = [];
+    try {
+      var res = await fetch(WORKER_URL + '/admin/clubs/' + clubId + '/payments', {
+        headers: { 'Authorization': 'Bearer ' + adminSession }
+      });
+      var data = await res.json();
+      if(!res.ok){ listEl.innerHTML = '<p style="font-size:12.5px; color:var(--unpaid);">' + (data.error || 'Failed to load payments.') + '</p>'; return; }
+      adminClubPayments = data.payments || [];
+      if(!adminClubPayments.length){
+        listEl.innerHTML = '<p style="font-size:12.5px; color:var(--ink-soft);">No payments yet.</p>';
+        return;
+      }
+      listEl.innerHTML = adminClubPayments.map(function(p){
+        var dateStr = safeFmtDate(p.created_at);
+        var methodLabel = p.payment_method === 'bnpl' || p.payment_method === 'klarna' ? 'Klarna' : (p.payment_method || 'card');
+        var statusOk = p.status === 'succeeded';
+        return '<div class="roster-row">' +
+          '<div class="roster-name-block">' +
+            '<div class="roster-name">' + p.athlete_name + '</div>' +
+            '<div class="roster-age">' + p.team_name + ' · ' + dateStr + ' · ' + methodLabel + '</div>' +
+          '</div>' +
+          '<div class="roster-right">' +
+            '<div style="font-size:15px; font-weight:700; color:var(--ink);">$' + p.amount.toLocaleString() + '</div>' +
+            '<div class="status-pill ' + (statusOk ? 'status-paid' : 'status-unpaid') + '" style="margin-top:3px;">' + (statusOk ? 'Succeeded' : p.status) + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    } catch(e){
+      listEl.innerHTML = '<p style="font-size:12.5px; color:var(--unpaid);">Network error loading payments.</p>';
+    }
+  }
+
+  function exportAdminClubPaymentsCSV(){
+    if(!adminClubPayments.length){ alert('No payments to export yet.'); return; }
+    var clubName = (document.getElementById('adminClubDetailName').textContent || 'club').trim();
+    var rows = [['Date', 'Athlete', 'Team', 'Amount', 'Method', 'Status']];
+    adminClubPayments.forEach(function(p){
+      rows.push([
+        safeFmtDate(p.created_at),
+        p.athlete_name,
+        p.team_name,
+        p.amount.toFixed(2),
+        p.payment_method === 'bnpl' || p.payment_method === 'klarna' ? 'Klarna' : (p.payment_method || 'card'),
+        p.status
+      ]);
+    });
+    var csv = rows.map(function(row){
+      return row.map(function(cell){
+        var s = String(cell == null ? '' : cell);
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',');
+    }).join('\r\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = clubName.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-payments.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   async function saveClubFee(){

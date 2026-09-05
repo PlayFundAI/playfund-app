@@ -179,7 +179,7 @@ async function sendReminderEmail(env, club, team, athlete) {
         </td>
       </tr></table>
       <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
-        Questions? Reply to this email or contact ${club.name} directly.
+        Questions? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
     </td></tr>
   </table>
@@ -189,7 +189,7 @@ async function sendReminderEmail(env, club, team, athlete) {
     method: "POST",
     headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: `${club.name} via PlayFund <hello@playfundai.com>`,
+      from: `${club.name} via PlayFund <admin@playfundai.com>`,
       to: [athlete.parent_email],
       subject: `Reminder: ${athlete.name}'s registration for ${club.name}`,
       html
@@ -253,7 +253,7 @@ async function sendApprovalEmail(env, club, team, athlete) {
         </td>
       </tr></table>
       <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
-        Questions? Reply to this email or contact ${club.name} directly.
+        Questions? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
     </td></tr>
   </table>
@@ -264,7 +264,7 @@ async function sendApprovalEmail(env, club, team, athlete) {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: `${club.name} via PlayFund <hello@playfundai.com>`,
+        from: `${club.name} via PlayFund <admin@playfundai.com>`,
         to: [athlete.parent_email],
         subject: `${athlete.name} is confirmed, you can now pay for ${club.name}`,
         html
@@ -315,7 +315,7 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
         </td></tr>
       </table>
       <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
-        Questions about this payment? Reply to this email or contact ${club.name} directly.
+        Questions about this payment? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
     </td></tr>
   </table>
@@ -326,7 +326,7 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: `${club.name} via PlayFund <hello@playfundai.com>`,
+        from: `${club.name} via PlayFund <admin@playfundai.com>`,
         to: [athlete.parent_email],
         subject: `Receipt: $${amount} for ${athlete.name} — ${club.name}`,
         html
@@ -376,7 +376,7 @@ async function sendPendingApprovalEmail(env, club, team, athlete) {
         </td></tr>
       </table>
       <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;">
-        Sign in to PlayFund and open this team's roster to approve or remove them.
+        Sign in to PlayFund and open this team's roster to approve or remove them. Questions? Reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
     </td></tr>
   </table>
@@ -387,7 +387,7 @@ async function sendPendingApprovalEmail(env, club, team, athlete) {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "PlayFund <hello@playfundai.com>",
+        from: "PlayFund <admin@playfundai.com>",
         to: [club.admin_email],
         reply_to: athlete.parent_email || void 0,
         subject: `${athlete.name} needs your approval before they can pay`,
@@ -475,16 +475,16 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
     </td></tr>
     <tr><td style="padding:24px 32px;border-bottom:1px solid #E8EDEC;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
-        <td style="padding:16px;background-color:#FFF8E8;border-radius:12px;border-left:3px solid #F59E0B;">
-          <p style="margin:0 0 5px;font-size:13px;font-weight:700;color:#92400E;">Have these ready when you connect your bank</p>
-          <p style="margin:0;font-size:13px;color:#78350F;line-height:1.6;">&bull; Club EIN (Employer Identification Number)<br>&bull; Bank account and routing number<br>&bull; Your team roster with parent emails</p>
+        <td style="padding:16px;background-color:#F4F7F6;border-radius:12px;">
+          <p style="margin:0 0 5px;font-size:13px;font-weight:700;color:#004643;">Have these ready when you connect your bank</p>
+          <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.6;">&bull; Club EIN (Employer Identification Number)<br>&bull; Bank account and routing number<br>&bull; Your team roster with parent emails</p>
         </td>
       </tr></table>
     </td></tr>
     <tr><td style="padding:28px 32px;">
       <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Questions? Just reply to this email.</p>
       <p style="margin:0;font-size:14px;font-weight:700;color:#004643;">The PlayFund Team</p>
-      <p style="margin:0;font-size:13px;color:#9CA3AF;"><a href="mailto:hello@playfundai.com" style="color:#5BA888;text-decoration:none;">hello@playfundai.com</a></p>
+      <p style="margin:0;font-size:13px;color:#9CA3AF;"><a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a></p>
     </td></tr>
   </table>
   </td></tr></table>
@@ -494,7 +494,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "PlayFund <hello@playfundai.com>",
+        from: "PlayFund <admin@playfundai.com>",
         to: [club.admin_email],
         subject: `Welcome to PlayFund, ${club.name}`,
         html
@@ -917,46 +917,71 @@ var index_default = {
       );
       if (!clubsRes.ok) return err("Failed to fetch clubs", 500);
       const clubs = clubsRes.data || [];
-      const enriched = await Promise.all(clubs.map(async (club) => {
+      // Fetch teams/athletes/payments for ALL clubs in three batched queries total,
+      // rather than three queries per club — the per-club version hits Cloudflare's
+      // per-invocation subrequest cap (50 on the free plan) once there are more than
+      // a handful of clubs.
+      const clubIds = clubs.map((c) => c.id);
+      let allTeams = [];
+      if (clubIds.length) {
         const teamsRes = await supabase(
           env,
           "GET",
-          `/teams?select=id,name,age_group,dues_cents&club_id=eq.${club.id}&active=eq.true`
+          `/teams?select=id,club_id,name,age_group,dues_cents&club_id=in.(${clubIds.join(",")})&active=eq.true`
         );
-        const teams = teamsRes.data || [];
-        const teamIds = teams.map((t) => t.id);
-        let athletes = [];
-        if (teamIds.length) {
-          const athRes = await supabase(
-            env,
-            "GET",
-            `/athletes?select=id,payment_status,team_id&team_id=in.(${teamIds.join(",")})`
-          );
-          athletes = athRes.data || [];
-        }
-        const funded = athletes.filter(
-          (a) => ["paid_full", "bnpl_active", "bnpl_complete"].includes(a.payment_status)
-        ).length;
+        allTeams = teamsRes.data || [];
+      }
+      const teamIds = allTeams.map((t) => t.id);
+      let allAthletes = [];
+      if (teamIds.length) {
+        const athRes = await supabase(
+          env,
+          "GET",
+          `/athletes?select=id,payment_status,team_id&team_id=in.(${teamIds.join(",")})`
+        );
+        allAthletes = athRes.data || [];
+      }
+      const athleteIds = allAthletes.map((a) => a.id);
+      let allPayments = [];
+      if (athleteIds.length) {
+        const paymentsRes = await supabase(
+          env,
+          "GET",
+          `/payments?select=athlete_id,amount_cents&athlete_id=in.(${athleteIds.join(",")})&status=eq.succeeded`
+        );
+        allPayments = paymentsRes.data || [];
+      }
+      const teamsByClub = new Map();
+      allTeams.forEach((t) => {
+        if (!teamsByClub.has(t.club_id)) teamsByClub.set(t.club_id, []);
+        teamsByClub.get(t.club_id).push(t);
+      });
+      const athletesByTeam = new Map();
+      allAthletes.forEach((a) => {
+        if (!athletesByTeam.has(a.team_id)) athletesByTeam.set(a.team_id, []);
+        athletesByTeam.get(a.team_id).push(a);
+      });
+      const collectedByAthlete = new Map();
+      allPayments.forEach((p) => {
+        collectedByAthlete.set(p.athlete_id, (collectedByAthlete.get(p.athlete_id) || 0) + (p.amount_cents || 0));
+      });
+      const FUNDED_STATUSES = ["paid_full", "bnpl_active", "bnpl_complete"];
+      const enriched = clubs.map((club) => {
+        const teams = teamsByClub.get(club.id) || [];
+        const athletes = teams.flatMap((t) => athletesByTeam.get(t.id) || []);
+        const funded = athletes.filter((a) => FUNDED_STATUSES.includes(a.payment_status)).length;
         let fronted_cents = 0;
+        let collected_cents = 0;
         athletes.forEach((a) => {
-          if (["paid_full", "bnpl_active", "bnpl_complete"].includes(a.payment_status)) {
+          if (FUNDED_STATUSES.includes(a.payment_status)) {
             const team = teams.find((t) => t.id === a.team_id);
             if (team) fronted_cents += Math.round(team.dues_cents * 0.95);
           }
+          collected_cents += collectedByAthlete.get(a.id) || 0;
         });
-        let collected_cents = 0;
-        if (athletes.length) {
-          const athleteIds = athletes.map((a) => a.id);
-          const paymentsRes = await supabase(
-            env,
-            "GET",
-            `/payments?select=amount_cents&athlete_id=in.(${athleteIds.join(",")})&status=eq.succeeded`
-          );
-          collected_cents = (paymentsRes.data || []).reduce((sum, p) => sum + (p.amount_cents || 0), 0);
-        }
         const teamsWithCounts = teams.map((t) => ({
           ...t,
-          athlete_count: athletes.filter((a) => a.team_id === t.id).length
+          athlete_count: (athletesByTeam.get(t.id) || []).length
         }));
         return {
           ...club,
@@ -967,7 +992,7 @@ var index_default = {
           collected_cents,
           teams: teamsWithCounts
         };
-      }));
+      });
       const totals = enriched.reduce((acc, c) => ({
         clubs: acc.clubs + 1,
         teams: acc.teams + c.team_count,
@@ -1548,7 +1573,7 @@ var index_default = {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: "PlayFund <hello@playfundai.com>",
+            from: "PlayFund <admin@playfundai.com>",
             to: [club.admin_email],
             reply_to: athlete.parent_email || void 0,
             subject: `${athlete.name}'s family wants to arrange payment directly`,
@@ -1611,6 +1636,17 @@ var index_default = {
       });
       if (!sessionRes.ok) return err("Failed to create checkout session: " + JSON.stringify(sessionRes.data), 500);
       return json({ url: sessionRes.data.url });
+    }
+    if (method === "GET" && path === "/athletes/status") {
+      const idsParam = url.searchParams.get("ids") || "";
+      const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean);
+      if (!ids.length) return json({ statuses: [] });
+      const statusRes = await supabase(
+        env,
+        "GET",
+        `/athletes?id=in.(${ids.join(",")})&select=id,payment_status,approval_status`
+      );
+      return json({ statuses: statusRes.data || [] });
     }
     if (method === "GET" && path.startsWith("/athlete/")) {
       const athleteId = path.split("/")[2];

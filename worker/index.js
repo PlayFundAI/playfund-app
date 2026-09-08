@@ -149,13 +149,60 @@ async function verifyResendSignature(body, svixId, svixTimestamp, svixSignature,
   return candidates.includes(computed);
 }
 __name(verifyResendSignature, "verifyResendSignature");
+async function signUnsubscribe(email, secret) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(email.toLowerCase().trim()));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+__name(signUnsubscribe, "signUnsubscribe");
+function unsubscribeLink(env, email) {
+  const workerUrl = env.WORKER_URL || "https://playfund-worker.jacksonwwatkins.workers.dev";
+  return signUnsubscribe(email, env.UNSUBSCRIBE_SECRET || "").then(
+    (sig) => `${workerUrl}/unsubscribe?email=${encodeURIComponent(email)}&sig=${sig}`
+  );
+}
+__name(unsubscribeLink, "unsubscribeLink");
+async function getSuppression(env, email) {
+  if (!email) return null;
+  const res = await supabase(env, "GET", `/suppressed_emails?email=eq.${encodeURIComponent(email.toLowerCase().trim())}&select=reason`);
+  return res.data?.[0] || null;
+}
+__name(getSuppression, "getSuppression");
+async function isSuppressed(env, email) {
+  return !!(await getSuppression(env, email));
+}
+__name(isSuppressed, "isSuppressed");
+async function isHardSuppressed(env, email) {
+  const row = await getSuppression(env, email);
+  return !!row && (row.reason === "bounced" || row.reason === "complained");
+}
+__name(isHardSuppressed, "isHardSuppressed");
+async function suppressEmail(env, email, reason) {
+  if (!email) return;
+  try {
+    await supabase(env, "POST", "/suppressed_emails", {
+      email: email.toLowerCase().trim(),
+      reason
+    });
+  } catch (e) {
+  }
+}
+__name(suppressEmail, "suppressEmail");
 async function sendReminderEmail(env, club, team, athlete) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY not configured" };
   if (!athlete.parent_email) return { ok: false, skipped: true };
+  if (await isSuppressed(env, athlete.parent_email)) return { ok: false, skipped: true, reason: "suppressed" };
   const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
   const dues = (team.dues_cents || 0) / 100;
   const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
+  const unsubUrl = await unsubscribeLink(env, athlete.parent_email);
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
   </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
@@ -202,6 +249,9 @@ async function sendReminderEmail(env, club, team, athlete) {
       <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
         Questions? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
+      <p style="margin:8px 0 0;font-size:11px;color:#C0C6C4;text-align:center;">
+        <a href="${unsubUrl}" style="color:#C0C6C4;">Unsubscribe from these reminders</a>
+      </p>
     </td></tr>
   </table>
   </td></tr></table>
@@ -228,6 +278,9 @@ __name(sendReminderEmail, "sendReminderEmail");
 async function sendApprovalEmail(env, club, team, athlete) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !athlete.parent_email) return;
+  // Only a hard bounce/complaint blocks this — a plain unsubscribe from
+  // reminders shouldn't also swallow this one-time, non-marketing confirmation.
+  if (await isHardSuppressed(env, athlete.parent_email)) return;
   const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
   const dues = (team.dues_cents || 0) / 100;
   const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
@@ -299,6 +352,10 @@ __name(sendApprovalEmail, "sendApprovalEmail");
 async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus, stripePaymentIntentId, chargedAt) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !athlete.parent_email) return;
+  // A receipt is a required confirmation of a real transaction, not
+  // marketing — only a hard bounce/complaint blocks it, never a plain
+  // unsubscribe from reminders.
+  if (await isHardSuppressed(env, athlete.parent_email)) return;
   const amount = (amountCents / 100).toLocaleString();
   const isKlarna = paymentMethod === "klarna";
   const chargedAtStr = (chargedAt || /* @__PURE__ */ new Date()).toLocaleString("en-US", {
@@ -377,6 +434,7 @@ __name(sendReceiptEmail, "sendReceiptEmail");
 async function sendPendingApprovalEmail(env, club, team, athlete) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
+  if (await isHardSuppressed(env, club.admin_email)) return;
   const dues = ((team && team.dues_cents) || 0) / 100;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
@@ -439,6 +497,7 @@ __name(sendPendingApprovalEmail, "sendPendingApprovalEmail");
 async function sendClubWelcomeEmail(env, club, setupUrl) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
+  if (await isHardSuppressed(env, club.admin_email)) return;
   const fmt = (iso) => {
     if (!iso) return null;
     return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -674,6 +733,20 @@ var index_default = {
     }
     if (method === "GET" && path === "/config") {
       return json({ stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY || null });
+    }
+    if (method === "GET" && path === "/unsubscribe") {
+      const email = url.searchParams.get("email") || "";
+      const sig = url.searchParams.get("sig") || "";
+      const expected = email ? await signUnsubscribe(email, env.UNSUBSCRIBE_SECRET || "") : null;
+      const htmlPage = (title, message) => new Response(
+        `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#004643;text-align:center;"><h2>${title}</h2><p style="color:#6B7280;">${message}</p></body></html>`,
+        { headers: { "Content-Type": "text/html" } }
+      );
+      if (!email || !sig || !expected || sig !== expected) {
+        return htmlPage("Link not valid", "This unsubscribe link is missing or invalid. Contact admin@playfundai.com if you need help.");
+      }
+      await suppressEmail(env, email, "unsubscribed");
+      return htmlPage("You're unsubscribed", `${email} won't receive any further reminder emails from PlayFund.`);
     }
     if (method === "POST" && path === "/events") {
       let body;
@@ -1919,6 +1992,13 @@ var index_default = {
           properties
         });
       } catch (e) {
+      }
+      if (eventType === "email.bounced" || eventType === "email.complained") {
+        const reason = eventType === "email.bounced" ? "bounced" : "complained";
+        const recipients = Array.isArray(event.data?.to) ? event.data.to : [];
+        for (const recipient of recipients) {
+          await suppressEmail(env, recipient, reason);
+        }
       }
       return json({ received: true });
     }

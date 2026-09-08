@@ -134,3 +134,11 @@ Grounded in: `parent_phone` is already collected and stored (shown in the club's
 - [ ] Decide if/when this is worth it — a provider (e.g. Twilio) is real integration work: per-message cost, opt-in consent language, its own delivery/suppression tracking
 - [ ] If pursued, scope which messages would actually go by text vs. email (e.g. payment reminders/declines feel more urgent for text; receipts probably don't need it)
 - [ ] Not blocking the pilot — flagging so `parent_phone` isn't mistaken for a feature that already works
+
+## 12. CSV roster import for team setup
+
+Grounded in: nothing like this exists today — checked directly, no CSV import anywhere in `worker/index.js` (only CSV export, for a club's payments/roster). Right now every team and athlete gets created one at a time, either through club self-registration (`POST /club/register`, which does accept a `teams` array) or a parent/admin adding athletes individually via `POST /athlete`. A club with an existing roster spreadsheet has no faster path in.
+
+- [ ] Let a club/team share a roster CSV (name, age/age group, parent email at minimum), and have PlayFund (staff, to start — not necessarily automated) turn it into teams + athletes in their account, using the same `POST /athlete` path an admin-added athlete already takes (auto-approved, skips the pending-approval flow, since it's a trusted admin-side import)
+- [ ] Related to item 8's "roster-import extraction from uploaded spreadsheets" AI idea — start with a person doing the CSV-to-team mapping by hand for the pilot's small number of clubs, and only automate the parsing later once the real spreadsheet formats clubs actually send are known
+- [ ] Decide the format expectation up front (a PlayFund-provided template vs. accepting whatever a club already has) — accepting arbitrary formats is much more work than it sounds

@@ -36,7 +36,9 @@ Depends on item 2 — need a homepage before "loading stuff in."
 
 - [ ] Write down the actual questions to answer first — the ones a lender or investor will ask: payment-method mix (full vs. installments), approval/decline rates, time-to-registration, club retention, average dues size, geographic/sport demographics
 - [ ] Map each question to where the data actually lives: Stripe (payment status/method/fees), Klarna (approval/decline outcomes — confirm what's exposed via the Stripe integration vs. needing direct Klarna dashboard access), Supabase (system of record for clubs/athletes/payments), Resend (send/open/click — not currently captured anywhere but Resend's own dashboard)
-- [x] Added email engagement tracking: `POST /webhook/resend` in `worker/index.js`, verified via Svix HMAC signature (same pattern as the Stripe webhook), writes `email_opened`/`email_clicked` into the `events` table. Deliberately doesn't store the recipient's email in `properties` — just the Resend email ID, subject, and (for clicks) the link — consistent with the data-minimization pass above. **Manual setup still needed:** in the Resend dashboard, enable open/click tracking for the sending domain, add a webhook pointed at `https://playfund-worker.jacksonwwatkins.workers.dev/webhook/resend` for the `email.opened`/`email.clicked` events, and copy the signing secret into Cloudflare as `RESEND_WEBHOOK_SECRET` (encrypted secret, not `wrangler.toml` — same treatment as `STRIPE_WEBHOOK_SECRET`)
+- [x] Added email engagement tracking: `POST /webhook/resend` in `worker/index.js`, verified via Svix HMAC signature (same pattern as the Stripe webhook), writes `email_opened`/`email_clicked` into the `events` table. Deliberately doesn't store the recipient's email in `properties` — just the Resend email ID, subject, and (for clicks) the link — consistent with the data-minimization pass above.
+- [x] Registered the actual Resend webhook via their API (had `RESEND_API_KEY` server-side already) — no dashboard click-through needed. Confirmed live: endpoint `https://playfund-worker.jacksonwwatkins.workers.dev/webhook/resend`, events `email.opened`/`email.clicked`/`email.bounced`/`email.complained`, status `enabled`. Its real signing secret is set as `RESEND_WEBHOOK_SECRET` in Cloudflare.
+- [x] Resend now requires a dedicated tracking subdomain (`links.playfundai.com`) rather than a simple per-domain toggle — added the CNAME it required in Squarespace DNS, verified fully via the Resend API afterward: `status: "verified"`, `open_tracking: true`, `click_tracking: true`. Email open/click tracking is now fully live end-to-end
 - [x] **Real bug found and fixed:** the `events` table's Supabase role only had `INSERT` granted, not `SELECT` — every `trackEvent()` call all session (screen views, checkout events, login/signup events) had been silently succeeding into a table nothing could read back from. Fixed by running `GRANT ALL ON public.events TO service_role;` in the Supabase SQL editor. Verified directly: inserted a test event via `/events` and read it straight back via a temporary debug route (removed after confirming) — no permission error, row came back exactly as inserted
 - [x] Added a lightweight product-events table in Supabase (`events`: event_name, session_id, athlete_id, club_id, properties jsonb, created_at) — see setup step under item 6, since the embedded-checkout build needed it first
 - [x] Added funnel/click tracking as of the embedded-checkout build: every `showScreen()` call now logs a `screen_view` event, and the checkout flow logs `payment_method_selected`, `checkout_mounted`, `checkout_completed`, `checkout_confirmed`, `checkout_declined`, `checkout_canceled`, `checkout_error`. Interaction-level only (which screen/button), never what was typed — payment fields are Stripe's own iframe and never touch this page
@@ -119,17 +121,7 @@ Grounded in: none of this exists today — checked directly. No unsubscribe link
 
 - [x] Built: `GET /unsubscribe` (HMAC-signed link, no login needed) checked before every send via `getSuppression`/`isSuppressed`/`isHardSuppressed` in `worker/index.js`. Unsubscribe link added to `sendReminderEmail` only (the one genuinely recurring/marketing-like send). `email.bounced`/`email.complained` now auto-suppress in `POST /webhook/resend`. New `UNSUBSCRIBE_SECRET` and `WORKER_URL` set/added directly — tested the full sign/verify round trip against the live endpoint before the table even existed to confirm it fails open (never blocks sending on an error) rather than crashing
 - [x] **Decided, not left open:** an unsubscribe only blocks the recurring reminder email — receipts, approval confirmations, club welcome, and pending-approval notices are one-time confirmations of something the recipient just did, not marketing, so only a hard bounce or spam complaint blocks those (via `isHardSuppressed`, reason-aware rather than one flat flag). This matches CAN-SPAM's transactional-email exemption, but treat that as engineering judgment, not legal sign-off
-- [ ] **Manual setup still needed — I can't run SQL directly.** In the Supabase SQL editor:
-  ```sql
-  create table suppressed_emails (
-    id uuid primary key default gen_random_uuid(),
-    email text not null unique,
-    reason text not null,
-    created_at timestamptz not null default now()
-  );
-  create index suppressed_emails_email_idx on suppressed_emails (email);
-  grant all on public.suppressed_emails to service_role;
-  ```
+- [x] `suppressed_emails` table created and granted — verified with a real insert-then-read round trip via the live `/unsubscribe` endpoint (then cleaned up the test row). Item 10 is fully live end-to-end
   (Grant included up front this time — same mistake as the `events` table earlier, not repeating it.)
 
 ## 11. SMS / text capability

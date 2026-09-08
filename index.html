@@ -2301,28 +2301,20 @@
 
     <!-- Status card -->
     <div class="payment-mgmt-card">
-      <div class="payment-mgmt-label">Payment plan</div>
+      <div class="payment-mgmt-label">Season dues</div>
       <div class="payment-mgmt-amount" id="pmTotalAmt">$950</div>
-      <div class="payment-mgmt-sub" id="pmPlanSub">4 monthly payments of $238</div>
+      <div class="payment-mgmt-sub" id="pmPlanSub">Paid in full to the club via a Klarna installment plan</div>
       <div style="border-top:1px solid rgba(255,255,255,0.12); margin-top:14px; padding-top:14px;">
         <div class="payment-mgmt-row">
-          <span class="payment-mgmt-row-label">Payments made</span>
-          <span class="payment-mgmt-row-value" id="pmPaid">—</span>
-        </div>
-        <div class="payment-mgmt-row">
-          <span class="payment-mgmt-row-label">Remaining balance</span>
-          <span class="payment-mgmt-row-value" id="pmRemaining">—</span>
-        </div>
-        <div class="payment-mgmt-row">
-          <span class="payment-mgmt-row-label">Next payment</span>
-          <span class="payment-mgmt-row-value" id="pmNextDate">—</span>
+          <span class="payment-mgmt-row-label">Managed by</span>
+          <span class="payment-mgmt-row-value">Klarna</span>
         </div>
       </div>
     </div>
 
     <!-- Schedule -->
-    <div class="roster-section-label">Payment schedule (estimated)</div>
-    <p style="font-size:12px; color:var(--ink-soft); margin:-4px 0 10px;">Based on the plan you selected. Klarna is the source of truth for your actual dates and amounts.</p>
+    <div class="roster-section-label">Payment schedule</div>
+    <p style="font-size:12px; color:var(--ink-soft); margin:-4px 0 10px;">Klarna is the source of truth for your exact dates and amounts, not PlayFund.</p>
     <div id="pmScheduleList"></div>
 
     <div style="margin-top:20px; padding:14px; background:var(--paper-dim); border-radius:10px;">
@@ -3085,25 +3077,27 @@ var usStates = ["Virginia"];
     var errEl    = document.getElementById('clubLoginError');
     if(!email || !password){ errEl.textContent = 'Enter your email and password.'; errEl.classList.remove('loading-msg'); return; }
     errEl.textContent = 'Signing in…'; errEl.classList.add('loading-msg');
+    trackEvent('club_login_attempted', {});
     try {
       var res = await fetch(WORKER_URL + '/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
       var data = await res.json();
-      if(!res.ok){ errEl.textContent = data.error || 'Invalid email or password.'; errEl.classList.remove('loading-msg'); return; }
+      if(!res.ok){ trackEvent('club_login_failed', { reason: 'invalid_credentials' }); errEl.textContent = data.error || 'Invalid email or password.'; errEl.classList.remove('loading-msg'); return; }
       errEl.textContent = ''; errEl.classList.remove('loading-msg');
       try { sessionStorage.setItem(CLUB_SESSION_KEY, JSON.stringify(data)); } catch(e){}
       if(data.user.role === 'team_admin'){
+        trackEvent('club_login_succeeded', { role: 'team_admin' });
         openTeamAdminView(data);
       } else if(data.user.role === 'club_admin'){
         if(data.user.club){
           var club = await fetchClub(data.user.club.code, data.access_token);
-          if(club){ state.club = club; openClubOverview(); }
-          else { errEl.textContent = 'Club not found.'; }
+          if(club){ trackEvent('club_login_succeeded', { role: 'club_admin' }); state.club = club; openClubOverview(); }
+          else { trackEvent('club_login_failed', { reason: 'club_not_found' }); errEl.textContent = 'Club not found.'; }
         }
-      } else { errEl.textContent = 'This account does not have club access.'; }
-    } catch(e) { errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg'); }
+      } else { trackEvent('club_login_failed', { reason: 'no_club_access' }); errEl.textContent = 'This account does not have club access.'; }
+    } catch(e) { trackEvent('club_login_failed', { reason: 'network_error' }); errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg'); }
   }
 
   function enterClubMode(){
@@ -4270,33 +4264,45 @@ var usStates = ["Virginia"];
     showScreen('athlete-detail');
   }
 
-  function recordAthletePayment(method, weeks){
+  function recordAthletePayment(method, weeks, realPayment){
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
     if(!athlete) return;
     athlete.paymentStatus = method;
     athlete.termWeeks = weeks || null;
-    athlete.history = buildAthleteHistory(athlete);
+    // Prefer the real, webhook-verified payment record (real amount, real date,
+    // real Stripe transaction ID) whenever we have one — only fall back to the
+    // estimate if we truly don't (e.g. a cross-device sync that never fetched
+    // the full record). Once real history is set, never let a later call
+    // without a fresh record clobber it with a re-guessed one.
+    if(realPayment){
+      athlete.history = buildAthleteHistoryFromRealPayment(athlete, realPayment);
+    } else if(!athlete.history){
+      athlete.history = buildAthleteHistory(athlete);
+    }
     saveAthletes(state.athletes);
     renderAthleteList();
 
     var ct = getAthleteClubTeam(athlete);
-    var dues = ct && ct.team ? (ct.team.dues || 0) : 0;
     var clubName = ct && ct.club ? ct.club.name : 'your club';
 
     if(method === 'full'){
-      // Populate pay-in-full confirmation
+      // Populate pay-in-full confirmation from the real, webhook-verified
+      // payment record in athlete.history (never a guessed amount/date).
+      var fullHistory = athlete.history || [];
       document.getElementById('confirmNowTitle').textContent = athlete.name + ' is registered';
       document.getElementById('confirmNowSub').textContent = clubName + ' has been paid in full for the season. Nothing else is due.';
       var nowSched = document.getElementById('confirmNowSchedule');
       nowSched.innerHTML = '<div class="payment-schedule-title">Your payment</div>' +
-        renderScheduleRow({ label: 'Season dues, paid in full', date: new Date(), amount: dues, status: 'paid' });
+        fullHistory.map(renderScheduleRow).join('');
     } else {
-      // Populate BNPL confirmation with full installment schedule
-      var numWeeks = weeks || 8;
+      // Populate BNPL confirmation. We don't know the exact plan Klarna approved
+      // (payment count, cadence, and split can vary by approval and ticket size),
+      // so we never fabricate specific installment dates/amounts here — only
+      // Klarna knows those. See the matching FAQ copy for the same disclosure.
       var history = athlete.history || [];
       document.getElementById('confirmTermsTitle').textContent = athlete.name + ' is registered';
       document.getElementById('confirmTermsSub').textContent =
-        clubName + ' has been paid in full. Your ' + numWeeks + ' Klarna payments are scheduled below.';
+        clubName + ' has been paid in full. Klarna is handling your installment plan directly.';
       var termSched = document.getElementById('confirmTermsSchedule');
       termSched.innerHTML = '<div class="payment-schedule-title">Your payment schedule</div>' +
         history.map(renderScheduleRow).join('');
@@ -4307,23 +4313,28 @@ var usStates = ["Virginia"];
 
   function renderScheduleRow(item){
     var isPaid = item.status === 'paid';
+    var hasAmount = item.amount != null;
     var dateStr = safeFmtDate(item.date);
     return '<div class="payment-schedule-row">' +
       '<div class="payment-schedule-dot payment-schedule-dot--' + (isPaid ? 'paid' : 'upcoming') + '"></div>' +
       '<div class="payment-schedule-info">' +
         '<div class="payment-schedule-date">' + dateStr + '</div>' +
         '<div class="payment-schedule-label">' + item.label + '</div>' +
+        (item.txnId ? '<div class="payment-schedule-date" style="font-family:monospace;">Txn: ' + item.txnId + '</div>' : '') +
       '</div>' +
       '<div class="payment-schedule-right">' +
-        '<div class="payment-schedule-amt">' + fmtUSD(item.amount) + '</div>' +
-        (isPaid ? '<div class="payment-schedule-status">Paid</div>' : '<div class="payment-schedule-label" style="text-align:right;">Klarna, automatic</div>') +
+        (hasAmount ? '<div class="payment-schedule-amt">' + fmtUSD(item.amount) + '</div>' : '') +
+        (isPaid ? '<div class="payment-schedule-status">Paid</div>' : (hasAmount ? '<div class="payment-schedule-label" style="text-align:right;">Klarna, automatic</div>' : '')) +
       '</div>' +
     '</div>';
   }
 
-  // Builds a plausible payment history for an athlete: a single dated receipt for
-  // Paid in Full, or a full installment schedule (past payments marked paid, future
-  // ones upcoming) for BNPL, based on today's date.
+  // Builds a payment history for an athlete: a single dated receipt for Paid in
+  // Full, or a club-payout receipt plus a pointer to Klarna for BNPL. We never
+  // fabricate specific installment dates/amounts for BNPL — the exact plan
+  // (payment count, cadence, split) is decided by Klarna at approval and can
+  // vary by ticket size, and PlayFund isn't told the details. See the matching
+  // FAQ copy for the same disclosure.
   function buildAthleteHistory(athlete){
     var ct = getAthleteClubTeam(athlete);
     var dues = ct.team.dues;
@@ -4331,20 +4342,26 @@ var usStates = ["Virginia"];
     if(athlete.paymentStatus === 'full'){
       return [{ label: 'Season dues paid in full', date: today, amount: dues, status: 'paid' }];
     }
-    var weeks = athlete.termWeeks || 8;
-    var perWeek = dues / weeks;
-    var items = [];
-    for(var i = 0; i < weeks; i++){
-      var d = new Date(today);
-      d.setDate(d.getDate() + i * 7);
-      items.push({
-        label: i === 0 ? 'Down payment' : 'Payment ' + (i + 1),
-        date: d,
-        amount: perWeek,
-        status: i === 0 ? 'paid' : 'upcoming'
-      });
+    return [
+      { label: 'Club paid in full via Klarna', date: today, amount: dues, status: 'paid' },
+      { label: 'Installment schedule managed by Klarna — log in at klarna.com for exact dates and amounts', date: null, amount: null, status: 'upcoming' }
+    ];
+  }
+
+  // Same shape as buildAthleteHistory, but built from a real, webhook-verified
+  // payment record (real amount charged, real date, real Stripe transaction
+  // ID) instead of guessed from the team's configured dues and "now".
+  function buildAthleteHistoryFromRealPayment(athlete, payment){
+    var amount = payment.amount != null ? payment.amount : (payment.amount_cents || 0) / 100;
+    var date = payment.created_at ? new Date(payment.created_at) : new Date();
+    var txnId = payment.stripe_payment_intent || null;
+    if(athlete.paymentStatus === 'full'){
+      return [{ label: 'Season dues paid in full', date: date, amount: amount, status: 'paid', txnId: txnId }];
     }
-    return items;
+    return [
+      { label: 'Club paid in full via Klarna', date: date, amount: amount, status: 'paid', txnId: txnId },
+      { label: 'Installment schedule managed by Klarna — log in at klarna.com for exact dates and amounts', date: null, amount: null, status: 'upcoming' }
+    ];
   }
 
   // ---------- payment management ----------
@@ -4354,23 +4371,14 @@ var usStates = ["Virginia"];
     var ct = getAthleteClubTeam(athlete);
     var dues = ct && ct.team ? (ct.team.dues || 0) : 0;
     var history = athlete.history || buildAthleteHistory(athlete);
-    var weeks = athlete.termWeeks || 4;
-    var perPmt = Math.round(dues / weeks);
-    var paid = history.filter(function(h){ return h.status === 'paid'; }).length;
-    var remaining = dues - (paid * perPmt);
-    var next = history.find(function(h){ return h.status !== 'paid'; });
 
     document.getElementById('pmAthleteTitle').textContent = athlete.name;
     document.getElementById('pmClubTitle').textContent = ct && ct.club ? ct.club.name : '';
     document.getElementById('pmTotalAmt').textContent = '$' + dues.toLocaleString();
-    document.getElementById('pmPlanSub').textContent = weeks + ' payments of $' + perPmt.toLocaleString();
-    document.getElementById('pmPaid').textContent = paid + ' of ' + weeks;
-    document.getElementById('pmRemaining').textContent = '$' + Math.max(0, remaining).toLocaleString();
-    document.getElementById('pmNextDate').textContent = next
-      ? safeFmtDate(next.date)
-      : 'All paid ✓';
 
-    // Build schedule
+    // Build schedule. We only ever know two things for certain: the club got
+    // paid, and Klarna owns everything after that — never fabricate specific
+    // installment counts, amounts, or dates here (see buildAthleteHistory).
     var listEl = document.getElementById('pmScheduleList');
     listEl.innerHTML = '';
     history.forEach(function(h){
@@ -4387,11 +4395,11 @@ var usStates = ["Virginia"];
         '</div>' +
         '<div class="roster-name-block">' +
           '<div class="roster-name">' + h.label + '</div>' +
-          '<div class="roster-age">' + dateStr + '</div>' +
+          (dateStr ? '<div class="roster-age">' + dateStr + '</div>' : '') +
         '</div>' +
         '<div class="roster-right">' +
-          '<div style="font-size:15px; font-weight:700; color:var(--ink);">$' + (h.amount || perPmt).toLocaleString() + '</div>' +
-          '<div class="status-pill" style="margin-top:3px; background:' + (isPaid ? 'var(--paid-bg)' : '#FEF3C7') + '; color:' + (isPaid ? 'var(--paid)' : '#B45309') + ';">' + (isPaid ? 'Paid' : 'Scheduled') + '</div>' +
+          (h.amount != null ? '<div style="font-size:15px; font-weight:700; color:var(--ink);">$' + h.amount.toLocaleString() + '</div>' : '') +
+          '<div class="status-pill" style="margin-top:3px; background:' + (isPaid ? 'var(--paid-bg)' : '#FEF3C7') + '; color:' + (isPaid ? 'var(--paid)' : '#B45309') + ';">' + (isPaid ? 'Paid' : 'See Klarna') + '</div>' +
         '</div>';
       listEl.appendChild(row);
     });
@@ -4586,7 +4594,7 @@ var usStates = ["Virginia"];
       return '<div class="history-item">' +
         '<div class="history-icon ' + item.status + '">' + icon + '</div>' +
         '<div class="history-label"><div class="history-title">' + item.label + '</div><div class="history-date">' + dateStr + '</div></div>' +
-        '<div class="history-amt">' + fmtUSD(item.amount) + '</div></div>';
+        (item.amount != null ? '<div class="history-amt">' + fmtUSD(item.amount) + '</div>' : '') + '</div>';
     }
 
     var html = '';
@@ -4634,6 +4642,7 @@ var usStates = ["Virginia"];
 
     if(!email || !password){ errEl.textContent = 'Enter your email and password.'; errEl.classList.remove('loading-msg'); return; }
     errEl.textContent = 'Signing in…'; errEl.classList.add('loading-msg');
+    trackEvent('admin_login_attempted', {});
 
     try {
       var res = await fetch(WORKER_URL + '/auth/login', {
@@ -4642,19 +4651,22 @@ var usStates = ["Virginia"];
         body: JSON.stringify({ email: email, password: password })
       });
       var data = await res.json();
-      if(!res.ok){ errEl.textContent = data.error || 'Invalid email or password.'; return; }
+      if(!res.ok){ trackEvent('admin_login_failed', { reason: 'invalid_credentials' }); errEl.textContent = data.error || 'Invalid email or password.'; return; }
 
       // Check that this user has playfund_admin role
       if(data.user.role !== 'playfund_admin'){
+        trackEvent('admin_login_failed', { reason: 'no_admin_access' });
         errEl.textContent = 'This account does not have admin access.'; errEl.classList.remove('loading-msg'); return;
       }
 
+      trackEvent('admin_login_succeeded', {});
       adminSession = data.access_token;
       try { sessionStorage.setItem('pf_admin_token', adminSession); } catch(e){}
       errEl.textContent = '';
       document.getElementById('adminPasswordInput').value = '';
       loadAdminClubs();
     } catch(e) {
+      trackEvent('admin_login_failed', { reason: 'network_error' });
       errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg');
     }
   }
@@ -4841,8 +4853,9 @@ var usStates = ["Virginia"];
       payoutDateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
     }
 
+    trackEvent('club_signup_submitted', {});
     try {
-      await fetch(WORKER_URL + '/club/register', {
+      var regRes = await fetch(WORKER_URL + '/club/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -4859,7 +4872,19 @@ var usStates = ["Virginia"];
           teams:         regState.teams
         })
       });
-    } catch(e){ console.warn('Registration submit (non-blocking):', e); }
+      if(!regRes.ok){
+        trackEvent('club_signup_failed', { reason: 'server_error' });
+        var reg2Err = document.getElementById('reg2Error');
+        if(reg2Err) reg2Err.textContent = "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
+        return;
+      }
+    } catch(e){
+      trackEvent('club_signup_failed', { reason: 'network_error' });
+      var reg2ErrCatch = document.getElementById('reg2Error');
+      if(reg2ErrCatch) reg2ErrCatch.textContent = "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
+      return;
+    }
+    trackEvent('club_signup_completed', {});
 
     // Populate step 4 confirmation
     document.getElementById('reg4Title').textContent = regState.adminName
@@ -5479,7 +5504,10 @@ var usStates = ["Virginia"];
         var data = await res.json();
         var status = data.athlete && data.athlete.payment_status;
         if(status && status !== 'unpaid'){
-          return (status === 'bnpl_active' || status === 'bnpl_complete') ? 'bnpl' : 'full';
+          var method = (status === 'bnpl_active' || status === 'bnpl_complete') ? 'bnpl' : 'full';
+          var payments = data.payments || [];
+          var lastSucceeded = payments.filter(function(p){ return p.status === 'succeeded'; }).slice(-1)[0] || null;
+          return { method: method, payment: lastSucceeded };
         }
       } catch(e){}
       if(i < tries - 1) await new Promise(function(r){ setTimeout(r, delayMs); });
@@ -5508,12 +5536,12 @@ var usStates = ["Virginia"];
     state.athletes = loadAthletes();
     state.activeAthleteId = localAthlete.id;
 
-    var method = await pollAthleteFunded(athId, 5, 1500);
-    if(method){
+    var funded = await pollAthleteFunded(athId, 5, 1500);
+    if(funded){
       await hydrateClubCache([localAthlete]);
-      recordAthletePayment(method, state.selectedTermWeeks);
-      trackEvent('checkout_confirmed', { payment_type: method });
-      showScreen(method === 'bnpl' ? 'confirm-terms' : 'confirm-now', true);
+      recordAthletePayment(funded.method, state.selectedTermWeeks, funded.payment);
+      trackEvent('checkout_confirmed', { payment_type: funded.method });
+      showScreen(funded.method === 'bnpl' ? 'confirm-terms' : 'confirm-now', true);
       return;
     }
 

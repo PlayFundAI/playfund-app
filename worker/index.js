@@ -2,6 +2,10 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // index.js
+// Stripe Payment Method Configuration scoped to "pay in full": card + bank
+// only, with Link and every BNPL method (Klarna, Affirm, Afterpay) turned
+// off. Not a secret — safe to commit, same as the publishable key.
+var PAY_IN_FULL_PMC_ID = "pmc_1UD4SnPyhgYp24ebsPEd8LSJ";
 var CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -128,13 +132,77 @@ async function verifyStripeSignature(body, sigHeader, secret) {
   return computed === signature;
 }
 __name(verifyStripeSignature, "verifyStripeSignature");
+async function verifyResendSignature(body, svixId, svixTimestamp, svixSignature, secret) {
+  if (!svixId || !svixTimestamp || !svixSignature || !secret) return false;
+  const secretBytes = Uint8Array.from(atob(secret.replace(/^whsec_/, "")), (c) => c.charCodeAt(0));
+  const signedContent = `${svixId}.${svixTimestamp}.${body}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    secretBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedContent));
+  const computed = btoa(String.fromCharCode(...new Uint8Array(sig)));
+  const candidates = svixSignature.split(" ").map((s) => s.split(",")[1]).filter(Boolean);
+  return candidates.includes(computed);
+}
+__name(verifyResendSignature, "verifyResendSignature");
+async function signUnsubscribe(email, secret) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(email.toLowerCase().trim()));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+__name(signUnsubscribe, "signUnsubscribe");
+function unsubscribeLink(env, email) {
+  const workerUrl = env.WORKER_URL || "https://playfund-worker.jacksonwwatkins.workers.dev";
+  return signUnsubscribe(email, env.UNSUBSCRIBE_SECRET || "").then(
+    (sig) => `${workerUrl}/unsubscribe?email=${encodeURIComponent(email)}&sig=${sig}`
+  );
+}
+__name(unsubscribeLink, "unsubscribeLink");
+async function getSuppression(env, email) {
+  if (!email) return null;
+  const res = await supabase(env, "GET", `/suppressed_emails?email=eq.${encodeURIComponent(email.toLowerCase().trim())}&select=reason`);
+  return res.data?.[0] || null;
+}
+__name(getSuppression, "getSuppression");
+async function isSuppressed(env, email) {
+  return !!(await getSuppression(env, email));
+}
+__name(isSuppressed, "isSuppressed");
+async function isHardSuppressed(env, email) {
+  const row = await getSuppression(env, email);
+  return !!row && (row.reason === "bounced" || row.reason === "complained");
+}
+__name(isHardSuppressed, "isHardSuppressed");
+async function suppressEmail(env, email, reason) {
+  if (!email) return;
+  try {
+    await supabase(env, "POST", "/suppressed_emails", {
+      email: email.toLowerCase().trim(),
+      reason
+    });
+  } catch (e) {
+  }
+}
+__name(suppressEmail, "suppressEmail");
 async function sendReminderEmail(env, club, team, athlete) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY not configured" };
   if (!athlete.parent_email) return { ok: false, skipped: true };
-  const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
+  if (await isSuppressed(env, athlete.parent_email)) return { ok: false, skipped: true, reason: "suppressed" };
+  const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
   const dues = (team.dues_cents || 0) / 100;
   const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
+  const unsubUrl = await unsubscribeLink(env, athlete.parent_email);
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
   </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
@@ -181,6 +249,9 @@ async function sendReminderEmail(env, club, team, athlete) {
       <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
         Questions? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
+      <p style="margin:8px 0 0;font-size:11px;color:#C0C6C4;text-align:center;">
+        <a href="${unsubUrl}" style="color:#C0C6C4;">Unsubscribe from these reminders</a>
+      </p>
     </td></tr>
   </table>
   </td></tr></table>
@@ -207,7 +278,10 @@ __name(sendReminderEmail, "sendReminderEmail");
 async function sendApprovalEmail(env, club, team, athlete) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !athlete.parent_email) return;
-  const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
+  // Only a hard bounce/complaint blocks this — a plain unsubscribe from
+  // reminders shouldn't also swallow this one-time, non-marketing confirmation.
+  if (await isHardSuppressed(env, athlete.parent_email)) return;
+  const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
   const dues = (team.dues_cents || 0) / 100;
   const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -275,11 +349,20 @@ async function sendApprovalEmail(env, club, team, athlete) {
   }
 }
 __name(sendApprovalEmail, "sendApprovalEmail");
-async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus) {
+async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus, stripePaymentIntentId, chargedAt) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !athlete.parent_email) return;
+  // A receipt is a required confirmation of a real transaction, not
+  // marketing — only a hard bounce/complaint blocks it, never a plain
+  // unsubscribe from reminders.
+  if (await isHardSuppressed(env, athlete.parent_email)) return;
   const amount = (amountCents / 100).toLocaleString();
   const isKlarna = paymentMethod === "klarna";
+  const chargedAtStr = (chargedAt || /* @__PURE__ */ new Date()).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/New_York"
+  }) + " ET";
   const statusLine = isKlarna
     ? (newStatus === "bnpl_complete" ? "Your Klarna installment plan is now fully paid off." : "This payment is part of your Klarna installment plan. Klarna will continue billing your remaining installments directly.")
     : "This covers the full season dues. Nothing else is due.";
@@ -311,10 +394,21 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
               <td style="font-size:13px;color:#6B7280;padding-top:6px;">Club</td>
               <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${club.name}</td>
             </tr>
+            <tr>
+              <td style="font-size:13px;color:#6B7280;padding-top:6px;">Date</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${chargedAtStr}</td>
+            </tr>
+            ${stripePaymentIntentId ? `<tr>
+              <td style="font-size:13px;color:#6B7280;padding-top:6px;">Transaction ID</td>
+              <td align="right" style="font-size:12px;font-weight:700;color:#004643;padding-top:6px;font-family:monospace;">${stripePaymentIntentId}</td>
+            </tr>` : ""}
           </table>
         </td></tr>
       </table>
-      <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
+      <p style="margin:16px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
+        This charge was processed by Stripe, PlayFund's payment processor${stripePaymentIntentId ? ` — keep the transaction ID above if you need to reference this payment with Stripe, your card issuer, or ${club.name}` : ""}.
+      </p>
+      <p style="margin:8px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
         Questions about this payment? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
     </td></tr>
@@ -340,6 +434,7 @@ __name(sendReceiptEmail, "sendReceiptEmail");
 async function sendPendingApprovalEmail(env, club, team, athlete) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
+  if (await isHardSuppressed(env, club.admin_email)) return;
   const dues = ((team && team.dues_cents) || 0) / 100;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
@@ -402,6 +497,7 @@ __name(sendPendingApprovalEmail, "sendPendingApprovalEmail");
 async function sendClubWelcomeEmail(env, club, setupUrl) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
+  if (await isHardSuppressed(env, club.admin_email)) return;
   const fmt = (iso) => {
     if (!iso) return null;
     return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -637,6 +733,20 @@ var index_default = {
     }
     if (method === "GET" && path === "/config") {
       return json({ stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY || null });
+    }
+    if (method === "GET" && path === "/unsubscribe") {
+      const email = url.searchParams.get("email") || "";
+      const sig = url.searchParams.get("sig") || "";
+      const expected = email ? await signUnsubscribe(email, env.UNSUBSCRIBE_SECRET || "") : null;
+      const htmlPage = (title, message) => new Response(
+        `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#004643;text-align:center;"><h2>${title}</h2><p style="color:#6B7280;">${message}</p></body></html>`,
+        { headers: { "Content-Type": "text/html" } }
+      );
+      if (!email || !sig || !expected || sig !== expected) {
+        return htmlPage("Link not valid", "This unsubscribe link is missing or invalid. Contact admin@playfundai.com if you need help.");
+      }
+      await suppressEmail(env, email, "unsubscribed");
+      return htmlPage("You're unsubscribed", `${email} won't receive any further reminder emails from PlayFund.`);
     }
     if (method === "POST" && path === "/events") {
       let body;
@@ -1145,7 +1255,7 @@ var index_default = {
         accountId = acctRes.data.id;
         await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, { stripe_account_id: accountId });
       }
-      const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
+      const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
       const linkRes = await stripe(env, "POST", "/account_links", {
         account: accountId,
         refresh_url: `${APP_URL}?stripe_onboard=refresh&club_id=${clubId}`,
@@ -1397,7 +1507,7 @@ var index_default = {
               type: "invite",
               email: admin_email.toLowerCase().trim(),
               options: {
-                redirect_to: env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app"
+                redirect_to: env.APP_URL || "https://playfundai.github.io/playfund-app/"
               }
             })
           });
@@ -1636,15 +1746,18 @@ var index_default = {
       if (!duesCents) return err("Team has no dues configured", 400);
       const feeBps = club.fee_bps != null ? club.fee_bps : 500;
       const applicationFeeAmount = Math.round(duesCents * feeBps / 1e4);
-      const APP_URL = env.APP_URL || "https://jacksonwatkins30.github.io/playfund-app";
-      // 'full' and 'bnpl' are deliberately restricted to disjoint payment_method_types —
-      // Klarna must never appear as an option on a "pay in full" checkout, and card/bank
-      // must never appear on the installment checkout. Keep these two lists disjoint.
-      const paymentMethodTypes = payment_type === "bnpl" ? ["klarna"] : ["card", "us_bank_account"];
-      const sessionRes = await stripe(env, "POST", "/checkout/sessions", {
+      const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
+      // 'full' and 'bnpl' must never leak into each other. Naively restricting
+      // payment_method_types isn't enough on its own: Stripe Link recognizes a
+      // returning customer and will still offer their previously-saved Klarna
+      // instrument on a "pay in full" session, since Link treats saved BNPL
+      // methods as part of its own wallet rather than something gated by the
+      // merchant's per-session type list. A dedicated Payment Method
+      // Configuration with Link (and every BNPL method) turned off is the only
+      // thing that actually blocks it — see PAY_IN_FULL_PMC_ID below.
+      const sessionParams = {
         mode: "payment",
-        ui_mode: "embedded",
-        payment_method_types: paymentMethodTypes,
+        ui_mode: "embedded_page",
         line_items: [{
           price_data: {
             currency: "usd",
@@ -1660,7 +1773,13 @@ var index_default = {
         },
         metadata: { athlete_id: athleteId },
         return_url: `${APP_URL}?checkout=return&athlete=${athleteId}&session_id={CHECKOUT_SESSION_ID}`
-      });
+      };
+      if (payment_type === "bnpl") {
+        sessionParams.payment_method_types = ["klarna"];
+      } else {
+        sessionParams.payment_method_configuration = PAY_IN_FULL_PMC_ID;
+      }
+      const sessionRes = await stripe(env, "POST", "/checkout/sessions", sessionParams);
       if (!sessionRes.ok) return err("Failed to create checkout session: " + JSON.stringify(sessionRes.data), 500);
       return json({ client_secret: sessionRes.data.client_secret });
     }
@@ -1688,7 +1807,7 @@ var index_default = {
       const paymentsRes = await supabase(
         env,
         "GET",
-        `/payments?athlete_id=eq.${athleteId}&select=id,created_at,amount_cents,status,payment_method,installment_number&order=created_at.asc`
+        `/payments?athlete_id=eq.${athleteId}&select=id,created_at,amount_cents,status,payment_method,installment_number,stripe_payment_intent&order=created_at.asc`
       );
       const payments = (paymentsRes.data || []).map((p) => ({
         ...p,
@@ -1832,7 +1951,7 @@ var index_default = {
         );
         const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name`);
         const club = clubRes.data?.[0];
-        if (club) await sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus);
+        if (club) await sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus, pi.id, new Date(pi.created * 1e3));
       } else if (eventType === "payment_intent.payment_failed") {
         const pi = event.data.object;
         await supabase(env, "POST", "/payments", {
@@ -1844,6 +1963,42 @@ var index_default = {
           payment_method: pi.payment_method_types?.[0] || "card",
           notes: pi.last_payment_error?.message || "Payment failed"
         });
+      }
+      return json({ received: true });
+    }
+    if (method === "POST" && path === "/webhook/resend") {
+      const rawBody = await request.text();
+      const svixId = request.headers.get("svix-id");
+      const svixTimestamp = request.headers.get("svix-timestamp");
+      const svixSignature = request.headers.get("svix-signature");
+      const valid = await verifyResendSignature(rawBody, svixId, svixTimestamp, svixSignature, env.RESEND_WEBHOOK_SECRET);
+      if (!valid) return err("Invalid Resend signature", 401);
+      const event = JSON.parse(rawBody);
+      const eventType = event.type;
+      if (!eventType || !eventType.startsWith("email.")) return json({ received: true });
+      const properties = {
+        resend_email_id: event.data?.email_id || null,
+        subject: event.data?.subject || null
+      };
+      if (eventType === "email.clicked" && event.data?.click?.link) {
+        properties.link = event.data.click.link;
+      }
+      try {
+        await supabase(env, "POST", "/events", {
+          event_name: "email_" + eventType.slice("email.".length),
+          session_id: null,
+          athlete_id: null,
+          club_id: null,
+          properties
+        });
+      } catch (e) {
+      }
+      if (eventType === "email.bounced" || eventType === "email.complained") {
+        const reason = eventType === "email.bounced" ? "bounced" : "complained";
+        const recipients = Array.isArray(event.data?.to) ? event.data.to : [];
+        for (const recipient of recipients) {
+          await suppressEmail(env, recipient, reason);
+        }
       }
       return json({ received: true });
     }

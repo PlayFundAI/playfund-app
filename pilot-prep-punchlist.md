@@ -91,6 +91,8 @@ Was: `openStripeCheckout()` did a full-page redirect (`window.location.href = da
 
 **Deployment gap found while testing this:** the live Worker had been running a 5-day-old manual deploy this whole time — merging to `main` on GitHub was never actually deploying anything, since no CI/CD was wired up. Connected Cloudflare Workers Builds to the GitHub repo to fix this going forward. Its "Root directory" setting defaulted to `/`, which is wrong (`wrangler.toml` lives in `worker/`, not the repo root) — changed it to `worker`. Still needs a first successful build to confirm the fix; watch the Deployments tab after this commit lands on `main`.
 
+- [ ] **New want, from testing club Stripe onboarding directly:** right now club admins get bounced to Stripe's own hosted page (`connect.stripe.com/setup/...`) to connect their bank account — same "leaves our site" problem the embedded checkout work solved for parents. Stripe has embedded Connect onboarding components (Connect.js) that would let this happen inside a PlayFund page instead, same pattern as `screen-embedded-checkout`. Worth doing once the pilot's core payment flow is stable — not urgent, but the two flows (parent checkout, club onboarding) should probably match in feel
+
 ## 7. Club reporting (Jackson's track)
 
 Grounded in: the TeamSnap/SportsEngine reporting teardown already done, and the per-club payments CSV export already built (`GET /admin/clubs/:clubId/payments` in `worker/index.js`, rendered in `screen-admin-club-detail` in `index.html`).

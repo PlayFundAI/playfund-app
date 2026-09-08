@@ -117,10 +117,20 @@ Grounded in: real patterns already in `worker/index.js`.
 
 Grounded in: none of this exists today — checked directly. No unsubscribe link in any of the 6 email templates, no suppression list in Supabase, and the Resend webhook built for item 4 only handles `email.opened`/`email.clicked`, not `email.bounced` or `email.complained`. Right now, if a parent unsubscribes or marks a reminder as spam, PlayFund has no way to know and keeps emailing them — a deliverability risk (spam complaints hurt the sending domain) and a real courtesy/compliance gap (CAN-SPAM requires honoring opt-outs).
 
-- [ ] Add a `suppressed_emails` table (or a flag on `athletes`/a parent-level table) and check it before every send
-- [ ] Add an unsubscribe link to the 5 customer-facing templates, pointing at a simple Worker endpoint that suppresses that address
-- [ ] Handle `email.bounced` and `email.complained` in the existing `POST /webhook/resend` handler — auto-suppress on either
-- [ ] Decide whether transactional emails (receipts, approval confirmations) should ever be suppressible, or only reminders/marketing — CAN-SPAM generally exempts pure transactional email from opt-out requirements, but that's worth confirming rather than assuming
+- [x] Built: `GET /unsubscribe` (HMAC-signed link, no login needed) checked before every send via `getSuppression`/`isSuppressed`/`isHardSuppressed` in `worker/index.js`. Unsubscribe link added to `sendReminderEmail` only (the one genuinely recurring/marketing-like send). `email.bounced`/`email.complained` now auto-suppress in `POST /webhook/resend`. New `UNSUBSCRIBE_SECRET` and `WORKER_URL` set/added directly — tested the full sign/verify round trip against the live endpoint before the table even existed to confirm it fails open (never blocks sending on an error) rather than crashing
+- [x] **Decided, not left open:** an unsubscribe only blocks the recurring reminder email — receipts, approval confirmations, club welcome, and pending-approval notices are one-time confirmations of something the recipient just did, not marketing, so only a hard bounce or spam complaint blocks those (via `isHardSuppressed`, reason-aware rather than one flat flag). This matches CAN-SPAM's transactional-email exemption, but treat that as engineering judgment, not legal sign-off
+- [ ] **Manual setup still needed — I can't run SQL directly.** In the Supabase SQL editor:
+  ```sql
+  create table suppressed_emails (
+    id uuid primary key default gen_random_uuid(),
+    email text not null unique,
+    reason text not null,
+    created_at timestamptz not null default now()
+  );
+  create index suppressed_emails_email_idx on suppressed_emails (email);
+  grant all on public.suppressed_emails to service_role;
+  ```
+  (Grant included up front this time — same mistake as the `events` table earlier, not repeating it.)
 
 ## 11. SMS / text capability
 

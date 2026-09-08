@@ -12,6 +12,7 @@ Grounded in: 6 email templates in `worker/index.js` (`sendReminderEmail`, `sendA
 - [x] Decided the standard: no specific time window anywhere customer-facing, just "we'll get back to you" / "reply to this email"
 - [x] Reviewed `sendInternalClubAlert`'s "reach out within 1 business day" — kept as-is, it's an internal staff SLA reminder (goes to jackson@/clyde@, never seen by a club), not a customer-facing promise
 - [x] Rolled in the hello@ → admin@ swap (item 5) across all 6 templates
+- [ ] **New: dedupe registration emails.** Registering a club fires two separate emails from `/club/register` — `sendClubWelcomeEmail` (from `admin@playfundai.com`, to the club's `admin_email`) and `sendInternalClubAlert` (from `alerts@playfundai.com`, to `jackson@`/`clyde@`) — confirmed each is called exactly once, so it's not a literal double-send bug, but they're two separate emails about the same signup. Not an issue for a real club (different audiences: the club gets a welcome, the founders get a heads-up), but worth a real decision on whether the founder alert should be a lighter-weight notification (Slack, or a digest) instead of a full second email — especially since anyone testing club signups themselves (an admin@/jackson@/clyde@ address that all land in one inbox) will see both back-to-back and it reads as a duplicate
 
 ## 2. Homepage direction
 

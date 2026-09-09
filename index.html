@@ -2101,6 +2101,17 @@
     <button class="btn btn-primary" onclick="submitInviteAdmin()">Send invite</button>
   </div>
 
+  <!-- SCREEN: club welcome-email landing — a real click here is required
+       before the invite token is ever exchanged, so an automated email
+       link-scanner loading this page can't burn the token on its own. -->
+  <div class="screen" id="screen-club-verify">
+    <div class="eyebrow">Club</div>
+    <h1 class="title" style="margin-bottom:6px;">Almost there.</h1>
+    <p class="subtitle" style="margin-bottom:20px;">Click below to continue setting up your PlayFund account.</p>
+    <p id="clubVerifyError" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 16px;"></p>
+    <button class="btn btn-primary" id="clubVerifyBtn" onclick="completeClubVerify()">Continue to account setup</button>
+  </div>
+
   <!-- SCREEN: set password (invite / password reset) -->
   <div class="screen" id="screen-set-password" style="padding:0;">
     <div style="background:var(--ink); padding:22px 24px 20px; flex-shrink:0;">
@@ -2708,7 +2719,40 @@ var usStates = ["Virginia"];
       document.getElementById('splash').classList.add('done');
     }, 1300);
 
-    // Detect Supabase invite or password recovery token in URL hash
+    // Shared by both ways of arriving with an invite/recovery access token:
+    // the legacy URL-hash redirect below, and the click-gated club-verify
+    // flow (see handleClubVerifyLink) that replaced it for links delivered
+    // by email — see that handler for why the plain hash redirect alone is
+    // no longer safe to rely on for email-delivered links.
+    function proceedToSetPassword(token, type){
+      state.authToken = token;
+      state.authType  = type;
+
+      // Decode JWT to get email
+      try {
+        var payload = JSON.parse(atob(token.split('.')[1]));
+        var email   = payload.email || '';
+        var emailEl = document.getElementById('setPasswordEmail');
+        if(emailEl && email) emailEl.value = email;
+      } catch(e){}
+
+      if(type === 'invite'){
+        document.getElementById('setPasswordTitle').textContent    = 'Welcome to PlayFund';
+        document.getElementById('setPasswordEyebrow').textContent  = 'Team Access';
+        document.getElementById('setPasswordClubLine').textContent = 'Set a password to access your PlayFund dashboard.';
+      } else if(type === 'recovery'){
+        document.getElementById('setPasswordTitle').textContent    = 'Reset your password';
+        document.getElementById('setPasswordEyebrow').textContent  = 'Password Reset';
+        document.getElementById('setPasswordClubLine').textContent = 'Choose a new password for your account.';
+      }
+
+      showScreen('set-password');
+    }
+
+    // Detect Supabase invite or password recovery token in URL hash. Kept as
+    // a fallback for any flow that still lands here with an already-exchanged
+    // token in the hash (e.g. a non-email path), but this is no longer how
+    // the club welcome email gets here — see handleClubVerifyLink.
     (function handleAuthRedirect(){
       try {
         var hash = window.location.hash;
@@ -2722,31 +2766,57 @@ var usStates = ["Virginia"];
         var token = params['access_token'];
         if(!token) return;
 
-        state.authToken = token;
-        state.authType  = type;
-
-        // Decode JWT to get email
-        try {
-          var payload = JSON.parse(atob(token.split('.')[1]));
-          var email   = payload.email || '';
-          var emailEl = document.getElementById('setPasswordEmail');
-          if(emailEl && email) emailEl.value = email;
-        } catch(e){}
-
-        if(type === 'invite'){
-          document.getElementById('setPasswordTitle').textContent    = 'Welcome to PlayFund';
-          document.getElementById('setPasswordEyebrow').textContent  = 'Team Access';
-          document.getElementById('setPasswordClubLine').textContent = 'Set a password to access your PlayFund dashboard.';
-        } else if(type === 'recovery'){
-          document.getElementById('setPasswordTitle').textContent    = 'Reset your password';
-          document.getElementById('setPasswordEyebrow').textContent  = 'Password Reset';
-          document.getElementById('setPasswordClubLine').textContent = 'Choose a new password for your account.';
-        }
-
         history.replaceState(null, '', window.location.pathname);
-        setTimeout(function(){ showScreen('set-password'); }, 1100);
+        setTimeout(function(){ proceedToSetPassword(token, type); }, 1100);
       } catch(e){ console.warn('Auth redirect error:', e); }
     })();
+
+    // Club welcome-email "Set up your account" link now points here instead
+    // of straight at Supabase's own /auth/v1/verify — that endpoint consumes
+    // the single-use token on the mere GET request, which real testing this
+    // session showed Gmail (and similar mail scanners) silently pre-fetch
+    // roughly half the time, burning the token before the real recipient
+    // ever clicks. This page load itself consumes nothing; the token is only
+    // exchanged after a genuine click below, which a plain link-scanner GET
+    // can't trigger.
+    (function handleClubVerifyLink(){
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var tokenHash = params.get('club_verify');
+        var verifyType = params.get('verify_type');
+        if(!tokenHash || !verifyType) return;
+        history.replaceState(null, '', window.location.pathname);
+        state.pendingClubVerify = { tokenHash: tokenHash, verifyType: verifyType };
+        setTimeout(function(){ showScreen('club-verify', true); }, 1100);
+      } catch(e){ console.warn('Club verify link error:', e); }
+    })();
+
+    async function completeClubVerify(){
+      var pending = state.pendingClubVerify;
+      var errEl = document.getElementById('clubVerifyError');
+      var btn = document.getElementById('clubVerifyBtn');
+      if(!pending){ if(errEl) errEl.textContent = 'This link is missing information. Please use the link from your email again.'; return; }
+      if(errEl) errEl.textContent = '';
+      if(btn){ btn.disabled = true; btn.textContent = 'Verifying…'; }
+      try {
+        var res = await fetch(SUPABASE_URL + '/auth/v1/verify', {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: pending.verifyType, token_hash: pending.tokenHash })
+        });
+        var data = await res.json();
+        if(!res.ok || !data.access_token){
+          if(errEl) errEl.textContent = data.error_description || data.msg || 'This link has expired or was already used. Contact admin@playfundai.com for a new one.';
+          if(btn){ btn.disabled = false; btn.textContent = 'Continue to account setup'; }
+          return;
+        }
+        state.pendingClubVerify = null;
+        proceedToSetPassword(data.access_token, pending.verifyType);
+      } catch(e){
+        if(errEl) errEl.textContent = 'Network error. Please try again.';
+        if(btn){ btn.disabled = false; btn.textContent = 'Continue to account setup'; }
+      }
+    }
 
     // Returning from Stripe Connect onboarding
     // Supports: ?stripe_onboard=complete|refresh&club_id=UUID

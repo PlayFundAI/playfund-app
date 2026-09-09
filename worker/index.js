@@ -1516,7 +1516,19 @@ var index_default = {
             })
           });
           const linkData = await linkRes.json();
-          inviteUrl = linkData?.action_link || null;
+          // Deliberately NOT linkData.action_link: that's a raw Supabase
+          // /auth/v1/verify URL that consumes the single-use token on the
+          // mere GET request. Real testing showed Gmail (and similar mail
+          // scanners) pre-fetch links in incoming email, silently burning
+          // that token before the recipient ever clicks it, roughly half
+          // the time. Instead, point at our own page with the raw token —
+          // that page requires a genuine click before ever exchanging it
+          // (see completeClubVerify() in index.html), which a plain
+          // link-scanner GET can't trigger.
+          if (linkData?.hashed_token && linkData?.verification_type) {
+            const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
+            inviteUrl = `${APP_URL}?club_verify=${encodeURIComponent(linkData.hashed_token)}&verify_type=${encodeURIComponent(linkData.verification_type)}`;
+          }
           if (linkData?.id) {
             await supabase(env, "POST", "/user_profiles", {
               id: linkData.id,

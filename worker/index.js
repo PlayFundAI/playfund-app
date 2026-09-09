@@ -1508,7 +1508,14 @@ var index_default = {
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              type: "invite",
+              // NOT "invite": that type makes Supabase's own built-in mailer
+              // auto-send a second email straight from GoTrue (its default
+              // template, its own configured sender, the raw self-consuming
+              // action_link) alongside the one we send ourselves below via
+              // Resend. "magiclink" still creates the user if they don't
+              // exist yet, but never triggers Supabase's own send — only we
+              // send mail, with the click-gated link.
+              type: "magiclink",
               email: admin_email.toLowerCase().trim(),
               options: {
                 redirect_to: env.APP_URL || "https://playfundai.github.io/playfund-app/"

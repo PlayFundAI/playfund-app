@@ -1255,15 +1255,19 @@ var index_default = {
         accountId = acctRes.data.id;
         await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, { stripe_account_id: accountId });
       }
-      const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
-      const linkRes = await stripe(env, "POST", "/account_links", {
+      // Embedded onboarding (Connect.js) instead of a redirect to
+      // connect.stripe.com — keeps the club admin on playfundai.github.io the
+      // same way the parent checkout stays on-site. An Account Session's
+      // client_secret is short-lived (~1 hour), so this is called fresh each
+      // time the onboarding screen mounts, not cached.
+      const sessionRes = await stripe(env, "POST", "/account_sessions", {
         account: accountId,
-        refresh_url: `${APP_URL}?stripe_onboard=refresh&club_id=${clubId}`,
-        return_url: `${APP_URL}?stripe_onboard=complete&club_id=${clubId}`,
-        type: "account_onboarding"
+        components: {
+          account_onboarding: { enabled: true }
+        }
       });
-      if (!linkRes.ok) return err("Failed to create onboarding link: " + (linkRes.data?.error?.message || "unknown error"), 500);
-      return json({ url: linkRes.data.url, stripe_account_id: accountId });
+      if (!sessionRes.ok) return err("Failed to create onboarding session: " + (sessionRes.data?.error?.message || "unknown error"), 500);
+      return json({ client_secret: sessionRes.data.client_secret, stripe_account_id: accountId });
     }
     if (method === "GET" && path.startsWith("/club/") && path.endsWith("/stripe-status")) {
       const clubId = path.split("/")[2];
@@ -1504,7 +1508,14 @@ var index_default = {
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              type: "invite",
+              // NOT "invite": that type makes Supabase's own built-in mailer
+              // auto-send a second email straight from GoTrue (its default
+              // template, its own configured sender, the raw self-consuming
+              // action_link) alongside the one we send ourselves below via
+              // Resend. "magiclink" still creates the user if they don't
+              // exist yet, but never triggers Supabase's own send — only we
+              // send mail, with the click-gated link.
+              type: "magiclink",
               email: admin_email.toLowerCase().trim(),
               options: {
                 redirect_to: env.APP_URL || "https://playfundai.github.io/playfund-app/"
@@ -1512,7 +1523,19 @@ var index_default = {
             })
           });
           const linkData = await linkRes.json();
-          inviteUrl = linkData?.action_link || null;
+          // Deliberately NOT linkData.action_link: that's a raw Supabase
+          // /auth/v1/verify URL that consumes the single-use token on the
+          // mere GET request. Real testing showed Gmail (and similar mail
+          // scanners) pre-fetch links in incoming email, silently burning
+          // that token before the recipient ever clicks it, roughly half
+          // the time. Instead, point at our own page with the raw token —
+          // that page requires a genuine click before ever exchanging it
+          // (see completeClubVerify() in index.html), which a plain
+          // link-scanner GET can't trigger.
+          if (linkData?.hashed_token && linkData?.verification_type) {
+            const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
+            inviteUrl = `${APP_URL}?club_verify=${encodeURIComponent(linkData.hashed_token)}&verify_type=${encodeURIComponent(linkData.verification_type)}`;
+          }
           if (linkData?.id) {
             await supabase(env, "POST", "/user_profiles", {
               id: linkData.id,

@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://js.stripe.com/v3/"></script>
+<script src="https://connect-js.stripe.com/v1.0/connect.js"></script>
 <style>
   /* ═══════════════════════════════════════════════════════════
      PLAYFUND — Design System
@@ -1569,6 +1570,16 @@
     <button class="btn btn-secondary" onclick="cancelEmbeddedCheckout()" style="margin-top:16px;">Cancel</button>
   </div>
 
+  <!-- SCREEN: club Stripe onboarding, embedded (Connect.js) instead of a redirect to connect.stripe.com -->
+  <div class="screen" id="screen-club-stripe-onboarding">
+    <div class="eyebrow">Club</div>
+    <h1 class="title" style="margin-bottom:4px;">Connect your bank</h1>
+    <p class="subtitle" style="margin-bottom:16px;">Securely connect with Stripe, without leaving PlayFund. This is where your payouts land.</p>
+    <div id="clubStripeOnboardingError" style="display:none; background:var(--paper-dim); border:1.5px solid var(--unpaid); color:var(--unpaid); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px;"></div>
+    <div id="clubStripeOnboardingContainer" style="min-height:420px;"></div>
+    <button class="btn btn-secondary" onclick="exitClubStripeOnboarding()" style="margin-top:16px;">Done for now</button>
+  </div>
+
   <!-- SCREEN: payment history (per athlete) -->
   <div class="screen" id="screen-payment-history">
     <div class="eyebrow">Parent</div>
@@ -1592,31 +1603,14 @@
       <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">One charge today. Card or bank transfer via Stripe.</div>
     </div>
 
-    <!-- Option 2: Split with another payer -->
-    <div onclick="showDeclineSplitInfo()" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:10px; cursor:pointer; border:1.5px solid var(--line);">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-        <div style="font-size:13px; font-weight:700; color:var(--ink);">Split with another payer</div>
-        <div style="font-family:'Anton',sans-serif; font-size:18px; color:var(--ink);" id="declineSplitAmt">$475 each</div>
-      </div>
-      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Invite a grandparent, co-parent, or sponsor to cover their share. Two separate payments, one roster spot.</div>
-    </div>
 
     <!-- Option 3: Contact club -->
-    <div onclick="showDeclineClubContact()" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:10px; cursor:pointer; border:1.5px solid var(--line);">
+    <div onclick="showDeclineClubContact()" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:20px; cursor:pointer; border:1.5px solid var(--line);">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
         <div style="font-size:13px; font-weight:700; color:var(--ink);">Pay the club directly</div>
         <div style="font-size:12px; color:var(--ink-soft);">Monthly plan →</div>
       </div>
       <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;" id="declineClubSub">The club offers their own payment plan. We'll pass your details along so you don't start over.</div>
-    </div>
-
-    <!-- Option 4: Scholarship -->
-    <div onclick="showScholarshipScreen()" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:20px; cursor:pointer; border:1.5px solid var(--line);">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-        <div style="font-size:13px; font-weight:700; color:var(--ink);">Apply for a scholarship</div>
-        <div style="font-size:12px; color:var(--fund-green); font-weight:700;">Free →</div>
-      </div>
-      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">PlayFund manages a scholarship fund supported by community donations. Partial awards available — takes 2 minutes to apply.</div>
     </div>
 
     <div style="background:var(--paper-dim); border-radius:10px; padding:12px 14px;">
@@ -2107,6 +2101,17 @@
     <button class="btn btn-primary" onclick="submitInviteAdmin()">Send invite</button>
   </div>
 
+  <!-- SCREEN: club welcome-email landing — a real click here is required
+       before the invite token is ever exchanged, so an automated email
+       link-scanner loading this page can't burn the token on its own. -->
+  <div class="screen" id="screen-club-verify">
+    <div class="eyebrow">Club</div>
+    <h1 class="title" style="margin-bottom:6px;">Almost there.</h1>
+    <p class="subtitle" style="margin-bottom:20px;">Click below to continue setting up your PlayFund account.</p>
+    <p id="clubVerifyError" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 16px;"></p>
+    <button class="btn btn-primary" id="clubVerifyBtn" onclick="completeClubVerify()">Continue to account setup</button>
+  </div>
+
   <!-- SCREEN: set password (invite / password reset) -->
   <div class="screen" id="screen-set-password" style="padding:0;">
     <div style="background:var(--ink); padding:22px 24px 20px; flex-shrink:0;">
@@ -2249,7 +2254,7 @@
 
     <p id="reg2Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
     <div class="footer-spacer"></div>
-    <button class="btn btn-primary" onclick="regStep2Next()">Continue</button>
+    <button class="btn btn-primary" id="reg2ContinueBtn" onclick="regStep2Next()">Continue</button>
   </div>
 
   <!-- Step 3: Roster paste -->
@@ -2714,7 +2719,40 @@ var usStates = ["Virginia"];
       document.getElementById('splash').classList.add('done');
     }, 1300);
 
-    // Detect Supabase invite or password recovery token in URL hash
+    // Shared by both ways of arriving with an invite/recovery access token:
+    // the legacy URL-hash redirect below, and the click-gated club-verify
+    // flow (see handleClubVerifyLink) that replaced it for links delivered
+    // by email — see that handler for why the plain hash redirect alone is
+    // no longer safe to rely on for email-delivered links.
+    function proceedToSetPassword(token, type){
+      state.authToken = token;
+      state.authType  = type;
+
+      // Decode JWT to get email
+      try {
+        var payload = JSON.parse(atob(token.split('.')[1]));
+        var email   = payload.email || '';
+        var emailEl = document.getElementById('setPasswordEmail');
+        if(emailEl && email) emailEl.value = email;
+      } catch(e){}
+
+      if(type === 'invite'){
+        document.getElementById('setPasswordTitle').textContent    = 'Welcome to PlayFund';
+        document.getElementById('setPasswordEyebrow').textContent  = 'Team Access';
+        document.getElementById('setPasswordClubLine').textContent = 'Set a password to access your PlayFund dashboard.';
+      } else if(type === 'recovery'){
+        document.getElementById('setPasswordTitle').textContent    = 'Reset your password';
+        document.getElementById('setPasswordEyebrow').textContent  = 'Password Reset';
+        document.getElementById('setPasswordClubLine').textContent = 'Choose a new password for your account.';
+      }
+
+      showScreen('set-password');
+    }
+
+    // Detect Supabase invite or password recovery token in URL hash. Kept as
+    // a fallback for any flow that still lands here with an already-exchanged
+    // token in the hash (e.g. a non-email path), but this is no longer how
+    // the club welcome email gets here — see handleClubVerifyLink.
     (function handleAuthRedirect(){
       try {
         var hash = window.location.hash;
@@ -2728,31 +2766,72 @@ var usStates = ["Virginia"];
         var token = params['access_token'];
         if(!token) return;
 
-        state.authToken = token;
-        state.authType  = type;
-
-        // Decode JWT to get email
-        try {
-          var payload = JSON.parse(atob(token.split('.')[1]));
-          var email   = payload.email || '';
-          var emailEl = document.getElementById('setPasswordEmail');
-          if(emailEl && email) emailEl.value = email;
-        } catch(e){}
-
-        if(type === 'invite'){
-          document.getElementById('setPasswordTitle').textContent    = 'Welcome to PlayFund';
-          document.getElementById('setPasswordEyebrow').textContent  = 'Team Access';
-          document.getElementById('setPasswordClubLine').textContent = 'Set a password to access your PlayFund dashboard.';
-        } else if(type === 'recovery'){
-          document.getElementById('setPasswordTitle').textContent    = 'Reset your password';
-          document.getElementById('setPasswordEyebrow').textContent  = 'Password Reset';
-          document.getElementById('setPasswordClubLine').textContent = 'Choose a new password for your account.';
-        }
-
         history.replaceState(null, '', window.location.pathname);
-        setTimeout(function(){ showScreen('set-password'); }, 1100);
+        setTimeout(function(){ proceedToSetPassword(token, type); }, 1100);
       } catch(e){ console.warn('Auth redirect error:', e); }
     })();
+
+    // Club welcome-email "Set up your account" link now points here instead
+    // of straight at Supabase's own /auth/v1/verify — that endpoint consumes
+    // the single-use token on the mere GET request, which real testing this
+    // session showed Gmail (and similar mail scanners) silently pre-fetch
+    // roughly half the time, burning the token before the real recipient
+    // ever clicks. This page load itself consumes nothing; the token is only
+    // exchanged after a genuine click below, which a plain link-scanner GET
+    // can't trigger.
+    (function handleClubVerifyLink(){
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var tokenHash = params.get('club_verify');
+        var verifyType = params.get('verify_type');
+        if(!tokenHash || !verifyType) return;
+        history.replaceState(null, '', window.location.pathname);
+        // The exchange below is single-use: clicking "Continue" consumes the
+        // token immediately, before the password is actually set. If someone
+        // gets interrupted (closes the tab, gets distracted) between that
+        // click and finishing the password form, then reopens the same email
+        // link, a second exchange attempt would fail even though they never
+        // finished — reuse the already-issued session for this exact link
+        // instead of re-exchanging it.
+        try {
+          var cached = JSON.parse(localStorage.getItem('pf_club_verify_cache') || 'null');
+          if(cached && cached.tokenHash === tokenHash && cached.accessToken){
+            setTimeout(function(){ proceedToSetPassword(cached.accessToken, cached.verifyType); }, 1100);
+            return;
+          }
+        } catch(e){}
+        state.pendingClubVerify = { tokenHash: tokenHash, verifyType: verifyType };
+        setTimeout(function(){ showScreen('club-verify', true); }, 1100);
+      } catch(e){ console.warn('Club verify link error:', e); }
+    })();
+
+    async function completeClubVerify(){
+      var pending = state.pendingClubVerify;
+      var errEl = document.getElementById('clubVerifyError');
+      var btn = document.getElementById('clubVerifyBtn');
+      if(!pending){ if(errEl) errEl.textContent = 'This link is missing information. Please use the link from your email again.'; return; }
+      if(errEl) errEl.textContent = '';
+      if(btn){ btn.disabled = true; btn.textContent = 'Verifying…'; }
+      try {
+        var res = await fetch(SUPABASE_URL + '/auth/v1/verify', {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: pending.verifyType, token_hash: pending.tokenHash })
+        });
+        var data = await res.json();
+        if(!res.ok || !data.access_token){
+          if(errEl) errEl.textContent = data.error_description || data.msg || 'This link has expired or was already used. Contact admin@playfundai.com for a new one.';
+          if(btn){ btn.disabled = false; btn.textContent = 'Continue to account setup'; }
+          return;
+        }
+        state.pendingClubVerify = null;
+        try { localStorage.setItem('pf_club_verify_cache', JSON.stringify({ tokenHash: pending.tokenHash, accessToken: data.access_token, verifyType: pending.verifyType })); } catch(e){}
+        proceedToSetPassword(data.access_token, pending.verifyType);
+      } catch(e){
+        if(errEl) errEl.textContent = 'Network error. Please try again.';
+        if(btn){ btn.disabled = false; btn.textContent = 'Continue to account setup'; }
+      }
+    }
 
     // Returning from Stripe Connect onboarding
     // Supports: ?stripe_onboard=complete|refresh&club_id=UUID
@@ -2943,11 +3022,9 @@ var usStates = ["Virginia"];
     var clubName = ct && ct.club ? ct.club.name : 'your club';
     var athleteName = athlete ? athlete.name : 'your athlete';
     var el   = document.getElementById('declineFullAmt');
-    var sa   = document.getElementById('declineSplitAmt');
     var sub  = document.getElementById('declineSub');
     var csub = document.getElementById('declineClubSub');
     if(el)   el.textContent   = '$' + dues.toLocaleString();
-    if(sa)   sa.textContent   = '$' + Math.round(dues/2).toLocaleString() + ' each';
     if(sub)  sub.textContent  = "The installment plan couldn't be approved, but there are still a few ways to get " + athleteName + " on the roster.";
     if(csub) csub.textContent = clubName + " offers their own payment plan. We'll pass your details along so you don't start over.";
     showScreen('decline');
@@ -3035,10 +3112,6 @@ var usStates = ["Virginia"];
       errEl.textContent = 'Network error. Please try again.';
       errEl.classList.remove('loading-msg');
     }
-  }
-
-  function showDeclineSplitInfo(){
-    alert("Splitting a payment with another person isn't available in the app yet. For now, arrange it between yourselves and have one of you pay the full amount here, or use \"Pay the club directly\" to work out a plan with the club.");
   }
 
   async function showDeclineClubContact(){
@@ -3480,30 +3553,63 @@ var usStates = ["Virginia"];
     } catch(e){ console.warn('refreshStripeBanner error:', e); }
   }
 
+  // ---------- Stripe Connect embedded onboarding (Connect.js) ----------
+  var stripeConnectInstance = null;
+  var activeAccountOnboarding = null;
+
   async function startStripeOnboarding(){
     var c = state.club;
     if(!c) return;
     var clubSession = null;
     try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
     if(!clubSession || !clubSession.access_token){ alert('Session expired. Please sign in again.'); return; }
-    var btn = document.getElementById('stripeConnectBtn');
-    if(btn){ btn.disabled = true; btn.textContent = 'Loading…'; }
+
+    var errEl = document.getElementById('clubStripeOnboardingError');
+    var containerEl = document.getElementById('clubStripeOnboardingContainer');
+    if(errEl){ errEl.style.display = 'none'; errEl.textContent = ''; }
+    if(containerEl) containerEl.innerHTML = '';
+    showScreen('club-stripe-onboarding');
+
     try {
-      var res = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-onboard', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + clubSession.access_token }
+      var configRes = await fetch(WORKER_URL + '/config');
+      var config = await configRes.json();
+      if(!config.stripePublishableKey) throw new Error('Stripe is not configured yet.');
+
+      // fetchClientSecret is called by Connect.js each time it needs a fresh
+      // Account Session — the client_secret is short-lived (~1 hour), so this
+      // hits the Worker again rather than reusing one captured up front.
+      stripeConnectInstance = window.StripeConnect.loadConnectAndInitialize({
+        publishableKey: config.stripePublishableKey,
+        fetchClientSecret: async function(){
+          var res = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-onboard', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + clubSession.access_token }
+          });
+          var data = await res.json();
+          if(!res.ok || !data.client_secret) throw new Error(data.error || 'Failed to start Stripe onboarding.');
+          return data.client_secret;
+        }
       });
-      var data = await res.json();
-      if(!res.ok){
-        alert(data.error || 'Failed to start Stripe onboarding.');
-        if(btn){ btn.disabled = false; btn.textContent = 'Connect Stripe'; }
-        return;
-      }
-      window.location.href = data.url;
+
+      activeAccountOnboarding = stripeConnectInstance.create('account-onboarding');
+      activeAccountOnboarding.setOnExit(function(){
+        // Fires when the club admin finishes or steps away from onboarding —
+        // either way, go back and re-check real status rather than assume.
+        exitClubStripeOnboarding();
+      });
+      containerEl.appendChild(activeAccountOnboarding);
     } catch(e){
-      alert('Network error. Please try again.');
-      if(btn){ btn.disabled = false; btn.textContent = 'Connect Stripe'; }
+      if(errEl){ errEl.textContent = e.message || 'Network error. Please try again.'; errEl.style.display = 'block'; }
     }
+  }
+
+  function exitClubStripeOnboarding(){
+    if(activeAccountOnboarding && activeAccountOnboarding.parentNode){
+      activeAccountOnboarding.parentNode.removeChild(activeAccountOnboarding);
+    }
+    activeAccountOnboarding = null;
+    stripeConnectInstance = null;
+    openClubOverview();
   }
 
   function openRoster(){
@@ -4715,6 +4821,7 @@ var usStates = ["Virginia"];
 
       errEl.textContent = ''; errEl.classList.remove('loading-msg');
       state.authToken = null; state.authType = null;
+      try { localStorage.removeItem('pf_club_verify_cache'); } catch(e){}
       document.getElementById('newPasswordInput').value     = '';
       document.getElementById('confirmPasswordInput').value = '';
 
@@ -4755,6 +4862,7 @@ var usStates = ["Virginia"];
     athleteCount: 0, adminName: '', adminEmail: '',
     fees: [], roster: [], teams: []
   };
+  var clubRegistrationInFlight = false;
 
   function regStep1Next(){
     var name        = document.getElementById('reg1ClubName').value.trim();
@@ -4842,6 +4950,23 @@ var usStates = ["Virginia"];
   }
 
   async function submitRegistration(){
+    // Guard against a double-click (or any other re-entrant call) firing two
+    // real registrations — no disable-on-click existed here before, so a
+    // second click while the first request was still in flight created a
+    // second club row and a second welcome email, both with identical data.
+    if(clubRegistrationInFlight) return;
+    clubRegistrationInFlight = true;
+    var continueBtn = document.getElementById('reg2ContinueBtn');
+    if(continueBtn) continueBtn.disabled = true;
+    try {
+      await submitRegistrationInner();
+    } finally {
+      clubRegistrationInFlight = false;
+      if(continueBtn) continueBtn.disabled = false;
+    }
+  }
+
+  async function submitRegistrationInner(){
     var total  = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
     var payout = Math.round(total * regState.athleteCount * 0.95);
 

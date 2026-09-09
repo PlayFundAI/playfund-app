@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://js.stripe.com/v3/"></script>
+<script src="https://connect-js.stripe.com/v1.0/connect.js"></script>
 <style>
   /* ═══════════════════════════════════════════════════════════
      PLAYFUND — Design System
@@ -1567,6 +1568,16 @@
     <div id="embeddedCheckoutError" style="display:none; background:var(--paper-dim); border:1.5px solid var(--unpaid); color:var(--unpaid); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px;"></div>
     <div id="embeddedCheckoutContainer" style="min-height:420px;"></div>
     <button class="btn btn-secondary" onclick="cancelEmbeddedCheckout()" style="margin-top:16px;">Cancel</button>
+  </div>
+
+  <!-- SCREEN: club Stripe onboarding, embedded (Connect.js) instead of a redirect to connect.stripe.com -->
+  <div class="screen" id="screen-club-stripe-onboarding">
+    <div class="eyebrow">Club</div>
+    <h1 class="title" style="margin-bottom:4px;">Connect your bank</h1>
+    <p class="subtitle" style="margin-bottom:16px;">Securely connect with Stripe, without leaving PlayFund. This is where your payouts land.</p>
+    <div id="clubStripeOnboardingError" style="display:none; background:var(--paper-dim); border:1.5px solid var(--unpaid); color:var(--unpaid); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px;"></div>
+    <div id="clubStripeOnboardingContainer" style="min-height:420px;"></div>
+    <button class="btn btn-secondary" onclick="exitClubStripeOnboarding()" style="margin-top:16px;">Done for now</button>
   </div>
 
   <!-- SCREEN: payment history (per athlete) -->
@@ -3457,30 +3468,63 @@ var usStates = ["Virginia"];
     } catch(e){ console.warn('refreshStripeBanner error:', e); }
   }
 
+  // ---------- Stripe Connect embedded onboarding (Connect.js) ----------
+  var stripeConnectInstance = null;
+  var activeAccountOnboarding = null;
+
   async function startStripeOnboarding(){
     var c = state.club;
     if(!c) return;
     var clubSession = null;
     try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
     if(!clubSession || !clubSession.access_token){ alert('Session expired. Please sign in again.'); return; }
-    var btn = document.getElementById('stripeConnectBtn');
-    if(btn){ btn.disabled = true; btn.textContent = 'Loading…'; }
+
+    var errEl = document.getElementById('clubStripeOnboardingError');
+    var containerEl = document.getElementById('clubStripeOnboardingContainer');
+    if(errEl){ errEl.style.display = 'none'; errEl.textContent = ''; }
+    if(containerEl) containerEl.innerHTML = '';
+    showScreen('club-stripe-onboarding');
+
     try {
-      var res = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-onboard', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + clubSession.access_token }
+      var configRes = await fetch(WORKER_URL + '/config');
+      var config = await configRes.json();
+      if(!config.stripePublishableKey) throw new Error('Stripe is not configured yet.');
+
+      // fetchClientSecret is called by Connect.js each time it needs a fresh
+      // Account Session — the client_secret is short-lived (~1 hour), so this
+      // hits the Worker again rather than reusing one captured up front.
+      stripeConnectInstance = window.StripeConnect.loadConnectAndInitialize({
+        publishableKey: config.stripePublishableKey,
+        fetchClientSecret: async function(){
+          var res = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-onboard', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + clubSession.access_token }
+          });
+          var data = await res.json();
+          if(!res.ok || !data.client_secret) throw new Error(data.error || 'Failed to start Stripe onboarding.');
+          return data.client_secret;
+        }
       });
-      var data = await res.json();
-      if(!res.ok){
-        alert(data.error || 'Failed to start Stripe onboarding.');
-        if(btn){ btn.disabled = false; btn.textContent = 'Connect Stripe'; }
-        return;
-      }
-      window.location.href = data.url;
+
+      activeAccountOnboarding = stripeConnectInstance.create('account-onboarding');
+      activeAccountOnboarding.setOnExit(function(){
+        // Fires when the club admin finishes or steps away from onboarding —
+        // either way, go back and re-check real status rather than assume.
+        exitClubStripeOnboarding();
+      });
+      containerEl.appendChild(activeAccountOnboarding);
     } catch(e){
-      alert('Network error. Please try again.');
-      if(btn){ btn.disabled = false; btn.textContent = 'Connect Stripe'; }
+      if(errEl){ errEl.textContent = e.message || 'Network error. Please try again.'; errEl.style.display = 'block'; }
     }
+  }
+
+  function exitClubStripeOnboarding(){
+    if(activeAccountOnboarding && activeAccountOnboarding.parentNode){
+      activeAccountOnboarding.parentNode.removeChild(activeAccountOnboarding);
+    }
+    activeAccountOnboarding = null;
+    stripeConnectInstance = null;
+    openClubOverview();
   }
 
   function openRoster(){

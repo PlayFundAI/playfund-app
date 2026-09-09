@@ -1255,15 +1255,19 @@ var index_default = {
         accountId = acctRes.data.id;
         await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, { stripe_account_id: accountId });
       }
-      const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
-      const linkRes = await stripe(env, "POST", "/account_links", {
+      // Embedded onboarding (Connect.js) instead of a redirect to
+      // connect.stripe.com — keeps the club admin on playfundai.github.io the
+      // same way the parent checkout stays on-site. An Account Session's
+      // client_secret is short-lived (~1 hour), so this is called fresh each
+      // time the onboarding screen mounts, not cached.
+      const sessionRes = await stripe(env, "POST", "/account_sessions", {
         account: accountId,
-        refresh_url: `${APP_URL}?stripe_onboard=refresh&club_id=${clubId}`,
-        return_url: `${APP_URL}?stripe_onboard=complete&club_id=${clubId}`,
-        type: "account_onboarding"
+        components: {
+          account_onboarding: { enabled: true }
+        }
       });
-      if (!linkRes.ok) return err("Failed to create onboarding link: " + (linkRes.data?.error?.message || "unknown error"), 500);
-      return json({ url: linkRes.data.url, stripe_account_id: accountId });
+      if (!sessionRes.ok) return err("Failed to create onboarding session: " + (sessionRes.data?.error?.message || "unknown error"), 500);
+      return json({ client_secret: sessionRes.data.client_secret, stripe_account_id: accountId });
     }
     if (method === "GET" && path.startsWith("/club/") && path.endsWith("/stripe-status")) {
       const clubId = path.split("/")[2];

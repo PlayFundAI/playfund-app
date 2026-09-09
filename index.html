@@ -2786,6 +2786,20 @@ var usStates = ["Virginia"];
         var verifyType = params.get('verify_type');
         if(!tokenHash || !verifyType) return;
         history.replaceState(null, '', window.location.pathname);
+        // The exchange below is single-use: clicking "Continue" consumes the
+        // token immediately, before the password is actually set. If someone
+        // gets interrupted (closes the tab, gets distracted) between that
+        // click and finishing the password form, then reopens the same email
+        // link, a second exchange attempt would fail even though they never
+        // finished — reuse the already-issued session for this exact link
+        // instead of re-exchanging it.
+        try {
+          var cached = JSON.parse(localStorage.getItem('pf_club_verify_cache') || 'null');
+          if(cached && cached.tokenHash === tokenHash && cached.accessToken){
+            setTimeout(function(){ proceedToSetPassword(cached.accessToken, cached.verifyType); }, 1100);
+            return;
+          }
+        } catch(e){}
         state.pendingClubVerify = { tokenHash: tokenHash, verifyType: verifyType };
         setTimeout(function(){ showScreen('club-verify', true); }, 1100);
       } catch(e){ console.warn('Club verify link error:', e); }
@@ -2811,6 +2825,7 @@ var usStates = ["Virginia"];
           return;
         }
         state.pendingClubVerify = null;
+        try { localStorage.setItem('pf_club_verify_cache', JSON.stringify({ tokenHash: pending.tokenHash, accessToken: data.access_token, verifyType: pending.verifyType })); } catch(e){}
         proceedToSetPassword(data.access_token, pending.verifyType);
       } catch(e){
         if(errEl) errEl.textContent = 'Network error. Please try again.';
@@ -4806,6 +4821,7 @@ var usStates = ["Virginia"];
 
       errEl.textContent = ''; errEl.classList.remove('loading-msg');
       state.authToken = null; state.authType = null;
+      try { localStorage.removeItem('pf_club_verify_cache'); } catch(e){}
       document.getElementById('newPasswordInput').value     = '';
       document.getElementById('confirmPasswordInput').value = '';
 

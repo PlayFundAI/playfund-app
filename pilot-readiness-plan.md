@@ -71,4 +71,4 @@ Real, working test-mode fixtures built while testing the embedded checkout — r
 
 **Stripe config:** `PAY_IN_FULL_PMC_ID` = `pmc_1UD4SnPyhgYp24ebsPEd8LSJ` — the Payment Method Configuration that keeps Link/Klarna/Affirm/Afterpay off the "pay in full" checkout (see `worker/index.js`). Not a secret, safe to reference.
 
-**Known cleanup owed:** two earlier throwaway test clubs also exist in Supabase from this same testing pass — "Claude QA Test Club (delete me)" and "Claude QA Test Club 2 (delete me)" — both inactive, no Stripe account, harmless but unused. Delete via Supabase directly whenever convenient.
+**Known cleanup owed:** several throwaway test clubs now exist in Supabase from testing passes across this session — everything named "Claude QA Test Club ... (delete me)" (numbered 1 through roughly 13 at last count, including a batch created while isolating the magic-link OTP bug below). All inactive, harmless, but unused clutter. Filter Supabase's `clubs` table by name containing "delete me" and remove them whenever convenient — not urgent.

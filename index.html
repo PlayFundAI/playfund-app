@@ -1592,14 +1592,6 @@
       <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">One charge today. Card or bank transfer via Stripe.</div>
     </div>
 
-    <!-- Option 2: Split with another payer -->
-    <div onclick="showDeclineSplitInfo()" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:10px; cursor:pointer; border:1.5px solid var(--line);">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-        <div style="font-size:13px; font-weight:700; color:var(--ink);">Split with another payer</div>
-        <div style="font-family:'Anton',sans-serif; font-size:18px; color:var(--ink);" id="declineSplitAmt">$475 each</div>
-      </div>
-      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">Invite a grandparent, co-parent, or sponsor to cover their share. Two separate payments, one roster spot.</div>
-    </div>
 
     <!-- Option 3: Contact club -->
     <div onclick="showDeclineClubContact()" style="background:var(--paper-dim); border-radius:14px; padding:18px; margin-bottom:10px; cursor:pointer; border:1.5px solid var(--line);">
@@ -2249,7 +2241,7 @@
 
     <p id="reg2Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
     <div class="footer-spacer"></div>
-    <button class="btn btn-primary" onclick="regStep2Next()">Continue</button>
+    <button class="btn btn-primary" id="reg2ContinueBtn" onclick="regStep2Next()">Continue</button>
   </div>
 
   <!-- Step 3: Roster paste -->
@@ -2943,11 +2935,9 @@ var usStates = ["Virginia"];
     var clubName = ct && ct.club ? ct.club.name : 'your club';
     var athleteName = athlete ? athlete.name : 'your athlete';
     var el   = document.getElementById('declineFullAmt');
-    var sa   = document.getElementById('declineSplitAmt');
     var sub  = document.getElementById('declineSub');
     var csub = document.getElementById('declineClubSub');
     if(el)   el.textContent   = '$' + dues.toLocaleString();
-    if(sa)   sa.textContent   = '$' + Math.round(dues/2).toLocaleString() + ' each';
     if(sub)  sub.textContent  = "The installment plan couldn't be approved, but there are still a few ways to get " + athleteName + " on the roster.";
     if(csub) csub.textContent = clubName + " offers their own payment plan. We'll pass your details along so you don't start over.";
     showScreen('decline');
@@ -3035,10 +3025,6 @@ var usStates = ["Virginia"];
       errEl.textContent = 'Network error. Please try again.';
       errEl.classList.remove('loading-msg');
     }
-  }
-
-  function showDeclineSplitInfo(){
-    alert("Splitting a payment with another person isn't available in the app yet. For now, arrange it between yourselves and have one of you pay the full amount here, or use \"Pay the club directly\" to work out a plan with the club.");
   }
 
   async function showDeclineClubContact(){
@@ -4755,6 +4741,7 @@ var usStates = ["Virginia"];
     athleteCount: 0, adminName: '', adminEmail: '',
     fees: [], roster: [], teams: []
   };
+  var clubRegistrationInFlight = false;
 
   function regStep1Next(){
     var name        = document.getElementById('reg1ClubName').value.trim();
@@ -4842,6 +4829,23 @@ var usStates = ["Virginia"];
   }
 
   async function submitRegistration(){
+    // Guard against a double-click (or any other re-entrant call) firing two
+    // real registrations — no disable-on-click existed here before, so a
+    // second click while the first request was still in flight created a
+    // second club row and a second welcome email, both with identical data.
+    if(clubRegistrationInFlight) return;
+    clubRegistrationInFlight = true;
+    var continueBtn = document.getElementById('reg2ContinueBtn');
+    if(continueBtn) continueBtn.disabled = true;
+    try {
+      await submitRegistrationInner();
+    } finally {
+      clubRegistrationInFlight = false;
+      if(continueBtn) continueBtn.disabled = false;
+    }
+  }
+
+  async function submitRegistrationInner(){
     var total  = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
     var payout = Math.round(total * regState.athleteCount * 0.95);
 

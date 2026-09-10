@@ -1506,16 +1506,22 @@ var index_default = {
       if (admin_email) {
         const adminEmail = admin_email.toLowerCase().trim();
         const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
-        // Two registrations for the same brand-new email that overlap in time
-        // both take GoTrue's "user not found, sign them up" branch before
-        // either commits, so both attempt the same INSERT and at least one
+        // We are not the only thing inviting this admin: two Supabase
+        // database webhooks on clubs INSERT (on-club-insert,
+        // on-club-insert-notify) call an Edge Function that runs its own
+        // generate_link with type "invite" and sends its own email. When that
+        // path and this one both take GoTrue's "user not found, sign them up"
+        // branch before either commits, both attempt the same INSERT and one
         // dies on the auth.users email unique index (users_email_partial_key)
-        // with a 500 unexpected_failure. The user exists by the time that
-        // error comes back, so a single retry takes the "found the user"
-        // branch instead and returns a normal magiclink token. This is also
-        // why "invite" didn't show the problem: that type reports an
-        // already-exists collision as a clean error rather than racing into a
-        // raw insert.
+        // with a 500 unexpected_failure — that is the invite_url: null bug.
+        // A retry helps because the user exists by the time the error comes
+        // back, so the second attempt takes the "found the user" branch.
+        //
+        // The retry is only a mitigation. Even when this call succeeds, that
+        // webhook's invite overwrites auth.users.confirmation_token, which is
+        // where a "signup"-type token for a brand-new admin lives — killing
+        // the link in the email we just sent. The real fix is removing that
+        // duplicate invite path in Supabase; see pilot-prep-punchlist.md.
         for (let attempt = 0; attempt < 2 && !inviteUrl; attempt++) {
           if (attempt > 0) await new Promise((r) => setTimeout(r, 300));
           try {

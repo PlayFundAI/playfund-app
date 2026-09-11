@@ -601,7 +601,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   }
 }
 __name(sendClubWelcomeEmail, "sendClubWelcomeEmail");
-async function sendInternalClubAlert(env, club) {
+async function sendInternalClubAlert(env, club, inviteError) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY) return;
   const dues = club.fees_per_athlete || 0;
@@ -659,8 +659,12 @@ async function sendInternalClubAlert(env, club) {
       body: JSON.stringify({
         from: "PlayFund Alerts <alerts@playfundai.com>",
         to: ["jackson@playfundai.com", "clyde@playfundai.com"],
-        subject: `New club: ${club.name} (${location}), est. $${payout > 0 ? payout.toLocaleString() : "TBD"} payout`,
-        html
+        subject: inviteError
+          ? `ACTION NEEDED — setup link failed for ${club.name} (${location})`
+          : `New club: ${club.name} (${location}), est. $${payout > 0 ? payout.toLocaleString() : "TBD"} payout`,
+        html: inviteError
+          ? `<p style="margin:0 0 16px;font-family:sans-serif;font-size:14px;color:#B42318;"><strong>Their welcome email went out with no setup link.</strong> They can't get into their account until someone sends them one. Error: ${inviteError}</p>${html}`
+          : html
       })
     });
   } catch (e) {
@@ -1498,63 +1502,99 @@ var index_default = {
         }
       }
       let inviteUrl = null;
+      let inviteError = null;
       if (admin_email) {
-        try {
-          const linkRes = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/generate_link`, {
-            method: "POST",
-            headers: {
-              "apikey": env.SUPABASE_SERVICE_KEY,
-              "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              // NOT "invite": that type makes Supabase's own built-in mailer
-              // auto-send a second email straight from GoTrue (its default
-              // template, its own configured sender, the raw self-consuming
-              // action_link) alongside the one we send ourselves below via
-              // Resend. "magiclink" still creates the user if they don't
-              // exist yet, but never triggers Supabase's own send — only we
-              // send mail, with the click-gated link.
-              type: "magiclink",
-              email: admin_email.toLowerCase().trim(),
-              options: {
-                redirect_to: env.APP_URL || "https://playfundai.github.io/playfund-app/"
-              }
-            })
-          });
-          const linkData = await linkRes.json();
-          // Deliberately NOT linkData.action_link: that's a raw Supabase
-          // /auth/v1/verify URL that consumes the single-use token on the
-          // mere GET request. Real testing showed Gmail (and similar mail
-          // scanners) pre-fetch links in incoming email, silently burning
-          // that token before the recipient ever clicks it, roughly half
-          // the time. Instead, point at our own page with the raw token —
-          // that page requires a genuine click before ever exchanging it
-          // (see completeClubVerify() in index.html), which a plain
-          // link-scanner GET can't trigger.
-          if (linkData?.hashed_token && linkData?.verification_type) {
-            const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
-            inviteUrl = `${APP_URL}?club_verify=${encodeURIComponent(linkData.hashed_token)}&verify_type=${encodeURIComponent(linkData.verification_type)}`;
-          }
-          if (linkData?.id) {
-            await supabase(env, "POST", "/user_profiles", {
-              id: linkData.id,
-              role: "club_admin",
-              club_id: club.id,
-              display_name: admin_name || null
+        const adminEmail = admin_email.toLowerCase().trim();
+        const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
+        // We are not the only thing inviting this admin: two Supabase
+        // database webhooks on clubs INSERT (on-club-insert,
+        // on-club-insert-notify) call an Edge Function that runs its own
+        // generate_link with type "invite" and sends its own email. When that
+        // path and this one both take GoTrue's "user not found, sign them up"
+        // branch before either commits, both attempt the same INSERT and one
+        // dies on the auth.users email unique index (users_email_partial_key)
+        // with a 500 unexpected_failure — that is the invite_url: null bug.
+        // A retry helps because the user exists by the time the error comes
+        // back, so the second attempt takes the "found the user" branch.
+        //
+        // The retry is only a mitigation. Even when this call succeeds, that
+        // webhook's invite overwrites auth.users.confirmation_token, which is
+        // where a "signup"-type token for a brand-new admin lives — killing
+        // the link in the email we just sent. The real fix is removing that
+        // duplicate invite path in Supabase; see pilot-prep-punchlist.md.
+        for (let attempt = 0; attempt < 2 && !inviteUrl; attempt++) {
+          if (attempt > 0) await new Promise((r) => setTimeout(r, 300));
+          try {
+            const linkRes = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/generate_link`, {
+              method: "POST",
+              headers: {
+                "apikey": env.SUPABASE_SERVICE_KEY,
+                "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                // NOT "invite": that type makes Supabase's own built-in mailer
+                // auto-send a second email straight from GoTrue (its default
+                // template, its own configured sender, the raw self-consuming
+                // action_link) alongside the one we send ourselves below via
+                // Resend. "magiclink" still creates the user if they don't
+                // exist yet, but never triggers Supabase's own send — only we
+                // send mail, with the click-gated link.
+                type: "magiclink",
+                email: adminEmail,
+                options: { redirect_to: APP_URL }
+              })
             });
+            const linkData = await linkRes.json().catch(() => null);
+            if (!linkRes.ok) {
+              // Never swallow this again: a silent failure here is what let
+              // clubs get a welcome email with no way into their account,
+              // with nothing recorded anywhere to explain it.
+              inviteError = `generate_link ${linkRes.status}: ${linkData?.error_code || ""} ${linkData?.msg || linkData?.message || ""}`.trim();
+              console.error("Generate invite link failed:", inviteError, JSON.stringify(linkData));
+              continue;
+            }
+            // Deliberately NOT linkData.action_link: that's a raw Supabase
+            // /auth/v1/verify URL that consumes the single-use token on the
+            // mere GET request. Real testing showed Gmail (and similar mail
+            // scanners) pre-fetch links in incoming email, silently burning
+            // that token before the recipient ever clicks it, roughly half
+            // the time. Instead, point at our own page with the raw token —
+            // that page requires a genuine click before ever exchanging it
+            // (see completeClubVerify() in index.html), which a plain
+            // link-scanner GET can't trigger.
+            if (linkData?.hashed_token && linkData?.verification_type) {
+              inviteUrl = `${APP_URL}?club_verify=${encodeURIComponent(linkData.hashed_token)}&verify_type=${encodeURIComponent(linkData.verification_type)}`;
+              inviteError = null;
+            } else {
+              inviteError = "generate_link returned no hashed_token";
+              console.error("Generate invite link failed:", inviteError, JSON.stringify(linkData));
+            }
+            if (linkData?.id) {
+              await supabase(env, "POST", "/user_profiles", {
+                id: linkData.id,
+                role: "club_admin",
+                club_id: club.id,
+                display_name: admin_name || null
+              });
+            }
+          } catch (e) {
+            inviteError = String(e);
+            console.error("Generate invite link error:", e);
           }
-        } catch (e) {
-          console.error("Generate invite link error:", e);
         }
       }
       await Promise.all([
         sendClubWelcomeEmail(env, club, inviteUrl),
-        sendInternalClubAlert(env, club)
+        sendInternalClubAlert(env, club, inviteError)
       ]);
       return json({
         club: { ...club, teams: createdTeams },
         invite_url: inviteUrl,
+        // Surfaced so a failed link is visible to the caller and in the
+        // internal alert, instead of a club silently getting a welcome email
+        // with no way in. The registration itself still succeeded.
+        invite_error: inviteError,
         message: "Registration received. Check your email for a link to set up your account."
       }, 201);
     }

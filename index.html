@@ -1851,10 +1851,6 @@
       <input type="text" id="addAthleteAdminName" placeholder="e.g. Jordan Smith" autocomplete="off">
     </div>
     <div class="field">
-      <label>Age</label>
-      <input type="number" id="addAthleteAdminAge" placeholder="14" inputmode="numeric">
-    </div>
-    <div class="field">
       <label>Parent email</label>
       <input type="email" id="addAthleteAdminEmail" placeholder="parent@email.com" autocomplete="off">
     </div>
@@ -2965,7 +2961,7 @@ var usStates = ["Virginia"];
       [['adminPasscode'],                        function(){ submitAdminLogin(); }],
       [['adminEmailInput', 'adminPasswordInput'],function(){ submitAdminEmailLogin(); }],
       [['reg1ClubName','reg1Athletes','reg1Name','reg1Email'], function(){ regStep1Next(); }],
-      [['addAthleteAdminName','addAthleteAdminAge','addAthleteAdminEmail','addAthleteAdminPhone'], function(){ submitAddAthleteAdmin(); }],
+      [['addAthleteAdminName','addAthleteAdminEmail','addAthleteAdminPhone'], function(){ submitAddAthleteAdmin(); }],
     ];
     enterMap.forEach(function(pair){
       pair[0].forEach(function(id){
@@ -3370,7 +3366,6 @@ var usStates = ["Virginia"];
     var team = state.team;
     if(team) document.getElementById('addAthleteTeamName').textContent = team.name;
     document.getElementById('addAthleteAdminName').value = '';
-    document.getElementById('addAthleteAdminAge').value = '';
     document.getElementById('addAthleteAdminEmail').value = '';
     document.getElementById('addAthleteAdminPhone').value = '';
     document.getElementById('addAthleteAdminError').textContent = '';
@@ -3381,7 +3376,6 @@ var usStates = ["Virginia"];
     var c    = state.club;
     var team = state.team;
     var name  = document.getElementById('addAthleteAdminName').value.trim();
-    var age   = document.getElementById('addAthleteAdminAge').value.trim();
     var email = document.getElementById('addAthleteAdminEmail').value.trim();
     var phone = document.getElementById('addAthleteAdminPhone').value.trim();
     var errEl = document.getElementById('addAthleteAdminError');
@@ -3404,7 +3398,6 @@ var usStates = ["Virginia"];
           club_code:     c.code,
           team_id:       team.id,
           athlete_name:  name,
-          athlete_age:   age ? parseInt(age) : null,
           parent_email:  email,
           parent_phone:  phone || null
         })
@@ -3774,7 +3767,7 @@ var usStates = ["Virginia"];
             '<div class="roster-icon">'+'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'+'</div>'+
             '<div class="roster-name-block">'+
               '<div class="roster-name">'+(a.name||'')+'</div>'+
-              (a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+
+              
               (a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+
             '</div>'+
             '<div class="roster-action-row">'+
@@ -3790,7 +3783,7 @@ var usStates = ["Virginia"];
             : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>')+'</div>'+
           '<div class="roster-name-block">'+
             '<div class="roster-name">'+(a.name||'')+'</div>'+
-            (a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+
+            
           '</div>'+
           '<div class="roster-right">'+
             '<div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div>'+
@@ -3879,122 +3872,51 @@ var usStates = ["Virginia"];
   var KIT_ICON   = '<path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/>';
   var TROPHY_ICON= '<path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/>';
 
-  var SPORT_TOURNAMENTS = {
-    'Basketball': [
-      { name: 'Fall Kickoff Classic', date: 'Sept 14, 2026', location: 'Richmond, VA' },
-      { name: 'Mid-Atlantic Showcase', date: 'Oct 5, 2026', location: 'Washington, D.C.' },
-      { name: 'Regional Championship', date: 'Nov 2, 2026', location: 'Charlotte, NC' }
-    ],
-    'Soccer': [
-      { name: 'Capital Cup', date: 'Sept 20, 2026', location: 'Arlington, VA' },
-      { name: 'Blue Ridge Classic', date: 'Oct 11, 2026', location: 'Roanoke, VA' },
-      { name: 'State Qualifier', date: 'Nov 8, 2026', location: 'Richmond, VA' }
-    ],
-    'Baseball': [
-      { name: 'Fall Ball Invitational', date: 'Sept 13, 2026', location: 'Fredericksburg, VA' },
-      { name: 'Diamond Classic', date: 'Oct 4, 2026', location: 'Norfolk, VA' },
-      { name: 'Travel Ball Showdown', date: 'Oct 25, 2026', location: 'Raleigh, NC' }
-    ],
-    'Volleyball': [
-      { name: 'Spike & Serve Open', date: 'Sept 27, 2026', location: 'Richmond, VA' },
-      { name: 'Commonwealth Classic', date: 'Oct 18, 2026', location: 'Harrisonburg, VA' },
-      { name: 'Atlantic Regional', date: 'Nov 15, 2026', location: 'Virginia Beach, VA' }
-    ],
-    'Youth Lacrosse': [
-      { name: 'Fall Lax Fest', date: 'Sept 6, 2026', location: 'Annapolis, MD' },
-      { name: 'Mid-Atlantic Invitational', date: 'Sept 27, 2026', location: 'Baltimore, MD' },
-      { name: 'Crown Classic', date: 'Oct 18, 2026', location: 'Bethesda, MD' },
-      { name: 'State Qualifier', date: 'Nov 8, 2026', location: 'Richmond, VA' }
-    ]
-  };
+  // SPORT_TOURNAMENTS / SPORT_BREAKDOWNS removed: they fabricated fee line
+  // items, a travel estimate and tournament names, dates and locations that
+  // no club ever entered. The breakdown now comes from teams.fees.
 
-  var SPORT_BREAKDOWNS = {
-    'Basketball':   [ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.45, icon: TROPHY_ICON, isTournament: true },
-                      { label: 'Practice gym rental', sub: 'Gym time for weekly practices', pct: 0.30, icon: GYM_ICON },
-                      { label: 'Uniforms', sub: 'Jerseys, shorts, warmups', pct: 0.15, icon: KIT_ICON },
-                      { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.10, icon: COACH_ICON } ],
-    'Soccer':       [ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.40, icon: TROPHY_ICON, isTournament: true },
-                      { label: 'Field rental', sub: 'Field time for weekly practices', pct: 0.35, icon: GYM_ICON },
-                      { label: 'Uniforms', sub: 'Jerseys, shorts, warmups', pct: 0.15, icon: KIT_ICON },
-                      { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.10, icon: COACH_ICON } ],
-    'Baseball':     [ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.35, icon: TROPHY_ICON, isTournament: true },
-                      { label: 'Field rental', sub: 'Field and cage time for practices', pct: 0.25, icon: GYM_ICON },
-                      { label: 'Equipment & uniforms', sub: "Uniforms, bats, catcher's gear", pct: 0.25, icon: KIT_ICON },
-                      { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.15, icon: COACH_ICON } ],
-    'Volleyball':   [ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.40, icon: TROPHY_ICON, isTournament: true },
-                      { label: 'Gym rental', sub: 'Gym time for weekly practices', pct: 0.35, icon: GYM_ICON },
-                      { label: 'Uniforms', sub: 'Jerseys, shorts, warmups', pct: 0.15, icon: KIT_ICON },
-                      { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.10, icon: COACH_ICON } ],
-    'Youth Lacrosse':[ { label: 'Tournament fees', sub: 'Entry fees for scheduled tournaments', pct: 0.50, icon: TROPHY_ICON, isTournament: true },
-                       { label: 'Equipment & uniforms', sub: 'Jerseys, pads, sticks', pct: 0.25, icon: KIT_ICON },
-                       { label: 'Field rental', sub: 'Field time for weekly practices', pct: 0.15, icon: GYM_ICON },
-                       { label: 'Coaching & staff', sub: 'Coaching, league play, admin', pct: 0.10, icon: COACH_ICON } ]
-  };
 
-  var tournamentOpen = false;
+  // Fee labels are club-authored free text rendered via innerHTML, so escape
+  // them. Everything else in this panel is numbers we format ourselves.
+  function escapeHtml(str){
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
 
-  function buildBreakdown(sport, dues){
-    var items = SPORT_BREAKDOWNS[sport] || SPORT_BREAKDOWNS['Basketball'];
+  // Renders the club's OWN fee items. This used to invent a breakdown from
+  // hardcoded per-sport percentages (SPORT_BREAKDOWNS) plus a fabricated
+  // travel estimate and a fabricated tournament schedule -- so a parent was
+  // shown line items, amounts, and event names/dates/locations that their
+  // club never entered and that nobody was going to honour. If a team has no
+  // fee items recorded, show the total only rather than making one up.
+  function buildBreakdown(team, dues){
     var panel = document.getElementById('breakdownPanel');
     if(!panel) return;
-    tournamentOpen = false;
+    var fees = (team && Array.isArray(team.fees)) ? team.fees.filter(function(f){
+      return f && f.label && Number(f.amount) > 0;
+    }) : [];
 
-    // Round each to nearest $25, then fix residual on the largest item
-    var amts = items.map(function(item){ return Math.round(dues * item.pct / 25) * 25; });
-    var total = amts.reduce(function(a,b){ return a+b; }, 0);
-    amts[amts.indexOf(Math.max.apply(null, amts))] += (dues - total);
-
-    var rows = items.map(function(item, i){
-      return { label: item.label, sub: item.sub, amt: amts[i], icon: item.icon, isTournament: !!item.isTournament };
-    });
-
-    var tournaments = SPORT_TOURNAMENTS[sport] || [];
-
-    // Travel estimate — shown but not charged
-    var travelEstimate = Math.round(dues * 0.30 / 10) * 10;
-
-    panel.innerHTML = rows.map(function(row){
-      var chevronHtml = row.isTournament
-        ? ' <span id="tournamentChevron" style="font-size:11px; color:var(--ink-soft); transition:transform 0.2s ease; display:inline-block;">&#8250;</span>'
-        : '';
-      var rowHtml = '<div class="breakdown-row' + (row.isTournament ? ' breakdown-row-tournament' : '') + '"' +
-        (row.isTournament ? ' onclick="toggleTournaments()" style="cursor:pointer;"' : '') + '>' +
-        '<div class="breakdown-row-left">' +
-          '<div class="breakdown-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + row.icon + '</svg></div>' +
-          '<div class="breakdown-row-label">' + row.label + chevronHtml + (row.sub ? '<small>' + row.sub + '</small>' : '') + '</div>' +
-        '</div>' +
-        '<div class="breakdown-row-amt">' + fmtUSD(row.amt) + '</div>' +
+    if(!fees.length){
+      panel.innerHTML = '<div class="breakdown-row" style="opacity:0.75;">' +
+        '<div class="breakdown-row-left"><div class="breakdown-row-label">Season dues' +
+        '<small>Your club hasn\'t itemised this yet — ask them for a breakdown</small></div></div>' +
+        '<div class="breakdown-row-amt">' + fmtUSD(dues) + '</div>' +
       '</div>';
-      if(row.isTournament){
-        rowHtml += '<div class="tournament-list" id="tournamentList">' +
-          tournaments.map(function(t){
-            return '<div class="tournament-item"><div class="tournament-name">' + t.name + '</div>' +
-              '<div class="tournament-meta">' + t.date + ' &middot; ' + t.location + '</div></div>';
-          }).join('') + '</div>';
-      }
-      return rowHtml;
-    }).join('') +
-    // Travel estimate row — not charged
-    '<div class="breakdown-row" style="opacity:0.65; border-top:1px dashed var(--line); margin-top:4px; padding-top:10px; padding-bottom:6px;">' +
-      '<div class="breakdown-row-left">' +
-        '<div class="breakdown-row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="19" r="1"/><circle cx="20" cy="19" r="1"/></svg></div>' +
-        '<div>' +
-          '<div class="breakdown-row-label">Travel</div>' +
-          '<div style="font-size:10.5px; color:var(--ink-soft); margin-top:1px;">Estimated · not charged here</div>' +
+      return;
+    }
+
+    panel.innerHTML = fees.map(function(f){
+      return '<div class="breakdown-row">' +
+        '<div class="breakdown-row-left">' +
+          '<div class="breakdown-row-label">' + escapeHtml(f.label) + '</div>' +
         '</div>' +
-      '</div>' +
-      '<div class="breakdown-row-amt" style="color:var(--ink-soft);">~' + fmtUSD(travelEstimate) + '</div>' +
-    '</div>';
+        '<div class="breakdown-row-amt">' + fmtUSD(Number(f.amount)) + '</div>' +
+      '</div>';
+    }).join('');
   }
 
-  function toggleTournaments(){
-    var list = document.getElementById('tournamentList');
-    var chevron = document.getElementById('tournamentChevron');
-    if(!list) return;
-    tournamentOpen = !tournamentOpen;
-    list.classList.toggle('open', tournamentOpen);
-    if(chevron) chevron.style.transform = tournamentOpen ? 'rotate(90deg)' : '';
-  }
 
   // ---------- parent: multi-athlete flow ----------
   var ATHLETES_STORAGE_KEY = 'playfund_parent_athletes';
@@ -4133,7 +4055,6 @@ var usStates = ["Virginia"];
           id:            a.id,
           supabaseId:    a.id,
           name:          a.name,
-          age:           a.age,
           paymentStatus: a.payment_status || null,
           clubCode:      a.club?.code || null,
           teamId:        a.team_id,
@@ -4424,7 +4345,7 @@ var usStates = ["Virginia"];
     // the shared clubs/teams dataset (ct.team is a direct reference into it).
     state.parentClub = Object.assign({}, ct.team, { name: ct.club.name + ' \u2014 ' + ct.team.name });
     // Populate cost breakdown — always shown, the true-cost receipt leads
-    buildBreakdown(ct.club.sport, ct.team.dues);
+    buildBreakdown(ct.team, ct.team.dues);
 
     // Show manage plan button if they have an active BNPL plan
     var mgmtBtn = document.getElementById('managePlanBtn');
@@ -4622,7 +4543,7 @@ var usStates = ["Virginia"];
 
     var dues = team.dues || (team.dues_cents ? team.dues_cents / 100 : 0);
 
-    var headers = ['Athlete Name', 'Age', 'Parent Email', 'Parent Phone',
+    var headers = ['Athlete Name', 'Parent Email', 'Parent Phone',
                    'Club', 'Team', 'Payment Status', 'Payment Method', 'Amount Due'];
 
     var rows = athletes.map(function(a){
@@ -4630,7 +4551,6 @@ var usStates = ["Virginia"];
       var method = a.payment_method || '';
       return [
         csvEscape(a.name || ''),
-        a.age || '',
         csvEscape(a.parent_email || ''),
         csvEscape(a.parent_phone || ''),
         csvEscape(c.name || ''),
@@ -5177,7 +5097,7 @@ var usStates = ["Virginia"];
         if(a.approval_status === 'pending'){
           row.innerHTML =
             '<div class="roster-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>'+
-            '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+(a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+'</div>'+
+            '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+'</div>'+
             '<div class="roster-action-row">'+
               '<button class="roster-action-btn approve" title="Approve" onclick="approveAthleteTeamAdmin(\''+a.id+'\')">'+taCheckIcon+'</button>'+
               '<button class="roster-action-btn danger" title="Remove" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>'+
@@ -5190,7 +5110,7 @@ var usStates = ["Virginia"];
         row.style.setProperty('--status-bg','var('+(isPaid?'--paid-bg':'--unpaid-bg')+')');
         row.innerHTML =
           '<div class="roster-icon">'+(isPaid?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>')+'</div>'+
-          '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.age?'<div class="roster-age">Age '+a.age+'</div>':'')+'</div>'+
+          '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+'</div>'+
           '<div class="roster-right"><div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div></div>'+
           '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>';
         return row;

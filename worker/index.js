@@ -1261,7 +1261,7 @@ var index_default = {
       const athRes = await supabase(
         env,
         "GET",
-        `/athletes?select=id,name,age,payment_status,payment_method,team_id,club_id,parent_email&parent_user_id=eq.${userId}`
+        `/athletes?select=id,name,payment_status,payment_method,team_id,club_id,parent_email&parent_user_id=eq.${userId}`
       );
       const athletes = athRes.data || [];
       const enriched = await Promise.all(athletes.map(async (a) => {
@@ -1358,7 +1358,7 @@ var index_default = {
       const teamsRes = await supabase(
         env,
         "GET",
-        `/teams?select=id,name,age_group,dues_cents,season_start,season_end,dues_due_date&club_id=eq.${club.id}&active=eq.true&order=age_group.asc`
+        `/teams?select=id,name,age_group,dues_cents,season_start,season_end,dues_due_date,fees&club_id=eq.${club.id}&active=eq.true&order=age_group.asc`
       );
       const teams = teamsRes.data || [];
 
@@ -1404,7 +1404,7 @@ var index_default = {
         const athletesRes = await supabase(
           env,
           "GET",
-          `/athletes?team_id=in.(${teamIds.join(",")})&select=id,name,age,team_id,payment_status,payment_method,approval_status,parent_email,enrolled_at&order=name.asc`
+          `/athletes?team_id=in.(${teamIds.join(",")})&select=id,name,team_id,payment_status,payment_method,approval_status,parent_email,enrolled_at&order=name.asc`
         );
         athletes = athletesRes.data || [];
       }
@@ -1678,7 +1678,7 @@ var index_default = {
       } catch {
         return err("Invalid JSON");
       }
-      const { club_id, club_code, name, age_group, dues_cents, season_start, season_end, dues_due_date } = body;
+      const { club_id, club_code, name, age_group, dues_cents, season_start, season_end, dues_due_date, fees } = body;
       if (!name || !dues_cents) return err("name and dues_cents are required");
       let resolvedClubId = club_id;
       if (!resolvedClubId && club_code) {
@@ -1699,6 +1699,17 @@ var index_default = {
         dues_due_date: dues_due_date || null,
         active: true
       };
+      // The club's own fee breakdown. teams.fees has existed all along but
+      // POST /team never wrote to it, so every club's real line items were
+      // collected by the form and silently dropped -- which is why the parent
+      // screen fell back to inventing one from sport percentages.
+      if (Array.isArray(fees)) {
+        const cleanFees = fees
+          .filter((f) => f && typeof f.label === "string" && f.label.trim())
+          .map((f) => ({ label: String(f.label).trim().slice(0, 80), amount: Math.round(Number(f.amount) || 0) }))
+          .filter((f) => f.amount > 0);
+        if (cleanFees.length) insertData.fees = cleanFees;
+      }
       const insertRes = await supabase(env, "POST", "/teams", insertData);
       if (!insertRes.ok) return err("Failed to create team: " + JSON.stringify(insertRes.data), 500);
       return json({ team: insertRes.data[0] }, 201);
@@ -1758,7 +1769,9 @@ var index_default = {
         club_id: clubId,
         team_id,
         name: athlete_name.trim(),
-        age: athlete_age || null,
+        // age deliberately not stored: it drove no logic anywhere, duplicated
+        // the team's age_group, and CLAUDE.md limits athlete data to the
+        // minimum necessary.
         parent_email: parent_email.toLowerCase().trim(),
         parent_phone: parent_phone || null,
         payment_status: "unpaid",
@@ -1937,7 +1950,7 @@ var index_default = {
       const athleteRes = await supabase(
         env,
         "GET",
-        `/athletes?id=eq.${athleteId}&select=id,name,age,payment_status,payment_method,approval_status,enrolled_at,team_id,club_id`
+        `/athletes?id=eq.${athleteId}&select=id,name,payment_status,payment_method,approval_status,enrolled_at,team_id,club_id`
       );
       if (!athleteRes.data?.length) return err("Athlete not found", 404);
       const athlete = athleteRes.data[0];

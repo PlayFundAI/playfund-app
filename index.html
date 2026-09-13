@@ -8,6 +8,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://js.stripe.com/v3/"></script>
+<script>
+  // connect.js (the plain <script> build, as opposed to the npm
+  // @stripe/connect-js module) does NOT expose loadConnectAndInitialize.
+  // It looks for a StripeConnect.onLoad hook that must already exist when
+  // the script runs, calls it once ready, and supplies StripeConnect.init.
+  // So the hook has to be declared here, before the tag below.
+  window.StripeConnect = window.StripeConnect || {};
+  window.stripeConnectReady = new Promise(function(resolve, reject){
+    window.StripeConnect.onLoad = function(){ resolve(window.StripeConnect.init); };
+    setTimeout(function(){ reject(new Error('Stripe Connect failed to load. Check your connection and try again.')); }, 15000);
+  });
+</script>
 <script src="https://connect-js.stripe.com/v1.0/connect.js"></script>
 <style>
   /* ═══════════════════════════════════════════════════════════
@@ -3586,7 +3598,13 @@ var usStates = ["Virginia"];
       // fetchClientSecret is called by Connect.js each time it needs a fresh
       // Account Session — the client_secret is short-lived (~1 hour), so this
       // hits the Worker again rather than reusing one captured up front.
-      stripeConnectInstance = window.StripeConnect.loadConnectAndInitialize({
+      // stripeConnectReady resolves with StripeConnect.init once connect.js
+      // has called the onLoad hook declared in <head>. This used to call
+      // window.StripeConnect.loadConnectAndInitialize, which only exists in
+      // the npm module build — against the <script> build it is undefined, so
+      // onboarding died here every time with "is not a function".
+      var connectInit = await window.stripeConnectReady;
+      stripeConnectInstance = connectInit({
         publishableKey: config.stripePublishableKey,
         fetchClientSecret: async function(){
           var res = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-onboard', {

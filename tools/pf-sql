@@ -1,0 +1,65 @@
+#!/bin/zsh
+# Run SQL against the PlayFund Supabase project from the command line.
+#
+#   tools/pf-sql "select count(*) from clubs;"
+#   tools/pf-sql -f some-query.sql
+#   echo "select 1;" | tools/pf-sql
+#
+# Credentials come from ~/.playfund-env (chmod 600, never committed):
+#   export SUPABASE_ACCESS_TOKEN="sbp_..."   # dashboard > account > tokens
+#   export SUPABASE_PROJECT_REF="klnbdvwasnnqszlhawbl"
+#
+# The token is account-scoped and can do anything the dashboard can, including
+# dropping tables. Read queries freely; think before writing. This is a
+# payments database holding minors' data.
+set -e
+
+[ -f "$HOME/.playfund-env" ] && source "$HOME/.playfund-env"
+: "${SUPABASE_ACCESS_TOKEN:?not set — add it to ~/.playfund-env (see header)}"
+: "${SUPABASE_PROJECT_REF:=klnbdvwasnnqszlhawbl}"
+
+if [ "$1" = "-f" ]; then
+  [ -f "$2" ] || { print -u2 "no such file: $2"; exit 1; }
+  QUERY=$(<"$2")
+elif [ -n "$1" ]; then
+  QUERY="$1"
+elif [ ! -t 0 ]; then
+  QUERY=$(cat)
+else
+  print -u2 'usage: pf-sql "<sql>" | pf-sql -f file.sql | echo "<sql>" | pf-sql'
+  exit 1
+fi
+
+BODY=$(mktemp)
+trap 'rm -f "$BODY"' EXIT
+# Build the JSON with python rather than string interpolation, so quotes and
+# newlines in the SQL survive intact.
+QUERY="$QUERY" python3 -c '
+import json, os
+print(json.dumps({"query": os.environ["QUERY"]}))
+' > "$BODY"
+
+curl -sS -X POST \
+  "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query" \
+  -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data @"$BODY" \
+  | python3 -c '
+import json, sys
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except ValueError:
+    print(raw); sys.exit(0)
+if isinstance(data, dict) and "message" in data:
+    print("ERROR:", data["message"]); sys.exit(1)
+if not data:
+    print("(no rows)"); sys.exit(0)
+cols = list(data[0].keys())
+width = {c: max(len(c), *(len(str(r.get(c, ""))) for r in data)) for c in cols}
+print("  ".join(c.ljust(width[c]) for c in cols))
+print("  ".join("-" * width[c] for c in cols))
+for r in data:
+    print("  ".join(str(r.get(c, "")).ljust(width[c]) for c in cols))
+print("\n(%d row%s)" % (len(data), "" if len(data) == 1 else "s"))
+'

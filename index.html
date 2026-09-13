@@ -1932,6 +1932,9 @@
       <div class="admin-recovery-label" id="adminTotalRecoveryLabel"><b>0%</b> of advances recovered</div>
     </div>
 
+    <div class="roster-section-label" id="adminActionLabel" style="display:none;">Needs action</div>
+    <div id="adminActionList"></div>
+
     <div class="roster-section-label">Clubs</div>
     <div id="adminClubList"></div>
   </div>
@@ -5319,6 +5322,44 @@ var usStates = ["Virginia"];
       document.getElementById('adminTotalCollected').textContent = '$' + Math.round(collected).toLocaleString();
       document.getElementById('adminTotalRecoveryBar').style.width = pct + '%';
       document.getElementById('adminTotalRecoveryLabel').innerHTML = '<b>' + pct + '%</b> of advances recovered';
+
+      // Work queue — every club with something blocking it, listed with the
+      // specific reason. Without this, finding the handful of clubs that need
+      // something means opening all of them one at a time. Ordered by how
+      // blocking the item is: no fee means no club can take any money at all.
+      var actionEl  = document.getElementById('adminActionList');
+      var actionLbl = document.getElementById('adminActionLabel');
+      var needsAction = clubs.filter(function(c){ return c.needs_action; });
+      actionEl.innerHTML = '';
+      if(needsAction.length === 0){
+        actionLbl.style.display = 'none';
+      } else {
+        actionLbl.style.display = '';
+        actionLbl.textContent = 'Needs action (' + needsAction.length + ')';
+        needsAction.sort(function(a, b){
+          var rank = function(c){ return c.needs_fee ? 0 : (c.needs_stripe ? 1 : 2); };
+          return rank(a) - rank(b);
+        });
+        needsAction.forEach(function(club){
+          var reasons = [];
+          if(club.needs_fee)    reasons.push({ t: 'Set fee \u2014 blocks all payments', c: 'var(--unpaid)' });
+          if(club.needs_stripe) reasons.push({ t: 'Stripe not connected', c: 'var(--ink-soft)' });
+          if(club.pending_approvals > 0){
+            reasons.push({ t: club.pending_approvals + ' athlete' + (club.pending_approvals === 1 ? '' : 's') + ' awaiting club approval', c: 'var(--ink-soft)' });
+          }
+          var card = document.createElement('div');
+          card.className = 'team-card';
+          card.style.cursor = 'pointer';
+          card.innerHTML =
+            '<div style="font-weight:700; color:var(--ink); margin-bottom:2px;">' + club.name + '</div>' +
+            '<div style="font-size:11.5px; color:var(--ink-soft); margin-bottom:6px;">' + (club.city || '') + (club.city ? ' \u00b7 ' : '') + club.code + '</div>' +
+            reasons.map(function(r){
+              return '<div style="font-size:12px; font-weight:600; color:' + r.c + ';">\u2022 ' + r.t + '</div>';
+            }).join('');
+          card.addEventListener('click', function(){ openAdminClubDetail(club); });
+          actionEl.appendChild(card);
+        });
+      }
 
       // Club cards
       var listEl = document.getElementById('adminClubList');

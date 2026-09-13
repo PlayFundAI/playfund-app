@@ -2832,6 +2832,14 @@ var usStates = ["Virginia"];
         if(btn){ btn.disabled = false; btn.textContent = 'Continue to account setup'; }
       }
     }
+    // This function lives inside the window 'load' handler, so it is NOT a
+    // global — but the button that calls it uses an inline onclick, which
+    // resolves against window. Without this line the click threw
+    // "completeClubVerify is not defined" and silently did nothing, which
+    // blocked every club from ever setting up an account. Every other inline
+    // onclick in this file calls a top-level function, so this is the only
+    // handler that needs it.
+    window.completeClubVerify = completeClubVerify;
 
     // Returning from Stripe Connect onboarding
     // Supports: ?stripe_onboard=complete|refresh&club_id=UUID

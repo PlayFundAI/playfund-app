@@ -8,7 +8,12 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 var PAY_IN_FULL_PMC_ID = "pmc_1UD4SnPyhgYp24ebsPEd8LSJ";
 var CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  // PATCH and DELETE are both used by the app (PATCH /admin/clubs/:id for a
+  // club's fee and reminder settings, DELETE /athlete/:id from three roster
+  // screens). Omitting them here failed the browser's preflight, so those
+  // calls threw before reaching the Worker and surfaced as "Network error" —
+  // the requests never arrived, so nothing showed up in the Worker logs either.
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization"
 };
 function json(data, status = 200) {
@@ -1073,7 +1078,7 @@ var index_default = {
       const clubsRes = await supabase(
         env,
         "GET",
-        "/clubs?select=id,name,sport,city,state,code,active,fee_bps,fee_agreed_at,reminders_enabled,reminder_pre_due_days,reminder_recurring_interval_days&order=name.asc"
+        "/clubs?select=id,name,sport,city,state,code,active,fee_bps,fee_agreed_at,stripe_account_id,reminders_enabled,reminder_pre_due_days,reminder_recurring_interval_days&order=name.asc"
       );
       if (!clubsRes.ok) return err("Failed to fetch clubs", 500);
       const clubs = clubsRes.data || [];
@@ -1097,7 +1102,7 @@ var index_default = {
         const athRes = await supabase(
           env,
           "GET",
-          `/athletes?select=id,payment_status,team_id&team_id=in.(${teamIds.join(",")})`
+          `/athletes?select=id,payment_status,approval_status,team_id&team_id=in.(${teamIds.join(",")})`
         );
         allAthletes = athRes.data || [];
       }
@@ -1143,8 +1148,20 @@ var index_default = {
           ...t,
           athlete_count: (athletesByTeam.get(t.id) || []).length
         }));
+        // Everything blocking this club from operating, computed here so the
+        // admin UI can show a work queue instead of making someone open all
+        // 60+ clubs to find the handful that need something.
+        const pending_approvals = athletes.filter((a) => a.approval_status === "pending").length;
+        const needs_fee = !club.fee_agreed_at;
+        const needs_stripe = !club.stripe_account_id;
+        const { stripe_account_id, ...clubFields } = club;
         return {
-          ...club,
+          ...clubFields,
+          stripe_connected: !!stripe_account_id,
+          needs_fee,
+          needs_stripe,
+          pending_approvals,
+          needs_action: needs_fee || needs_stripe || pending_approvals > 0,
           team_count: teams.length,
           athlete_count: athletes.length,
           funded_count: funded,

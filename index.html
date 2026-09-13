@@ -4480,7 +4480,7 @@ var usStates = ["Virginia"];
       '<div class="payment-schedule-info">' +
         '<div class="payment-schedule-date">' + dateStr + '</div>' +
         '<div class="payment-schedule-label">' + item.label + '</div>' +
-        (item.txnId ? '<div class="payment-schedule-date" style="font-family:monospace;">Txn: ' + item.txnId + '</div>' : '') +
+        (item.txnId ? '<div class="payment-schedule-date" style="font-family:monospace;">Reference: ' + item.txnId + '</div>' : '') +
       '</div>' +
       '<div class="payment-schedule-right">' +
         (hasAmount ? '<div class="payment-schedule-amt">' + fmtUSD(item.amount) + '</div>' : '') +
@@ -4511,10 +4511,22 @@ var usStates = ["Virginia"];
   // Same shape as buildAthleteHistory, but built from a real, webhook-verified
   // payment record (real amount charged, real date, real Stripe transaction
   // ID) instead of guessed from the team's configured dues and "now".
+  // A parent sees a receipt-style reference, not Stripe's internal id:
+  // "pi_3UFK1lPyhgYp24eb0EhLdkkn" reads as gibberish on a confirmation
+  // screen. The last 8 characters are still enough for support to find the
+  // charge in Stripe, and the full id is kept where it actually matters —
+  // the receipt email (the durable artifact a parent would forward to their
+  // bank) and the club/PlayFund admin views.
+  function paymentReference(stripeId){
+    if(!stripeId) return null;
+    var tail = String(stripeId).replace(/^pi_/, '').slice(-8).toUpperCase();
+    return tail || null;
+  }
+
   function buildAthleteHistoryFromRealPayment(athlete, payment){
     var amount = payment.amount != null ? payment.amount : (payment.amount_cents || 0) / 100;
     var date = payment.created_at ? new Date(payment.created_at) : new Date();
-    var txnId = payment.stripe_payment_intent || null;
+    var txnId = paymentReference(payment.stripe_payment_intent);
     if(athlete.paymentStatus === 'full'){
       return [{ label: 'Season dues paid in full', date: date, amount: amount, status: 'paid', txnId: txnId }];
     }

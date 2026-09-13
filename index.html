@@ -3010,15 +3010,28 @@ var usStates = ["Virginia"];
 
     // Get the parent email from the current athlete
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
-    var email = '';
-    if(athlete){
-      // Try to get parent email from athlete data
-      var ct = getAthleteClubTeam(athlete);
-      email = athlete.parentEmail || '';
-    }
-    // Pre-fill email
+    var email = (athlete && athlete.parentEmail) || '';
     var emailEl = document.getElementById('parentSaveEmail');
-    if(emailEl) emailEl.value = email;
+    if(emailEl){
+      emailEl.value = email;
+      // The field is readonly because it should be the address the parent
+      // already gave. If we genuinely don't have it — an athlete stored
+      // before parentEmail was kept — let them type it rather than leaving a
+      // readonly blank that fails signup with a generic error.
+      if(email){
+        emailEl.setAttribute('readonly', 'readonly');
+        emailEl.style.background = 'var(--paper-dim)';
+        emailEl.style.color = 'var(--ink-soft)';
+        emailEl.style.cursor = 'default';
+        emailEl.removeAttribute('placeholder');
+      } else {
+        emailEl.removeAttribute('readonly');
+        emailEl.style.background = '';
+        emailEl.style.color = '';
+        emailEl.style.cursor = '';
+        emailEl.setAttribute('placeholder', 'you@email.com');
+      }
+    }
     // Update title
     var titleEl = document.getElementById('saveAccountTitle');
     if(titleEl) titleEl.textContent = 'Save your account';
@@ -4058,6 +4071,7 @@ var usStates = ["Virginia"];
           paymentStatus: a.payment_status || null,
           clubCode:      a.club?.code || null,
           teamId:        a.team_id,
+          parentEmail:   a.parent_email || null,
           history:       [],
         };
       });
@@ -4079,6 +4093,9 @@ var usStates = ["Virginia"];
     var pw1   = document.getElementById('parentSavePassword').value;
     var errEl = document.getElementById('parentSaveError');
     if(!name)                  { errEl.textContent = 'Please enter your name.'; return; }
+    // Was unvalidated: a blank email posted email:"" to /auth/signup and came
+    // back as a generic failure the parent could do nothing about.
+    if(!email || email.indexOf('@') === -1) { errEl.textContent = 'Please enter your email address.'; return; }
     if(!pw1 || pw1.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
     errEl.textContent = 'Creating your login\u2026'; errEl.classList.add('loading-msg');
 
@@ -4179,6 +4196,10 @@ var usStates = ["Virginia"];
       paymentStatus: null,
       termWeeks: null,
       history: null,
+      // Kept so the post-payment "Save your account" screen can prefill the
+      // email this parent just entered. Nothing assigned parentEmail before,
+      // so that field was always blank.
+      parentEmail: email,
       approvalStatus: created.approval_status || 'pending'
     };
     state.athletes.push(athlete);

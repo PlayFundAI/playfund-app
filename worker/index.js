@@ -494,6 +494,20 @@ async function sendPendingApprovalEmail(env, club, team, athlete) {
   }
 }
 __name(sendPendingApprovalEmail, "sendPendingApprovalEmail");
+// The platform fee is per club (clubs.fee_bps), set by a PlayFund admin.
+// DEFAULT_FEE_BPS is only a fallback for a club whose rate was never set --
+// it is NOT a published price, and must never be shown to a club as though a
+// rate had been agreed with them. Anything customer-facing that would quote a
+// percentage before that conversation has happened should show dues instead.
+var DEFAULT_FEE_BPS = 500;
+function clubFeeBps(club) {
+  return club && club.fee_bps != null ? club.fee_bps : DEFAULT_FEE_BPS;
+}
+__name(clubFeeBps, "clubFeeBps");
+function clubPayoutCents(duesCents, club) {
+  return Math.round(duesCents * (1 - clubFeeBps(club) / 1e4));
+}
+__name(clubPayoutCents, "clubPayoutCents");
 async function sendClubWelcomeEmail(env, club, setupUrl) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
@@ -506,8 +520,12 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   const athleteCount = club.athlete_count || 0;
   const feesTotal = club.fees_per_athlete || 0;
   const totalDues = feesTotal * athleteCount;
-  const feeBps = club.fee_bps || 500;
-  const payout = Math.round(totalDues * (1 - feeBps / 10000));
+  // Deliberately no payout figure and no fee percentage here. This email goes
+  // out at registration, before any rate has been agreed with this club, so
+  // quoting one (previously a hardcoded 5% default) presented an undecided
+  // price as settled. Total dues is arithmetic on what they typed, commits to
+  // nothing, and still shows the season's size. The real payout appears once
+  // a rate exists on the club record.
   let payoutDate = "TBD, set your team dues after signing in";
   if (club.season_start) {
     const d = new Date(club.season_start + "T00:00:00");
@@ -522,7 +540,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   const location = cityVal && stateVal && !cityVal.includes(stateVal) ? `${cityVal}, ${stateVal}` : cityVal || stateVal || "TBD";
   const duesStr = feesTotal > 0 ? `$${feesTotal.toLocaleString()}` : "TBD, set after signing in";
   const totalStr = totalDues > 0 ? `$${totalDues.toLocaleString()}` : "TBD";
-  const payoutStr = payout > 0 ? `$${payout.toLocaleString()}` : "TBD";
+
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
     body{margin:0;padding:0;background-color:#F4F7F6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;}
@@ -541,9 +559,9 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
     <tr><td style="padding:0;background-color:#004643;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
         <tr><td style="padding:24px 32px 8px;">
-          <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Estimated Day 1 payout</p>
-          <p style="margin:0 0 6px;font-size:48px;font-weight:800;color:#FFFFFF;line-height:1;">${payoutStr}</p>
-          <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.6);">${athleteCount} athletes &middot; ${totalStr} total dues &middot; ${(feeBps / 100).toString().replace(/\.0$/, "")}% PlayFund fee &middot; illustrative</p>
+          <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Season dues to collect</p>
+          <p style="margin:0 0 6px;font-size:48px;font-weight:800;color:#FFFFFF;line-height:1;">${totalStr}</p>
+          <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.6);">${athleteCount} athletes &middot; illustrative, based on what you entered</p>
         </td></tr>
         <tr><td style="padding:12px 32px 24px;border-top:1px solid rgba(255,255,255,0.12);">
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
@@ -607,8 +625,8 @@ async function sendInternalClubAlert(env, club, inviteError) {
   const dues = club.fees_per_athlete || 0;
   const athletes = club.athlete_count || 0;
   const totalDues = dues * athletes;
-  const feeBps = club.fee_bps || 500;
-  const payout = Math.round(totalDues * (1 - feeBps / 10000));
+  const feeBps = clubFeeBps(club);
+  const payout = Math.round(totalDues * (1 - feeBps / 1e4));
   const cityVal = club.city || "";
   const stateVal = club.state || "";
   const location = cityVal && stateVal && !cityVal.includes(stateVal) ? `${cityVal}, ${stateVal}` : cityVal || stateVal || "Not provided";
@@ -1113,7 +1131,7 @@ var index_default = {
         athletes.forEach((a) => {
           if (FUNDED_STATUSES.includes(a.payment_status)) {
             const team = teams.find((t) => t.id === a.team_id);
-            if (team) fronted_cents += Math.round(team.dues_cents * 0.95);
+            if (team) fronted_cents += clubPayoutCents(team.dues_cents, club);
           }
           collected_cents += collectedByAthlete.get(a.id) || 0;
         });
@@ -1294,7 +1312,7 @@ var index_default = {
       const clubRes = await supabase(
         env,
         "GET",
-        `/clubs?select=id,name,sport,city,state,code,active,fees_per_athlete&code=eq.${code}`
+        `/clubs?select=id,name,sport,city,state,code,active,fees_per_athlete,fee_bps&code=eq.${code}`
       );
       if (!clubRes.ok || !clubRes.data?.length) return err("Club not found", 404);
       const club = clubRes.data[0];
@@ -1328,9 +1346,14 @@ var index_default = {
         }
       }
       if (!authorized) {
+        // fee_bps is the commercial rate between PlayFund and this club. It is
+        // selected above because the authorized branch needs it for payout
+        // math, but it must not reach an unauthenticated caller -- a parent
+        // only needs a club code to reach this endpoint.
+        const { fee_bps, ...publicClub } = club;
         return json({
           club: {
-            ...club,
+            ...publicClub,
             teams: teams.map((team) => ({ ...team, dues: team.dues_cents / 100 }))
           }
         });
@@ -1359,7 +1382,7 @@ var index_default = {
       athletes.forEach((a) => {
         if (["paid_full", "bnpl_active", "bnpl_complete"].includes(a.payment_status)) {
           const team = teams.find((t) => t.id === a.team_id);
-          if (team) fronted_cents += Math.round(team.dues_cents * 0.95);
+          if (team) fronted_cents += clubPayoutCents(team.dues_cents, club);
         }
       });
       let collected_cents = 0;
@@ -1807,7 +1830,7 @@ var index_default = {
       if (!club.stripe_account_id) return err("This club hasn't connected Stripe yet", 400);
       const duesCents = team.dues_cents;
       if (!duesCents) return err("Team has no dues configured", 400);
-      const feeBps = club.fee_bps != null ? club.fee_bps : 500;
+      const feeBps = clubFeeBps(club);
       const applicationFeeAmount = Math.round(duesCents * feeBps / 1e4);
       const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
       // 'full' and 'bnpl' must never leak into each other. Naively restricting

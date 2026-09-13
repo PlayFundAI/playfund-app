@@ -2258,9 +2258,9 @@
     </div>
 
     <div style="background:var(--paper-dim); border-radius:12px; padding:14px 16px; margin-top:8px; margin-bottom:16px;">
-      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:4px;">Estimated Day 1 payout</div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:4px;">Season dues to collect</div>
       <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="reg2PayoutPreview">$0</div>
-      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;" id="reg2PayoutSub">Based on 0 athletes · 5% PlayFund fee</div>
+      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;" id="reg2PayoutSub">Based on 0 athletes</div>
       <div style="font-size:12px; color:var(--fund-green); font-weight:700; margin-top:6px;" id="reg2PayoutDate"></div>
     </div>
 
@@ -2301,7 +2301,7 @@
       </div>
 
       <div style="background:var(--paper-dim); border-radius:12px; padding:14px 16px; margin-top:12px; width:100%;">
-        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:4px;">Estimated payout</div>
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:4px;">Season dues to collect</div>
         <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="reg4Payout">$0</div>
         <div style="font-size:11.5px; color:var(--ink-soft);" id="reg4PayoutSub">Illustrative · based on your inputs</div>
       </div>
@@ -3422,7 +3422,7 @@ var usStates = ["Virginia"];
   function teamSummary(club, team){
     var roster = team.athletes || [];
     var dues = team.dues || (team.dues_cents / 100);
-    var advanceAmt = Math.round(dues * 0.95);
+    var advanceAmt = Math.round(dues * clubFeeRate());
     var fundedCount = 0, collected = 0;
     roster.forEach(function(r){
       var status = r.payment_status || 'unpaid';
@@ -3461,7 +3461,7 @@ var usStates = ["Virginia"];
     c.teams.forEach(function(team){
       var athletes = team.athletes || [];
       var dues = team.dues || (team.dues_cents ? team.dues_cents / 100 : 0);
-      var advanceCents = Math.round(dues * 0.95 * 100);
+      var advanceCents = Math.round(dues * clubFeeRate() * 100);
 
       var teamFunded = 0, teamPending = 0;
       athletes.forEach(function(a){
@@ -3500,7 +3500,7 @@ var usStates = ["Virginia"];
       teamListEl.appendChild(card);
     });
 
-    // Payout hero — 95% advance for all funded athletes
+    // Payout hero — advance for all funded athletes, net of this club's own rate
     var payoutDollars = Math.round(fundedCents / 100);
     document.getElementById('overviewPayoutAmt').textContent = '$' + payoutDollars.toLocaleString();
     document.getElementById('overviewFundedCount').textContent = totalFunded;
@@ -3638,6 +3638,18 @@ var usStates = ["Virginia"];
     openClubOverview();
   }
 
+  // Mirrors clubFeeBps/clubPayoutCents in worker/index.js. The rate is per
+  // club (clubs.fee_bps, set by a PlayFund admin); 500 is only a fallback for
+  // a club whose rate was never set, never a published price. These screens
+  // are shown after a club has signed up, so their real rate is the right
+  // thing to use -- unlike the registration screens, which show dues rather
+  // than payout because nothing has been agreed at that point.
+  function clubFeeRate(club){
+    var c = club || state.club;
+    var bps = (c && c.fee_bps != null) ? c.fee_bps : 500;
+    return 1 - (bps / 10000);
+  }
+
   function openRoster(){
     var c = state.club;
     var team = state.team;
@@ -3666,7 +3678,7 @@ var usStates = ["Virginia"];
       return s !== 'unpaid' && s !== 'defaulted';
     }).length;
     var totalCount = athletes.length;
-    var frontedAmt = Math.round(fundedCount * dues * 0.95);
+    var frontedAmt = Math.round(fundedCount * dues * clubFeeRate());
     var pct = totalCount > 0 ? Math.round(fundedCount / totalCount * 100) : 0;
 
     var fracEl = document.getElementById('statFundedFraction');
@@ -4950,9 +4962,12 @@ var usStates = ["Virginia"];
     var dues  = parseFloat(raw) || 0;
     var count = regState.athleteCount || 0;
     var total = dues * count;
-    var payout = Math.round(total * 0.95);
-    document.getElementById('reg2PayoutPreview').textContent = '$' + payout.toLocaleString();
-    document.getElementById('reg2PayoutSub').textContent = 'Based on ' + count + ' athlete' + (count!==1?'s':'') + ' · 5% PlayFund fee';
+    // Shows dues collected, not payout. At this point the club does not exist
+    // yet and no rate has been agreed with them, so quoting a percentage (this
+    // used to hardcode 5%) presents an undecided price as settled. Payout
+    // appears once a real fee_bps exists on the club record.
+    document.getElementById('reg2PayoutPreview').textContent = '$' + Math.round(total).toLocaleString();
+    document.getElementById('reg2PayoutSub').textContent = 'Based on ' + count + ' athlete' + (count!==1?'s':'');
     // Payout date — 5 days before season start
     var dateEl = document.getElementById('reg2PayoutDate');
     if(regState.seasonStart){
@@ -4994,7 +5009,8 @@ var usStates = ["Virginia"];
 
   async function submitRegistrationInner(){
     var total  = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
-    var payout = Math.round(total * regState.athleteCount * 0.95);
+    // total is dues per athlete; seasonDues is what the club collects overall.
+    var seasonDues = Math.round(total * regState.athleteCount);
 
     // Compute payout date
     var payoutDateStr = '';
@@ -5043,9 +5059,9 @@ var usStates = ["Virginia"];
       : 'You\'re on the list.';
     document.getElementById('reg4Sub').textContent =
       'Check your email, we sent you a link to set up your account.';
-    document.getElementById('reg4Payout').textContent = '$' + payout.toLocaleString();
+    document.getElementById('reg4Payout').textContent = '$' + seasonDues.toLocaleString();
 
-    var subParts = ['Illustrative · ' + regState.athleteCount + ' athletes · $' + Math.round(total).toLocaleString() + ' dues · 5% fee'];
+    var subParts = ['Illustrative · ' + regState.athleteCount + ' athletes · $' + Math.round(total).toLocaleString() + ' dues each'];
     if(payoutDateStr) subParts.push('Estimated payout: ' + payoutDateStr);
     document.getElementById('reg4PayoutSub').textContent = subParts.join(' · ');
 
@@ -5511,7 +5527,7 @@ var usStates = ["Virginia"];
 
       var athletes = liveTeam.athletes || [];
       var dues = liveTeam.dues_cents / 100;
-      var advanceAmt = Math.round(dues * 0.95);
+      var advanceAmt = Math.round(dues * clubFeeRate(data.club));
       var funded = 0, fronted = 0;
       athletes.forEach(function(a){
         var s = a.payment_status || 'unpaid';

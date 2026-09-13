@@ -513,6 +513,24 @@ function clubPayoutCents(duesCents, club) {
   return Math.round(duesCents * (1 - clubFeeBps(club) / 1e4));
 }
 __name(clubPayoutCents, "clubPayoutCents");
+// "Can this club actually take money right now?" Both halves matter: a rate
+// PlayFund has agreed (fee_agreed_at, see clubFeeBps) and a Stripe account
+// that can accept charges. Used to decide whether to send a family a payment
+// link at all -- sending one before both are true walks the parent into a
+// dead end at checkout, which is a worse experience than waiting.
+async function clubCanAcceptPayments(env, club) {
+  if (!club || !club.fee_agreed_at) return false;
+  if (!club.stripe_account_id) return false;
+  try {
+    const acctRes = await stripe(env, "GET", `/accounts/${club.stripe_account_id}`);
+    if (!acctRes.ok) return false;
+    return !!acctRes.data.charges_enabled;
+  } catch (e) {
+    console.error("clubCanAcceptPayments check failed:", e);
+    return false;
+  }
+}
+__name(clubCanAcceptPayments, "clubCanAcceptPayments");
 async function sendClubWelcomeEmail(env, club, setupUrl) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
@@ -1699,7 +1717,7 @@ var index_default = {
       const clubRes = await supabase(
         env,
         "GET",
-        `/clubs?code=eq.${club_code.toUpperCase()}&select=id,name,code,admin_email`
+        `/clubs?code=eq.${club_code.toUpperCase()}&select=id,name,code,admin_email,fee_agreed_at,stripe_account_id`
       );
       if (!clubRes.data?.length) return err("Invalid club code", 404);
       const club = clubRes.data[0];
@@ -1749,12 +1767,17 @@ var index_default = {
       });
       if (!insertRes.ok) return err("Failed to register athlete: " + JSON.stringify(insertRes.data), 500);
       const newAthlete = insertRes.data[0];
+      // Don't hand a family a payment link the club can't honour yet. The
+      // club admin is still told (sendPendingApprovalEmail goes to them), and
+      // the athlete is still on the roster -- only the parent-facing "you can
+      // pay now" email is held back until the club is actually chargeable.
+      const canAcceptPayments = await clubCanAcceptPayments(env, club);
       if (approvalStatus === "pending") {
         await sendPendingApprovalEmail(env, club, team, newAthlete);
-      } else {
+      } else if (canAcceptPayments) {
         await sendApprovalEmail(env, club, team, newAthlete);
       }
-      return json({ athlete: newAthlete }, 201);
+      return json({ athlete: newAthlete, payment_invite_sent: approvalStatus !== "pending" && canAcceptPayments, club_can_accept_payments: canAcceptPayments }, 201);
     }
     if (method === "POST" && path.startsWith("/athlete/") && path.endsWith("/notify-club")) {
       const athleteId = path.split("/")[2];
@@ -1764,7 +1787,7 @@ var index_default = {
       if (!athlete) return err("Athlete not found", 404);
       const teamRes = await supabase(env, "GET", `/teams?id=eq.${athlete.team_id}&select=name,dues_cents`);
       const team = teamRes.data?.[0];
-      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=name,admin_email`);
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=name,admin_email,fee_agreed_at,stripe_account_id`);
       const club = clubRes.data?.[0];
       if (!club) return err("Club not found", 404);
       if (!club.admin_email) return err("This club doesn't have an admin contact on file yet", 400);
@@ -1964,15 +1987,19 @@ var index_default = {
       const updateRes = await supabase(env, "PATCH", `/athletes?id=eq.${athleteId}`, { approval_status: "approved" });
       if (!updateRes.ok) return err("Failed to approve athlete: " + JSON.stringify(updateRes.data), 500);
       const [clubForEmailRes, teamForEmailRes] = await Promise.all([
-        supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name,code`),
+        supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name,code,fee_agreed_at,stripe_account_id`),
         supabase(env, "GET", `/teams?id=eq.${athlete.team_id}&select=id,name,dues_cents`)
       ]);
       const clubForEmail = clubForEmailRes.data?.[0];
       const teamForEmail = teamForEmailRes.data?.[0];
-      if (clubForEmail && teamForEmail) {
+      // Approving is not the same as being able to collect. Hold the "you can
+      // pay now" email until the club is chargeable, rather than sending a
+      // link that dead-ends at checkout.
+      const approveCanAccept = await clubCanAcceptPayments(env, clubForEmail);
+      if (clubForEmail && teamForEmail && approveCanAccept) {
         await sendApprovalEmail(env, clubForEmail, teamForEmail, athlete);
       }
-      return json({ success: true });
+      return json({ success: true, payment_invite_sent: !!approveCanAccept, club_can_accept_payments: !!approveCanAccept });
     }
     if (method === "DELETE" && path.startsWith("/athlete/")) {
       const athleteId = path.split("/")[2];

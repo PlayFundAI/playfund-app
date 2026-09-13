@@ -3258,6 +3258,21 @@ var usStates = ["Virginia"];
     showScreen('add-team');
   }
 
+  // Examples rather than a bare "Fee label", so a club can see the expected
+  // granularity. Kept sport-agnostic on purpose — these apply to a soccer
+  // club, a swim club or a robotics team equally.
+  var FEE_LABEL_EXAMPLES = [
+    'e.g. Registration',
+    'e.g. Uniforms',
+    'e.g. Coaching',
+    'e.g. Facilities',
+    'e.g. Equipment',
+    'e.g. Tournament entry'
+  ];
+  function feeLabelExample(i){
+    return FEE_LABEL_EXAMPLES[i % FEE_LABEL_EXAMPLES.length];
+  }
+
   function renderAddTeamFees(){
     var el = document.getElementById('addTeamFeeList');
     if(!el) return;
@@ -3266,7 +3281,7 @@ var usStates = ["Virginia"];
       var row = document.createElement('div');
       row.style.cssText = 'display:flex; gap:8px; margin-bottom:10px; align-items:center;';
       row.innerHTML =
-        '<input type="text" placeholder="Fee label" value="'+fee.label+'" '+
+        '<input type="text" placeholder="'+feeLabelExample(i)+'" value="'+fee.label+'" '+
           'style="flex:2; padding:11px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); font-family:\'Inter\',sans-serif; font-size:13px;" '+
           'oninput="addTeamFees['+i+'].label=this.value;">'+
         '<input type="text" placeholder="$" inputmode="numeric" value="'+(fee.amount?Number(fee.amount).toLocaleString():'')+'" '+
@@ -3340,7 +3355,12 @@ var usStates = ["Virginia"];
       c.teams.push(newTeam);
       delete clubCache[c.code];
       errEl.textContent = ''; errEl.classList.remove('loading-msg');
-      openClubOverview();
+      // Land on the new team's roster rather than back on the club overview.
+      // A team with no athletes does nothing, and the next step (adding
+      // players) was several clicks away and easy to miss — the roster screen
+      // is where the "add athlete" action actually lives.
+      state.team = newTeam;
+      openRoster();
     } catch(e){
       errEl.textContent = 'Network error. Please try again.'; errEl.classList.remove('loading-msg');
     }

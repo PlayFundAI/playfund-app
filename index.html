@@ -5334,7 +5334,7 @@ var usStates = ["Virginia"];
           iconHtml +
           '<div class="team-card-meta">' +
             '<div class="team-card-name">' + club.name + '</div>' +
-            '<div class="team-card-sub">' + club.city + ' &middot; ' + club.team_count + ' teams</div>' +
+            '<div class="team-card-sub">' + club.code + ' &middot; ' + club.city + ' &middot; ' + club.team_count + ' teams</div>' +
             '<div class="team-card-sub" style="margin-top:2px;">Total Dues: $' + Math.round(totalDues).toLocaleString() + '</div>' +
           '</div>' +
           '<div class="team-card-funded">' +
@@ -5383,8 +5383,11 @@ var usStates = ["Virginia"];
       // athlete_count is club-wide; approximate per-team as even split
       totalDues += (t.dues_cents || 0) / 100 * club.athlete_count / Math.max(club.team_count, 1);
     });
+    // Lead with the club code. Names collide in practice — "913 test" and
+    // "9132 Ballers" both exist in Brooklyn, and a rate was set on the wrong
+    // one because this header showed nothing that distinguished them.
     document.getElementById('adminClubDetailSub').textContent =
-      club.city + ' · ' + club.sport + ' · ' + club.team_count + ' teams · Total Dues: $' +
+      club.code + ' · ' + club.city + ' · ' + club.sport + ' · ' + club.team_count + ' teams · Total Dues: $' +
       Math.round(club.athlete_count * (club.teams[0] ? club.teams[0].dues_cents/100 : 0)).toLocaleString();
 
     // Rollup banner

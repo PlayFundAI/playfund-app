@@ -531,6 +531,51 @@ async function clubCanAcceptPayments(env, club) {
   }
 }
 __name(clubCanAcceptPayments, "clubCanAcceptPayments");
+// A club that has finished Stripe but has no agreed rate is fully blocked:
+// families hit the checkout gate and the club can't do anything about it,
+// because only PlayFund can set the rate. Tell staff the moment it happens
+// rather than waiting for someone to notice or a parent to complain.
+//
+// Idempotency uses the events table rather than a new column, so this needs
+// no migration: one club_awaiting_fee row per club, checked before sending.
+async function alertIfClubAwaitingFee(env, club) {
+  if (!club || !club.id || club.fee_agreed_at) return;
+  try {
+    const existing = await supabase(
+      env,
+      "GET",
+      `/events?event_name=eq.club_awaiting_fee&club_id=eq.${club.id}&select=id&limit=1`
+    );
+    if (existing.data?.length) return;
+    const RESEND_API_KEY = env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) return;
+    const where = [club.city, club.state].filter(Boolean).join(", ");
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "PlayFund Alerts <alerts@playfundai.com>",
+        to: ["jackson@playfundai.com", "clyde@playfundai.com"],
+        subject: `ACTION NEEDED \u2014 set a rate for ${club.name}, families can't pay yet`,
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
+  <p style="margin:0 0 16px;font-size:15px;color:#B42318;"><strong>${club.name}</strong> has finished Stripe onboarding and can accept charges, but no PlayFund rate has been set \u2014 so every family is being turned away at checkout.</p>
+  <p style="margin:0 0 8px;font-size:14px;color:#374151;">Club code: <strong>${club.code || "\u2014"}</strong>${where ? ` &middot; ${where}` : ""}</p>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">Set the rate in PlayFund Admin \u2192 ${club.name} \u2192 "PlayFund fee for this club". Saving it unlocks payments immediately.</p>
+  <p style="margin:0;font-size:12px;color:#9CA3AF;">Sent once per club. The club cannot resolve this themselves.</p>
+</div>`
+      })
+    });
+    await supabase(env, "POST", "/events", {
+      event_name: "club_awaiting_fee",
+      club_id: club.id,
+      properties: { code: club.code || null }
+    });
+  } catch (e) {
+    console.error("alertIfClubAwaitingFee failed:", e);
+  }
+}
+__name(alertIfClubAwaitingFee, "alertIfClubAwaitingFee");
+
 async function sendClubWelcomeEmail(env, club, setupUrl) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
@@ -1333,12 +1378,13 @@ var index_default = {
     if (method === "GET" && path.startsWith("/club/") && path.endsWith("/stripe-status")) {
       const clubId = path.split("/")[2];
       if (!clubId) return err("Club ID required");
-      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${clubId}&select=stripe_account_id`);
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${clubId}&select=id,name,code,city,state,stripe_account_id,fee_agreed_at`);
       const club = clubRes.data?.[0];
       if (!club) return err("Club not found", 404);
       if (!club.stripe_account_id) return json({ connected: false, charges_enabled: false, details_submitted: false });
       const acctRes = await stripe(env, "GET", `/accounts/${club.stripe_account_id}`);
       if (!acctRes.ok) return err("Failed to fetch Stripe account status", 500);
+      if (acctRes.data.charges_enabled) await alertIfClubAwaitingFee(env, club);
       return json({
         connected: true,
         charges_enabled: !!acctRes.data.charges_enabled,
@@ -2046,6 +2092,19 @@ var index_default = {
       const eventId = event.id;
       const eventType = event.type;
       const metadata = event.data?.object?.metadata || {};
+      if (eventType === "account.updated") {
+        const acct = event.data?.object || {};
+        if (acct.charges_enabled && acct.id) {
+          const clubRes = await supabase(
+            env,
+            "GET",
+            `/clubs?stripe_account_id=eq.${acct.id}&select=id,name,code,city,state,fee_agreed_at`
+          );
+          const club = clubRes.data?.[0];
+          if (club) await alertIfClubAwaitingFee(env, club);
+        }
+        return json({ received: true });
+      }
       const athleteId = metadata.athlete_id;
       if (!athleteId) {
         console.log("Stripe event missing athlete_id metadata:", eventId);

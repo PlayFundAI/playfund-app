@@ -3549,6 +3549,19 @@ var usStates = ["Virginia"];
     try {
       var res  = await fetch(WORKER_URL + '/club/' + c.id + '/stripe-status');
       var data = await res.json();
+      // A club can finish Stripe and still not be able to take money: the
+      // Worker blocks checkout until PlayFund has set their rate. Say so here
+      // rather than letting a parent discover it at the payment screen.
+      var rateAgreed = !!(state.club && state.club.fee_agreed_at);
+      if(data.charges_enabled && !rateAgreed){
+        banner.style.display = 'block';
+        banner.style.background = 'var(--paper-dim)';
+        banner.style.borderColor = 'var(--line)';
+        msg.style.color = 'var(--ink-soft)';
+        msg.innerHTML = '<b>Stripe is connected.</b> PlayFund is finalizing your account before families can pay \u2014 we\'ll be in touch shortly.';
+        btn.style.display = 'none';
+        return;
+      }
       if(data.charges_enabled){
         banner.style.display = 'block';
         banner.style.background = 'var(--paid-bg)';
@@ -5354,6 +5367,20 @@ var usStates = ["Virginia"];
     loadAdminClubPayments(club.id);
     var feeInput = document.getElementById('adminDetailFeeInput');
     if(feeInput) feeInput.value = ((club.fee_bps != null ? club.fee_bps : 500) / 100);
+    // Until this is set, the Worker blocks checkout for the club. The input
+    // shows 5% by default, which is only the fallback used for math -- it does
+    // not mean anyone agreed to 5%, so don't let it read as though they did.
+    var feeMsgEl = document.getElementById('adminDetailFeeMsg');
+    if(feeMsgEl){
+      if(club.fee_agreed_at){
+        var when = new Date(club.fee_agreed_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+        feeMsgEl.textContent = 'Rate set ' + when + ' \u2014 payments enabled.';
+        feeMsgEl.style.color = 'var(--ink-soft)';
+      } else {
+        feeMsgEl.textContent = 'No rate set yet \u2014 this club cannot take payments until you save one.';
+        feeMsgEl.style.color = 'var(--unpaid)';
+      }
+    }
     var feeMsg = document.getElementById('adminDetailFeeMsg');
     if(feeMsg) feeMsg.textContent = '';
 
@@ -5498,7 +5525,10 @@ var usStates = ["Virginia"];
       });
       var data = await res.json();
       if(!res.ok){ msg.textContent = data.error || 'Failed to save.'; msg.style.color = 'var(--unpaid)'; return; }
-      msg.textContent = 'Saved.'; msg.style.color = 'var(--paid)';
+      // Saving the rate is what unlocks checkout for this club (the Worker
+      // stamps fee_agreed_at on this PATCH), so say that plainly rather than
+      // just "Saved."
+      msg.textContent = 'Saved \u2014 this club can now take payments.'; msg.style.color = 'var(--paid)';
     } catch(e){ msg.textContent = 'Network error.'; msg.style.color = 'var(--unpaid)'; }
   }
 

@@ -1033,6 +1033,10 @@ var index_default = {
           return err("fee_bps must be an integer between 0 and 10000");
         }
         updateData.fee_bps = body.fee_bps;
+        // Setting the rate is the act of agreeing it. fee_agreed_at is what
+        // gates transactions -- fee_bps alone can't say whether 5% was
+        // negotiated or just never touched, since the column defaults to 500.
+        updateData.fee_agreed_at = (/* @__PURE__ */ new Date()).toISOString();
       }
       if (body.reminders_enabled !== void 0) {
         if (typeof body.reminders_enabled !== "boolean") return err("reminders_enabled must be a boolean");
@@ -1069,7 +1073,7 @@ var index_default = {
       const clubsRes = await supabase(
         env,
         "GET",
-        "/clubs?select=id,name,sport,city,state,code,active,fee_bps,reminders_enabled,reminder_pre_due_days,reminder_recurring_interval_days&order=name.asc"
+        "/clubs?select=id,name,sport,city,state,code,active,fee_bps,fee_agreed_at,reminders_enabled,reminder_pre_due_days,reminder_recurring_interval_days&order=name.asc"
       );
       if (!clubsRes.ok) return err("Failed to fetch clubs", 500);
       const clubs = clubsRes.data || [];
@@ -1312,7 +1316,7 @@ var index_default = {
       const clubRes = await supabase(
         env,
         "GET",
-        `/clubs?select=id,name,sport,city,state,code,active,fees_per_athlete,fee_bps&code=eq.${code}`
+        `/clubs?select=id,name,sport,city,state,code,active,fees_per_athlete,fee_bps,fee_agreed_at&code=eq.${code}`
       );
       if (!clubRes.ok || !clubRes.data?.length) return err("Club not found", 404);
       const club = clubRes.data[0];
@@ -1350,7 +1354,7 @@ var index_default = {
         // selected above because the authorized branch needs it for payout
         // math, but it must not reach an unauthenticated caller -- a parent
         // only needs a club code to reach this endpoint.
-        const { fee_bps, ...publicClub } = club;
+        const { fee_bps, fee_agreed_at, ...publicClub } = club;
         return json({
           club: {
             ...publicClub,
@@ -1824,10 +1828,17 @@ var index_default = {
       const teamRes = await supabase(env, "GET", `/teams?id=eq.${athlete.team_id}&select=id,name,dues_cents`);
       const team = teamRes.data?.[0];
       if (!team) return err("Team not found", 404);
-      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name,code,stripe_account_id,fee_bps`);
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name,code,stripe_account_id,fee_bps,fee_agreed_at`);
       const club = clubRes.data?.[0];
       if (!club) return err("Club not found", 404);
       if (!club.stripe_account_id) return err("This club hasn't connected Stripe yet", 400);
+      // No money moves until PlayFund has actually set this club's rate.
+      // Without this, a club transacts at DEFAULT_FEE_BPS -- a rate nobody
+      // agreed to and the club was never shown. This is deliberately checked
+      // server-side at the point of charging, not just hidden in the UI.
+      if (!club.fee_agreed_at) {
+        return err("This club isn't set up to take payments yet. PlayFund is finalizing their account \u2014 nothing has been charged. Please check back shortly or contact your club.", 409);
+      }
       const duesCents = team.dues_cents;
       if (!duesCents) return err("Team has no dues configured", 400);
       const feeBps = clubFeeBps(club);

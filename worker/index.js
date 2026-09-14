@@ -1826,6 +1826,10 @@ var index_default = {
       }
       const { club_id, club_code, name, age_group, dues_cents, season_start, season_end, dues_due_date, fees } = body;
       if (!name || !dues_cents) return err("name and dues_cents are required");
+      // Enforced here too, not just in the form: the daily reminder sweep
+      // skips teams with no dues_due_date, so a team created without one
+      // never reminds anyone and nothing surfaces that.
+      if (!dues_due_date) return err("dues_due_date is required — it is what schedules payment reminders for this team");
       let resolvedClubId = club_id;
       if (!resolvedClubId && club_code) {
         const clubRes = await supabase(env, "GET", `/clubs?select=id&code=eq.${club_code.toUpperCase()}`);
@@ -1842,7 +1846,7 @@ var index_default = {
         dues_cents: Math.round(dues_cents),
         season_start: season_start || null,
         season_end: season_end || null,
-        dues_due_date: dues_due_date || null,
+        dues_due_date,
         active: true
       };
       // The club's own fee breakdown. teams.fees has existed all along but

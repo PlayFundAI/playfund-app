@@ -1819,7 +1819,8 @@
     </div>
     <div class="field">
       <label>When should the fees be due?</label>
-      <input type="date" id="addTeamDue" tabindex="5">
+      <input type="date" id="addTeamDue" tabindex="5" required>
+      <p style="font-size:11.5px; color:var(--ink-soft); margin:4px 0 0;">Payment reminders to families are scheduled from this date.</p>
     </div>
 
     <div class="section-label" style="margin-top:20px;">Fee breakdown</div>
@@ -3372,6 +3373,11 @@ var usStates = ["Virginia"];
 
     if(!name)           { errEl.textContent = 'Team name is required.'; return; }
     if(totalDues <= 0)  { errEl.textContent = 'Add at least one fee amount.'; return; }
+    // Required because the daily reminder sweep only considers teams with a
+    // due date (runScheduledReminders filters on dues_due_date=not.is.null).
+    // A blank date silently means this team's families are never reminded,
+    // which is the main lever against non-payment.
+    if(!dueDate)        { errEl.textContent = 'A due date is required, it is what schedules payment reminders.'; return; }
     if(!c)              { errEl.textContent = 'No club loaded. Please log in again.'; return; }
 
     var clubSession = null;
@@ -3393,7 +3399,7 @@ var usStates = ["Virginia"];
           fees:          validFees,
           season_start:  start || null,
           season_end:    end || null,
-          dues_due_date: dueDate || null
+          dues_due_date: dueDate
         })
       });
       var data = await res.json();

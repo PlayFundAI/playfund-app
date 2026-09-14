@@ -2896,6 +2896,10 @@ var usStates = ["Virginia"];
         var checkout = params.get('checkout');
         var athId    = params.get('athlete');
         if(!checkout || !athId) return;
+        // Held only for this screen's lifetime: it is the proof of purchase
+        // that lets us ask for the email used at checkout. history.replaceState
+        // below wipes the query string a moment from now.
+        try { state.checkoutSessionId = params.get('session_id') || null; } catch(e){}
         history.replaceState(null, '', window.location.pathname);
         setTimeout(function(){ resolveAthleteAfterCheckout(athId); }, 1100);
       } catch(e){}
@@ -3032,6 +3036,24 @@ var usStates = ["Virginia"];
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
     var email = (athlete && athlete.parentEmail) || '';
     var emailEl = document.getElementById('parentSaveEmail');
+    // Ask for the address used at checkout. It beats whatever was typed at
+    // registration, because it is the one the parent just proved they can
+    // receive a Stripe receipt at. Scoped by session id, not athlete id.
+    if(state.checkoutSessionId && athlete && athlete.supabaseId){
+      fetch(WORKER_URL + '/checkout/session-email?session_id=' + encodeURIComponent(state.checkoutSessionId) +
+            '&athlete=' + encodeURIComponent(athlete.supabaseId))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){
+          if(d && d.email && emailEl && !emailEl.value){
+            emailEl.value = d.email;
+            emailEl.setAttribute('readonly', 'readonly');
+            emailEl.style.background = 'var(--paper-dim)';
+            emailEl.style.color = 'var(--ink-soft)';
+            emailEl.removeAttribute('placeholder');
+          }
+        })
+        .catch(function(){});
+    }
     if(emailEl){
       emailEl.value = email;
       // The field is readonly because it should be the address the parent

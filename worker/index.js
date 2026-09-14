@@ -1618,6 +1618,58 @@ var index_default = {
       }
       return json({ success: true, message: `Invite sent to ${email}` }, 201);
     }
+    // Marketing site contact form (site/index.html). Every CTA on that page
+    // points here — it is the only way in until real self-serve onboarding
+    // exists, so it stays deliberately boring: no account, no dependencies
+    // beyond Resend.
+    if (method === "POST" && path === "/contact") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return err("Invalid JSON");
+      }
+      // Hidden field no human sees. Bots fill it; answer 200 so they don't
+      // learn anything, but send nothing.
+      if (body.company) return json({ success: true });
+
+      const name = (body.name || "").trim().slice(0, 120);
+      const club = (body.club || "").trim().slice(0, 160);
+      const email = (body.email || "").trim().slice(0, 200);
+      const message = (body.message || "").trim().slice(0, 4000);
+      if (!name || !club) return err("name and club are required");
+      if (!email || !email.includes("@")) return err("A valid email is required");
+
+      const RESEND_API_KEY = env.RESEND_API_KEY;
+      if (!RESEND_API_KEY) return err("Contact is not configured yet", 500);
+      const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "PlayFund Site <alerts@playfundai.com>",
+            to: ["jackson@playfundai.com", "clyde@playfundai.com", "admin@playfundai.com"],
+            reply_to: email,
+            subject: `New enquiry: ${club}`,
+            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
+  <p style="margin:0 0 14px;font-size:15px;color:#004643;"><strong>${esc(name)}</strong> from <strong>${esc(club)}</strong> got in touch through playfundai.com.</p>
+  <p style="margin:0 0 6px;font-size:14px;color:#374151;">Email: <a href="mailto:${esc(email)}">${esc(email)}</a></p>
+  ${message ? `<p style="margin:14px 0 0;font-size:14px;color:#374151;white-space:pre-wrap;">${esc(message)}</p>` : `<p style="margin:14px 0 0;font-size:13px;color:#9CA3AF;">No message left.</p>`}
+  <p style="margin:18px 0 0;font-size:12px;color:#9CA3AF;">Reply directly to this email to reach them.</p>
+</div>`
+          })
+        });
+      } catch (e) {
+        console.error("Contact email failed:", e);
+        return err("Could not send just now. Please email admin@playfundai.com.", 502);
+      }
+      await supabase(env, "POST", "/events", {
+        event_name: "site_contact_submitted",
+        properties: { club }
+      });
+      return json({ success: true }, 201);
+    }
     if (method === "POST" && path === "/club/register") {
       let body;
       try {

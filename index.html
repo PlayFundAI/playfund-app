@@ -2052,6 +2052,26 @@
 
     <div id="adminRosterList"></div>
 
+    <!-- PlayFund-side add athlete. The Worker already auto-approves anyone a
+         playfund_admin adds; only the UI was missing, so staff could approve
+         and remove athletes but never add one (e.g. from a roster CSV a club
+         emails in). -->
+    <div id="adminAddAthleteForm" style="display:none; background:var(--paper-dim); border-radius:12px; padding:14px 16px; margin-top:12px;">
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:10px;">Add athlete</div>
+      <input type="text" id="adminNewAthleteName" placeholder="Athlete name" autocomplete="off"
+        style="width:100%; padding:11px 12px; margin-bottom:8px; border:1.5px solid var(--line); border-radius:var(--r-md); font-family:'Inter',sans-serif; font-size:13px;">
+      <input type="email" id="adminNewAthleteEmail" placeholder="Parent email" autocomplete="off"
+        style="width:100%; padding:11px 12px; margin-bottom:8px; border:1.5px solid var(--line); border-radius:var(--r-md); font-family:'Inter',sans-serif; font-size:13px;">
+      <input type="tel" id="adminNewAthletePhone" placeholder="Parent phone (optional)" autocomplete="off"
+        style="width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); font-family:'Inter',sans-serif; font-size:13px;">
+      <p id="adminNewAthleteMsg" style="font-size:12px; min-height:16px; margin:8px 0 10px;"></p>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" style="flex:1; padding:10px;" onclick="submitAdminAddAthlete()">Add athlete</button>
+        <button class="btn btn-secondary" style="flex:1; padding:10px;" onclick="toggleAdminAddAthlete(false)">Cancel</button>
+      </div>
+    </div>
+    <button class="btn btn-secondary" id="adminAddAthleteBtn" onclick="toggleAdminAddAthlete(true)" style="margin-top:12px; width:100%;">+ Add athlete</button>
+
     <button class="btn btn-secondary" id="adminSendRemindersBtn" onclick="openAdminReminderModal()" style="margin-top:12px; width:100%;">📧 Send reminders to unpaid families</button>
   </div>
 
@@ -5588,6 +5608,71 @@ var usStates = ["Virginia"];
       // just "Saved."
       msg.textContent = 'Saved \u2014 this club can now take payments.'; msg.style.color = 'var(--paid)';
     } catch(e){ msg.textContent = 'Network error.'; msg.style.color = 'var(--unpaid)'; }
+  }
+
+  function toggleAdminAddAthlete(show){
+    var form = document.getElementById('adminAddAthleteForm');
+    var btn  = document.getElementById('adminAddAthleteBtn');
+    if(!form || !btn) return;
+    form.style.display = show ? 'block' : 'none';
+    btn.style.display  = show ? 'none' : 'block';
+    if(show){
+      document.getElementById('adminNewAthleteName').value  = '';
+      document.getElementById('adminNewAthleteEmail').value = '';
+      document.getElementById('adminNewAthletePhone').value = '';
+      document.getElementById('adminNewAthleteMsg').textContent = '';
+      document.getElementById('adminNewAthleteName').focus();
+    }
+  }
+
+  // Adds an athlete on the club's behalf — the documented pilot path for a
+  // club that emails in a roster (punchlist item 12: staff-supported manual
+  // import). POST /athlete already auto-approves anyone a playfund_admin
+  // adds, so this needed no Worker change.
+  async function submitAdminAddAthlete(){
+    var club = state.adminCurrentClub;
+    var team = state.adminCurrentTeam;
+    var msg  = document.getElementById('adminNewAthleteMsg');
+    if(!club || !team){ if(msg){ msg.textContent = 'No team loaded.'; msg.style.color = 'var(--unpaid)'; } return; }
+
+    var name  = (document.getElementById('adminNewAthleteName').value || '').trim();
+    var email = (document.getElementById('adminNewAthleteEmail').value || '').trim();
+    var phone = (document.getElementById('adminNewAthletePhone').value || '').trim();
+    if(!name){ msg.textContent = 'Athlete name is required.'; msg.style.color = 'var(--unpaid)'; return; }
+    if(!email || email.indexOf('@') === -1){ msg.textContent = 'A parent email is required — it is where the payment link goes.'; msg.style.color = 'var(--unpaid)'; return; }
+    if(!adminSession){ msg.textContent = 'Session expired. Please sign in again.'; msg.style.color = 'var(--unpaid)'; return; }
+
+    msg.textContent = 'Adding…'; msg.style.color = 'var(--ink-soft)';
+    try {
+      var res = await fetch(WORKER_URL + '/athlete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminSession },
+        body: JSON.stringify({
+          club_code:    club.code,
+          team_id:      team.id,
+          athlete_name: name,
+          parent_email: email,
+          parent_phone: phone || null
+        })
+      });
+      var data = await res.json();
+      if(!res.ok){ msg.textContent = data.error || 'Failed to add athlete.'; msg.style.color = 'var(--unpaid)'; return; }
+      // The Worker holds the payment link back if the club can't be charged
+      // yet, so say which happened rather than implying an email went out.
+      msg.textContent = data.payment_invite_sent
+        ? 'Added — payment link emailed to ' + email + '.'
+        : 'Added. No payment link sent yet: this club can\'t take payments until Stripe is finished and a rate is set.';
+      msg.style.color = 'var(--paid)';
+      document.getElementById('adminNewAthleteName').value  = '';
+      document.getElementById('adminNewAthleteEmail').value = '';
+      document.getElementById('adminNewAthletePhone').value = '';
+      openAdminTeamRoster(club, team);
+      toggleAdminAddAthlete(true);
+      document.getElementById('adminNewAthleteMsg').textContent = msg.textContent;
+      document.getElementById('adminNewAthleteMsg').style.color = 'var(--paid)';
+    } catch(e){
+      msg.textContent = 'Network error. Please try again.'; msg.style.color = 'var(--unpaid)';
+    }
   }
 
   async function openAdminTeamRoster(club, team){

@@ -2083,6 +2083,26 @@ var index_default = {
       if (!sessionRes.ok) return err("Failed to create checkout session: " + JSON.stringify(sessionRes.data), 500);
       return json({ client_secret: sessionRes.data.client_secret });
     }
+    // The email a parent typed at Stripe checkout, for prefilling the
+    // "Save your account" screen straight afterwards.
+    //
+    // Scoped to the checkout session rather than the athlete: an athlete UUID
+    // travels in payment links, so returning a parent's address for one would
+    // hand out PII to anyone holding a link. A session id is only known to
+    // whoever just completed that checkout, and it is verified here to belong
+    // to the athlete being asked about.
+    if (method === "GET" && path === "/checkout/session-email") {
+      const sessionId = url.searchParams.get("session_id");
+      const athleteId = url.searchParams.get("athlete");
+      if (!sessionId || !athleteId) return err("session_id and athlete are required");
+      if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return err("Invalid session_id");
+      const sessionRes = await stripe(env, "GET", `/checkout/sessions/${sessionId}`);
+      if (!sessionRes.ok) return err("Session not found", 404);
+      const session = sessionRes.data;
+      if (session.metadata?.athlete_id !== athleteId) return err("Forbidden", 403);
+      if (session.payment_status !== "paid") return json({ email: null });
+      return json({ email: session.customer_details?.email || session.customer_email || null });
+    }
     if (method === "GET" && path === "/athletes/status") {
       const idsParam = url.searchParams.get("ids") || "";
       const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean);
@@ -2242,6 +2262,16 @@ var index_default = {
         );
         const athlete = athleteRes.data?.[0];
         if (!athlete) return json({ received: true });
+        // The address the parent actually typed at checkout. Backfill it when
+        // the athlete has none -- an athlete added without a parent email is
+        // invisible to every email path (receipts, reminders, payment links),
+        // and this is the one moment we learn a working one. Never overwrite
+        // an address a club or parent already gave.
+        const checkoutEmail = pi.receipt_email || pi.charges?.data?.[0]?.billing_details?.email || null;
+        if (checkoutEmail && !athlete.parent_email) {
+          await supabase(env, "PATCH", `/athletes?id=eq.${athleteId}`, { parent_email: checkoutEmail });
+          athlete.parent_email = checkoutEmail;
+        }
         const teamRes = await supabase(
           env,
           "GET",

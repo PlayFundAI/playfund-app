@@ -1,0 +1,23 @@
+# Cloudflare Pages response headers.
+#
+# GitHub Pages cannot set these at all, which was one of the reasons for
+# moving. Everything here is enforced by the browser, so a mistake shows up as
+# a broken page rather than a silent downgrade — test on a preview URL first.
+
+/*
+  # Clickjacking: nothing here should ever be framed by another site.
+  X-Frame-Options: DENY
+  # Stop browsers guessing content types.
+  X-Content-Type-Options: nosniff
+  # Don't leak the full URL (which carries athlete ids and setup tokens) to
+  # third parties when someone follows a link out.
+  Referrer-Policy: strict-origin-when-cross-origin
+  # We ask for none of these.
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# The app embeds Stripe, so its CSP has to allow Stripe's scripts and frames
+# and our own Worker. Kept as a separate block from the marketing page so the
+# marketing page isn't forced to trust anything it doesn't need.
+/app/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://playfund-worker.jacksonwwatkins.workers.dev https://klnbdvwasnnqszlhawbl.supabase.co https://api.stripe.com https://connect-js.stripe.com; frame-src https://js.stripe.com https://connect-js.stripe.com https://hooks.stripe.com; form-action 'self'; base-uri 'self'; object-src 'none'

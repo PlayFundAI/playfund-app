@@ -280,6 +280,62 @@ async function sendReminderEmail(env, club, team, athlete) {
   return { ok: true };
 }
 __name(sendReminderEmail, "sendReminderEmail");
+// Sent to a parent who registers their own athlete, replacing the one the
+// send-registration-email Edge Function sends from hello@ — an address the
+// repo retired everywhere else, on a function nobody maintains. Deliberately
+// does NOT include a pay link: a self-registered athlete is pending until the
+// club confirms them, and checkout refuses a pending athlete anyway.
+async function sendParentRegistrationEmail(env, club, team, athlete) {
+  const RESEND_API_KEY = env.RESEND_API_KEY;
+  if (!RESEND_API_KEY || !athlete.parent_email) return;
+  if (await isHardSuppressed(env, athlete.parent_email)) return;
+  const dues = (team.dues_cents || 0) / 100;
+  const duesStr = dues > 0 ? `$${dues.toLocaleString()}` : "TBD";
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
+  </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
+  <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;"><tr><td align="center" style="padding:32px 16px;">
+  <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <tr><td style="background:#004643;padding:18px 28px;">
+      <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+    </td></tr>
+    <tr><td style="padding:32px 28px 24px;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Registration received</p>
+      <h1 style="margin:0 0 12px;font-size:24px;font-weight:800;color:#004643;line-height:1.25;">${athlete.name} is registered with ${club.name}.</h1>
+      <p style="margin:0;font-size:15px;color:#6B7280;line-height:1.6;">${club.name} needs to confirm ${athlete.name} is on the roster. Once they do, we'll email you a link to pay \u2014 there's nothing to do until then.</p>
+    </td></tr>
+    <tr><td style="padding:0 28px 24px;">
+      <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;">
+        <tr><td style="padding:14px 16px;">
+          <table cellpadding="0" cellspacing="0" width="100%">
+            <tr><td style="font-size:13px;color:#6B7280;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${team.name}</td></tr>
+            <tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Season dues</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${duesStr}</td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </td></tr>
+    <tr><td style="padding:0 28px 28px;">
+      <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Questions? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.</p>
+    </td></tr>
+  </table></td></tr></table></body></html>`;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: `${club.name} via PlayFund <admin@playfundai.com>`,
+        to: [athlete.parent_email],
+        subject: `${athlete.name} is registered with ${club.name}`,
+        html
+      })
+    });
+  } catch (e) {
+    console.error("sendParentRegistrationEmail failed:", e);
+  }
+}
+__name(sendParentRegistrationEmail, "sendParentRegistrationEmail");
+
 async function sendApprovalEmail(env, club, team, athlete) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !athlete.parent_email) return;
@@ -1706,6 +1762,50 @@ var index_default = {
         message: "Registration received. Check your email for a link to set up your account."
       }, 201);
     }
+    // Release the payment links held back while the club wasn't chargeable.
+    // Deliberately a button the club presses rather than an automatic blast on
+    // activation: a club may want to check its roster before every family is
+    // emailed at once, and an accidental send can't be recalled.
+    if (method === "POST" && path.startsWith("/club/") && path.endsWith("/send-payment-links")) {
+      const clubId = path.split("/")[2];
+      if (!clubId) return err("Club ID required");
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const callerRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!callerRes.ok) return err("Invalid token", 401);
+      const callerData = await callerRes.json();
+      const callerProfileRes = await supabase(env, "GET", `/user_profiles?id=eq.${callerData.id}&select=role,club_id`);
+      const callerProfile = callerProfileRes.data?.[0];
+      const allowed = callerProfile && (callerProfile.role === "playfund_admin" || callerProfile.role === "club_admin" && callerProfile.club_id === clubId);
+      if (!allowed) return err("Forbidden", 403);
+
+      const clubRes = await supabase(env, "GET", `/clubs?id=eq.${clubId}&select=id,name,code,fee_agreed_at,stripe_account_id`);
+      const club = clubRes.data?.[0];
+      if (!club) return err("Club not found", 404);
+      if (!await clubCanAcceptPayments(env, club)) {
+        return err("This club can't accept payments yet, so the links would not work. Finish Stripe onboarding and make sure PlayFund has set your rate.", 409);
+      }
+      const teamsRes = await supabase(env, "GET", `/teams?club_id=eq.${clubId}&active=eq.true&select=id,name,dues_cents`);
+      const teams = teamsRes.data || [];
+      let sent = 0;
+      const skipped = [];
+      for (const team of teams) {
+        const athRes = await supabase(
+          env,
+          "GET",
+          `/athletes?team_id=eq.${team.id}&approval_status=eq.approved&select=id,name,parent_email,payment_status&or=(payment_status.eq.unpaid,payment_status.is.null)`
+        );
+        for (const athlete of athRes.data || []) {
+          if (!athlete.parent_email) { skipped.push(athlete.name); continue; }
+          await sendApprovalEmail(env, club, team, athlete);
+          sent++;
+        }
+      }
+      return json({ success: true, sent, skipped });
+    }
     if (method === "POST" && path === "/team") {
       const authHeader = request.headers.get("Authorization") || "";
       const token = authHeader.replace("Bearer ", "").trim();
@@ -1832,7 +1932,11 @@ var index_default = {
       // pay now" email is held back until the club is actually chargeable.
       const canAcceptPayments = await clubCanAcceptPayments(env, club);
       if (approvalStatus === "pending") {
+        // Club is told someone needs approving; the parent is told we have
+        // their registration. Neither gets a pay link, because a pending
+        // athlete cannot check out.
         await sendPendingApprovalEmail(env, club, team, newAthlete);
+        await sendParentRegistrationEmail(env, club, team, newAthlete);
       } else if (canAcceptPayments) {
         await sendApprovalEmail(env, club, team, newAthlete);
       }

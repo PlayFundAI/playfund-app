@@ -3596,8 +3596,14 @@ var usStates = ["Virginia"];
         banner.style.background = 'var(--paid-bg)';
         banner.style.borderColor = 'var(--paid)';
         msg.style.color = 'var(--paid)';
-        msg.innerHTML = '✓ <b>Stripe connected successfully.</b> You\'re ready to accept payments.';
-        btn.style.display = 'none';
+        msg.innerHTML = '✓ <b>You\'re ready to accept payments.</b> Send families their payment links when your roster looks right.';
+        // Payment links are held back while a club can't be charged, so this
+        // is how the club releases them once it can. A button rather than an
+        // automatic blast on activation: an accidental send to 40 families
+        // can't be recalled.
+        btn.style.display = 'block';
+        btn.textContent = 'Send payment links to families';
+        btn.onclick = sendPaymentLinks;
         return;
       }
       banner.style.display = 'block';
@@ -3613,6 +3619,41 @@ var usStates = ["Virginia"];
         btn.textContent = 'Connect Stripe';
       }
     } catch(e){ console.warn('refreshStripeBanner error:', e); }
+  }
+
+  async function sendPaymentLinks(){
+    var c = state.club;
+    var btn = document.getElementById('stripeConnectBtn');
+    var msg = document.getElementById('stripeConnectMsg');
+    if(!c) return;
+    var clubSession = null;
+    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    if(!clubSession || !clubSession.access_token){ alert('Session expired. Please sign in again.'); return; }
+    if(!confirm('Email a payment link to every approved family who hasn\'t paid yet?')) return;
+
+    var original = btn ? btn.textContent : '';
+    if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+    try {
+      var res = await fetch(WORKER_URL + '/club/' + c.id + '/send-payment-links', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + clubSession.access_token }
+      });
+      var data = await res.json();
+      if(!res.ok){
+        if(msg){ msg.style.color = 'var(--unpaid)'; msg.textContent = data.error || 'Could not send payment links.'; }
+        if(btn){ btn.disabled = false; btn.textContent = original; }
+        return;
+      }
+      if(msg){
+        msg.style.color = 'var(--paid)';
+        msg.innerHTML = '✓ <b>Sent ' + data.sent + ' payment link' + (data.sent === 1 ? '' : 's') + '.</b>' +
+          (data.skipped && data.skipped.length ? ' ' + data.skipped.length + ' skipped with no parent email.' : '');
+      }
+      if(btn){ btn.disabled = false; btn.textContent = 'Send again'; }
+    } catch(e){
+      if(msg){ msg.style.color = 'var(--unpaid)'; msg.textContent = 'Network error. Please try again.'; }
+      if(btn){ btn.disabled = false; btn.textContent = original; }
+    }
   }
 
   // ---------- Stripe Connect embedded onboarding (Connect.js) ----------

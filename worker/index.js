@@ -1618,7 +1618,7 @@ var index_default = {
       }
       return json({ success: true, message: `Invite sent to ${email}` }, 201);
     }
-    // Marketing site contact form (site/index.html). Every CTA on that page
+    // Marketing site contact form (public/index.html). Every CTA on that page
     // points here — it is the only way in until real self-serve onboarding
     // exists, so it stays deliberately boring: no account, no dependencies
     // beyond Resend.

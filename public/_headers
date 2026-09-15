@@ -12,8 +12,13 @@
   # Don't leak the full URL (which carries athlete ids and setup tokens) to
   # third parties when someone follows a link out.
   Referrer-Policy: strict-origin-when-cross-origin
-  # We ask for none of these.
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  # We ask for none of these ourselves. payment= is NOT empty on purpose:
+  # checkout is Stripe *embedded* checkout (stripe.initEmbeddedCheckout mounts
+  # an iframe into /app/, it is not a redirect to checkout.stripe.com), and
+  # Apple Pay / Google Pay inside that iframe are gated by this policy. With
+  # payment=() the wallet buttons silently do not render — no console error,
+  # nothing server-side, and card payments keep working, so it looks fine.
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self "https://js.stripe.com" "https://checkout.stripe.com")
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 # The app embeds Stripe, so its CSP has to allow Stripe's scripts and frames

@@ -204,7 +204,7 @@ async function sendReminderEmail(env, club, team, athlete) {
   if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY not configured" };
   if (!athlete.parent_email) return { ok: false, skipped: true };
   if (await isSuppressed(env, athlete.parent_email)) return { ok: false, skipped: true, reason: "suppressed" };
-  const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
+  const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
   const dues = (team.dues_cents || 0) / 100;
   const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
   const unsubUrl = await unsubscribeLink(env, athlete.parent_email);
@@ -342,7 +342,7 @@ async function sendApprovalEmail(env, club, team, athlete) {
   // Only a hard bounce/complaint blocks this — a plain unsubscribe from
   // reminders shouldn't also swallow this one-time, non-marketing confirmation.
   if (await isHardSuppressed(env, athlete.parent_email)) return;
-  const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
+  const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
   const dues = (team.dues_cents || 0) / 100;
   const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -1418,7 +1418,7 @@ var index_default = {
         await supabase(env, "PATCH", `/clubs?id=eq.${clubId}`, { stripe_account_id: accountId });
       }
       // Embedded onboarding (Connect.js) instead of a redirect to
-      // connect.stripe.com — keeps the club admin on playfundai.github.io the
+      // connect.stripe.com — keeps the club admin on www.playfundai.com the
       // same way the parent checkout stays on-site. An Account Session's
       // client_secret is short-lived (~1 hour), so this is called fresh each
       // time the onboarding screen mounts, not cached.
@@ -1618,7 +1618,7 @@ var index_default = {
       }
       return json({ success: true, message: `Invite sent to ${email}` }, 201);
     }
-    // Marketing site contact form (site/index.html). Every CTA on that page
+    // Marketing site contact form (public/index.html). Every CTA on that page
     // points here — it is the only way in until real self-serve onboarding
     // exists, so it stays deliberately boring: no account, no dependencies
     // beyond Resend.
@@ -1721,7 +1721,7 @@ var index_default = {
       let inviteError = null;
       if (admin_email) {
         const adminEmail = admin_email.toLowerCase().trim();
-        const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
+        const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
         // We are not the only thing inviting this admin: two Supabase
         // database webhooks on clubs INSERT (on-club-insert,
         // on-club-insert-notify) call an Edge Function that runs its own
@@ -2102,7 +2102,7 @@ var index_default = {
       if (!duesCents) return err("Team has no dues configured", 400);
       const feeBps = clubFeeBps(club);
       const applicationFeeAmount = Math.round(duesCents * feeBps / 1e4);
-      const APP_URL = env.APP_URL || "https://playfundai.github.io/playfund-app/";
+      const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
       // 'full' and 'bnpl' must never leak into each other. Naively restricting
       // payment_method_types isn't enough on its own: Stripe Link recognizes a
       // returning customer and will still offer their previously-saved Klarna

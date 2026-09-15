@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>PlayFund</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       background:#F4F7F6;color:#004643;
+       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;text-align:center;padding:24px;}
+  a{color:#3D8A6A}
+</style>
+</head>
+<body>
+<!--
+  Redirect shim for the old GitHub Pages address.
+
+  PlayFund moved to https://www.playfundai.com/app/. This file exists only so that
+  links already sent out keep working — club setup links, payment links, approval
+  emails, unsubscribe links, and Stripe return_urls baked into Checkout Sessions
+  that were open when the move happened (Klarna is redirect-based and sessions
+  live around 24 hours, so a parent could otherwise be charged and then land on a
+  dead page).
+
+  GitHub Pages serves the repository root of main, so removing this file breaks
+  every one of those links at once. Keep it indefinitely — it costs nothing.
+
+  Both the query string and the hash are preserved:
+    ?code= ?athlete= ?club_verify= ?checkout=return&session_id=   (query)
+    #access_token=...                                             (hash, used by
+    Supabase auth redirects — a <meta refresh> or a server 301 would drop it)
+-->
+<noscript>
+  <p>PlayFund has moved to <a href="https://www.playfundai.com/app/">www.playfundai.com</a>.</p>
+</noscript>
+<p id="msg">Taking you to PlayFund…</p>
+<script>
+  (function () {
+    var target = 'https://www.playfundai.com/app/' + window.location.search + window.location.hash;
+    // replace() so the dead URL doesn't sit in history behind them.
+    window.location.replace(target);
+    // If the redirect is blocked for any reason, leave a usable link rather than
+    // a page that just says "taking you to…" forever.
+    setTimeout(function () {
+      document.getElementById('msg').innerHTML =
+        'PlayFund has moved. <a href="' + target.replace(/"/g, '&quot;') + '">Continue to www.playfundai.com</a>';
+    }, 2500);
+  })();
+</script>
+</body>
+</html>

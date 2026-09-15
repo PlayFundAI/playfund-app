@@ -1,14 +1,16 @@
 # Cloudflare Pages redirects.
 #
-# The app moved from the site root to /app/ when it got a real domain. Links
-# already sent by email — club setup links, payment links, Stripe return URLs —
-# carry the old shape and would otherwise 404. Query strings are preserved by
-# default, which matters because those links carry ?code=, ?athlete=,
-# ?club_verify= and ?session_id=.
+# These apply ONLY to requests that reach the Pages hostname (www.playfundai.com).
+# They cannot rescue a link pointing at the old playfundai.github.io address —
+# that is a different origin and never reaches Cloudflare. Old GitHub Pages links
+# are handled by the redirect shim at the repository root (/index.html), which is
+# what GitHub Pages serves.
 #
-# Only the specific old entry points are redirected, not a blanket rule, so a
-# genuinely wrong URL still 404s instead of silently landing on the app.
+# Pages matches on the PATH only. A rule whose source contains a query string
+# never fires, so ?code= style links are handled in page JavaScript instead, not
+# here.
 
-/index.html            /app/   301
-/?code=:code           /app/?code=:code   301
+# The app used to live at /playfund-app/ on GitHub Pages. If anyone rewrites an
+# old link by hand onto the new domain, land them in the right place. The splat
+# keeps the rest of the path; query strings are carried over automatically.
 /playfund-app/*        /app/:splat   301

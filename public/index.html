@@ -396,6 +396,17 @@
 </footer>
 
 <script>
+  // A club code on the marketing root means someone was handed a link for the
+  // app, not the homepage — send them on with the code intact. Cloudflare Pages
+  // _redirects matches on path only, so a query-string rule there can never
+  // fire; this has to happen in the page.
+  (function(){
+    var p = new URLSearchParams(window.location.search);
+    if(p.get('code') || p.get('athlete') || p.get('club_verify') || p.get('checkout')){
+      window.location.replace('/app/' + window.location.search + window.location.hash);
+    }
+  })();
+
   var WORKER_URL = 'https://playfund-worker.jacksonwwatkins.workers.dev';
 
   document.getElementById('contactForm').addEventListener('submit', async function(e){

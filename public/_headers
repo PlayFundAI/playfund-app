@@ -19,5 +19,11 @@
 # The app embeds Stripe, so its CSP has to allow Stripe's scripts and frames
 # and our own Worker. Kept as a separate block from the marketing page so the
 # marketing page isn't forced to trust anything it doesn't need.
+# Stripe needs more hosts than the app calls directly: m.stripe.network and
+# q.stripe.com carry fraud signals (missing them weakens Radar with no visible
+# error), merchant-ui-api.stripe.com serves the Connect embedded onboarding
+# component, and checkout.stripe.com/hooks.stripe.com are involved in the
+# redirect-based handoff Klarna uses. form-action must allow those too, or the
+# handoff is blocked silently — console only, nothing server-side.
 /app/*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://playfund-worker.jacksonwwatkins.workers.dev https://klnbdvwasnnqszlhawbl.supabase.co https://api.stripe.com https://connect-js.stripe.com; frame-src https://js.stripe.com https://connect-js.stripe.com https://hooks.stripe.com; form-action 'self'; base-uri 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://playfund-worker.jacksonwwatkins.workers.dev https://klnbdvwasnnqszlhawbl.supabase.co https://api.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://q.stripe.com; frame-src https://js.stripe.com https://connect-js.stripe.com https://hooks.stripe.com https://m.stripe.network https://checkout.stripe.com; form-action 'self' https://checkout.stripe.com https://hooks.stripe.com; base-uri 'self'; object-src 'none'

@@ -369,6 +369,20 @@ charge model follows from that.
       `PAY_IN_FULL_PMC_ID` → a live-mode Payment Method Configuration. Connected accounts do not
       cross from sandbox to live, so every club re-onboards through Connect; the pilot's first
       real club will be the first ever to complete live Connect onboarding.
+- [ ] **The 5% platform fee is ~2% after Stripe, and it does not vary by payment method.**
+      With destination charges the *platform* pays Stripe's processing fee. On a $1,500 dues
+      payment at the default 5%: club receives $1,425, gross fee $75, Stripe takes 2.9% + 30c =
+      $43.80, Radar $0.05 — **net $31.15**. Stripe consumes roughly 58% of the platform fee, so
+      the effective take is ~2.08% of the charge, consistent across ticket sizes ($950 -> $19.65,
+      $1,900 -> $39.55). Worth knowing because "5%" is the number used in rate conversations with
+      clubs.
+      The sharper problem: `applicationFeeAmount` is computed identically for both paths
+      (`worker/index.js:2110` — `clubFeeBps` ignores `payment_type`), while Stripe prices BNPL
+      materially higher than cards. **Confirm Klarna's rate in Plans and fees -> View pricing
+      details.** If it lands near or above 5%, every installment payment loses money — and
+      installments are the product. `clubs.fee_bps` is per-club, so the fix could be a floor, a
+      method-specific rate, or pricing Klarna separately. Pricing decision, not a code one.
+
 - [ ] **We now owe Stripe a restricted-business review of every club.** The Connect Platform
       Agreement acknowledgement (accepted 2026-09-15) includes "you'll review each seller to
       ensure they're not operating in a restricted business category or selling restricted

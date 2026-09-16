@@ -369,6 +369,16 @@ charge model follows from that.
       `PAY_IN_FULL_PMC_ID` → a live-mode Payment Method Configuration. Connected accounts do not
       cross from sandbox to live, so every club re-onboards through Connect; the pilot's first
       real club will be the first ever to complete live Connect onboarding.
+- [ ] **We now owe Stripe a restricted-business review of every club.** The Connect Platform
+      Agreement acknowledgement (accepted 2026-09-15) includes "you'll review each seller to
+      ensure they're not operating in a restricted business category or selling restricted
+      products." No such review exists — `POST /club/register` creates a club straight from the
+      signup form. The natural home is the `fee_agreed_at` gate: a club cannot take money until a
+      PlayFund admin sets their rate, and `alertIfClubAwaitingFee` already emails us when one is
+      Stripe-ready and waiting. Make the category check part of setting the rate rather than
+      building a second review step. Also note Radar Standard bills **$1.00 per connected
+      account** on top of $0.05 per screened transaction.
+
 - [ ] **Register `www.playfundai.com` under Stripe → Payment method domains.** Checkout is
       embedded (`stripe.initEmbeddedCheckout` mounts an iframe into `/app/`), so our page is the
       top-level document and Apple Pay / Google Pay need the domain registered. The

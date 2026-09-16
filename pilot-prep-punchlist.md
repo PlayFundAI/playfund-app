@@ -299,3 +299,78 @@ Grounded in a real failure, not a hypothetical: the session that root-caused the
 - [ ] One branch per task, merge (or ask to merge) promptly rather than letting a fix sit local-only — a fix that never leaves one session's disk doesn't exist for anyone else.
 - [ ] **Local-only, not expected in cloud sessions:** Claude in Chrome (for actual browser click-through — embedded Stripe onboarding, real email link testing, visual screen checks) only exists where the extension is installed and signed in on that machine. A cloud session should say so rather than pretend it can click through UI.
 - [ ] Test fixtures (test club/team/athlete IDs, deep links, Stripe test cards) are already documented in `pilot-readiness-plan.md` — reuse them instead of creating new throwaway clubs unless the test specifically needs a fresh one.
+
+## 16. Stripe Connect: live-mode configuration and the gaps it exposed
+
+Recorded 2026-09-15 while completing live activation of `acct_1U1c5AQ2kPXJfofJ` (the
+**live** PlayFund account — `acct_1U1c5LPyhgYp24eb` in the Worker's key is its *sandbox*).
+
+Choices confirmed against what the code actually does, not what sounded right:
+
+| Stripe question | Chosen | Because the code does this |
+|---|---|---|
+| Funds flow | Buyers purchase from you | `transfer_data.destination` + `application_fee_amount`, no `Stripe-Account` header anywhere — destination charges |
+| Payouts | Sellers paid out individually | one `line_items` entry, one `transfer_data`, one athlete per session |
+| Account creation | Embedded onboarding components | `POST /account_sessions` (`worker/index.js:1431`); `/account_links` appears nowhere |
+| Account management | Express Dashboard | nothing in-app manages accounts — see below |
+| Liability | PlayFund responsible for refunds and chargebacks | consequence of destination charges |
+
+Destination charges are not really optional for us: Klarna runs on the **platform** account
+(`payment_method_types: ["klarna"]` on a platform-created session). Under direct charges,
+payment-method availability comes from the *connected* account, which would mean every youth
+club needing Klarna enabled on their own Stripe account. Installments are the product, so the
+charge model follows from that.
+
+### Open
+
+- [ ] **Stripe verification requests are invisible to everyone.** `GET /club/:id/stripe-status`
+      (`worker/index.js:1448`) returns only `charges_enabled` and `details_submitted`.
+      `requirements.currently_due`, `requirements.past_due` and `disabled_reason` are **never
+      read anywhere in the codebase**. Stripe routinely asks connected accounts for more
+      documentation (thresholds crossed, documents expired, ownership re-verification). When it
+      does, neither the club nor PlayFund sees it: payouts pause, `charges_enabled` eventually
+      flips false, `clubCanAcceptPayments` (`worker/index.js:577`) starts returning `false`, and
+      the club's checkout stops working with no signal saying why. Surface these and alert on
+      them.
+- [ ] **Clubs have no in-app account management.** The Account Session enables
+      `account_onboarding` only — no `account_management`, `payouts`, `documents` or
+      `notification_banner`. A club cannot change a bank account, see a balance, or clear a
+      requirement without leaving the product. Express Dashboard was selected so the pilot's
+      first club isn't stranded; the architecturally consistent fix is to add those components
+      and drop the Express redirect, since onboarding is already embedded.
+- [ ] **We carry fraud and refund risk, and nothing says so.** Destination charges without
+      `on_behalf_of` make PlayFund the settlement merchant: a disputed $1,500 charge is pulled
+      from PlayFund's balance in March, months after that money was transferred to the club in
+      October. If the club's balance can't cover it, PlayFund covers it. This sits oddly beside
+      "we do not underwrite, do not front our own capital, and do not cover defaults" in
+      `CLAUDE.md` — that's about *credit* risk, which Klarna carries, but we are silently taking
+      *fraud and refund* risk. Needs a clawback right against future payouts and a club-liability
+      term in the club agreement. Lawyer question, not a code one. Radar Standard was enabled as
+      partial mitigation (tickets run $1,000–$1,900, so one prevented dispute pays for ~30,000
+      screenings).
+- [ ] **Three different answers to "when do I get paid."** The signup form says
+      `seasonStart − 5 days` (`public/app/index.html:5044`), the welcome email says
+      `seasonStart + 14 days` (`worker/index.js:656`), and the app copy promises "Day 1 payout"
+      (`public/app/index.html:2273, 2320`). A club sees two of them within a minute of each
+      other. Payout timing is listed in `CLAUDE.md` as an unresolved policy — two places invented
+      answers anyway, and they disagree. Decide the policy, then make it one shared helper.
+      The app's version also has a timezone bug: `new Date("2026-10-01")` parses as UTC midnight,
+      so US users see a date one day earlier than the code's own comment describes. The Worker
+      does it correctly with `new Date(season_start + "T00:00:00")`.
+- [ ] **"One combined plan" for siblings isn't built.** `CLAUDE.md` product principles say
+      multiple children register in one flow on one combined plan, and 66% of surveyed parents
+      have 2+ kids playing. `POST /athlete/:id/checkout` creates a separate payment per athlete.
+      Fine while siblings share a club; siblings in *different* clubs would be one payment split
+      across two sellers, which is Stripe's "separate charges and transfers" — a different charge
+      type from the one just configured. Stripe allows both, so this is additive, not a redo.
+- [ ] **Live mode needs four things changed together**, each per-mode:
+      `STRIPE_SECRET_KEY` → `sk_live_`, `STRIPE_PUBLISHABLE_KEY` → `pk_live_`,
+      `STRIPE_WEBHOOK_SECRET` → the live endpoint's own signing secret, and
+      `PAY_IN_FULL_PMC_ID` → a live-mode Payment Method Configuration. Connected accounts do not
+      cross from sandbox to live, so every club re-onboards through Connect; the pilot's first
+      real club will be the first ever to complete live Connect onboarding.
+- [ ] **Register `www.playfundai.com` under Stripe → Payment method domains.** Checkout is
+      embedded (`stripe.initEmbeddedCheckout` mounts an iframe into `/app/`), so our page is the
+      top-level document and Apple Pay / Google Pay need the domain registered. The
+      `Permissions-Policy: payment=()` half was fixed 2026-09-15; this is the other half. Both
+      fail silently — no console error, cards keep working.

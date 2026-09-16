@@ -1,0 +1,34 @@
+# Cloudflare Pages response headers.
+#
+# GitHub Pages cannot set these at all, which was one of the reasons for
+# moving. Everything here is enforced by the browser, so a mistake shows up as
+# a broken page rather than a silent downgrade — test on a preview URL first.
+
+/*
+  # Clickjacking: nothing here should ever be framed by another site.
+  X-Frame-Options: DENY
+  # Stop browsers guessing content types.
+  X-Content-Type-Options: nosniff
+  # Don't leak the full URL (which carries athlete ids and setup tokens) to
+  # third parties when someone follows a link out.
+  Referrer-Policy: strict-origin-when-cross-origin
+  # We ask for none of these ourselves. payment= is NOT empty on purpose:
+  # checkout is Stripe *embedded* checkout (stripe.initEmbeddedCheckout mounts
+  # an iframe into /app/, it is not a redirect to checkout.stripe.com), and
+  # Apple Pay / Google Pay inside that iframe are gated by this policy. With
+  # payment=() the wallet buttons silently do not render — no console error,
+  # nothing server-side, and card payments keep working, so it looks fine.
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self "https://js.stripe.com" "https://checkout.stripe.com")
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# The app embeds Stripe, so its CSP has to allow Stripe's scripts and frames
+# and our own Worker. Kept as a separate block from the marketing page so the
+# marketing page isn't forced to trust anything it doesn't need.
+# Stripe needs more hosts than the app calls directly: m.stripe.network and
+# q.stripe.com carry fraud signals (missing them weakens Radar with no visible
+# error), merchant-ui-api.stripe.com serves the Connect embedded onboarding
+# component, and checkout.stripe.com/hooks.stripe.com are involved in the
+# redirect-based handoff Klarna uses. form-action must allow those too, or the
+# handoff is blocked silently — console only, nothing server-side.
+/app/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://playfund-worker.jacksonwwatkins.workers.dev https://klnbdvwasnnqszlhawbl.supabase.co https://api.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://q.stripe.com; frame-src https://js.stripe.com https://connect-js.stripe.com https://hooks.stripe.com https://m.stripe.network https://checkout.stripe.com; form-action 'self' https://checkout.stripe.com https://hooks.stripe.com; base-uri 'self'; object-src 'none'

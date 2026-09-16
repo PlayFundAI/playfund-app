@@ -174,7 +174,7 @@
       <a href="#pricing">Pricing</a>
     </div>
     <div class="nav-right">
-      <a class="nav-signin" href="https://playfundai.github.io/playfund-app/">Sign in</a>
+      <a class="nav-signin" href="/app/">Sign in</a>
       <a class="btn btn-primary btn-sm" href="#contact">Get started</a>
     </div>
   </div>
@@ -373,7 +373,6 @@
     <div class="foot-top">
       <div class="foot-brand">
         <a class="logo" href="#top">PLAY<span>FUND</span></a>
-        <p>Founded by Jackson Watkins and Clyde-Blaise Niba. Based in Richmond, Virginia.</p>
       </div>
       <div class="foot-col">
         <div>Product</div>
@@ -385,8 +384,8 @@
       <div class="foot-col">
         <div>Company</div>
         <a href="mailto:admin@playfundai.com">admin@playfundai.com</a>
-        <a href="../privacy-policy.html">Privacy</a>
-        <a href="../terms-of-service.html">Terms</a>
+        <a href="privacy-policy.html">Privacy</a>
+        <a href="terms-of-service.html">Terms</a>
       </div>
     </div>
     <div class="foot-bottom">
@@ -396,6 +395,17 @@
 </footer>
 
 <script>
+  // A club code on the marketing root means someone was handed a link for the
+  // app, not the homepage — send them on with the code intact. Cloudflare Pages
+  // _redirects matches on path only, so a query-string rule there can never
+  // fire; this has to happen in the page.
+  (function(){
+    var p = new URLSearchParams(window.location.search);
+    if(p.get('code') || p.get('athlete') || p.get('club_verify') || p.get('checkout')){
+      window.location.replace('/app/' + window.location.search + window.location.hash);
+    }
+  })();
+
   var WORKER_URL = 'https://playfund-worker.jacksonwwatkins.workers.dev';
 
   document.getElementById('contactForm').addEventListener('submit', async function(e){

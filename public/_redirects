@@ -1,0 +1,16 @@
+# Cloudflare Pages redirects.
+#
+# These apply ONLY to requests that reach the Pages hostname (www.playfundai.com).
+# They cannot rescue a link pointing at the old playfundai.github.io address —
+# that is a different origin and never reaches Cloudflare. Old GitHub Pages links
+# are handled by the redirect shim at the repository root (/index.html), which is
+# what GitHub Pages serves.
+#
+# Pages matches on the PATH only. A rule whose source contains a query string
+# never fires, so ?code= style links are handled in page JavaScript instead, not
+# here.
+
+# The app used to live at /playfund-app/ on GitHub Pages. If anyone rewrites an
+# old link by hand onto the new domain, land them in the right place. The splat
+# keeps the rest of the path; query strings are carried over automatically.
+/playfund-app/*        /app/:splat   301

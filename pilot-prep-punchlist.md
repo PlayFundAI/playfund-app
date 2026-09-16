@@ -27,12 +27,67 @@ Grounded in: the two mockups already published (Option A: app-language with a "W
 
 ## 3. playfundai.com setup (Squarespace)
 
-Depends on item 2 — need a homepage before "loading stuff in."
+**Cut over 2026-09-15.** `www.playfundai.com` now serves both the marketing page and the app
+from Cloudflare Pages (project `playfund-app`, new company-owned account
+`9d5dbaaec8b4dc695ef735345a948fee`, build output directory `public`). DNS stays at Squarespace.
 
-- [ ] Confirm where the actual app is hosted today (verify current deployment target, not just what old docs say)
-- [ ] Decide the split: root domain (playfundai.com) for marketing, subdomain (e.g. app.playfundai.com) for the real product — matches the URL pattern already used in the homepage mockups' dashboard screenshot
-- [ ] Add the new DNS records in Squarespace without breaking the existing Resend sending-domain records (SPF/DKIM) — check those first so they don't get overwritten
-- [ ] Point the chosen homepage build at the root domain once item 2 is settled
+- [x] Confirm where the actual app is hosted today — was GitHub Pages serving the repo root, which
+      is why `worker/index.js`, `tools/pf-sql` and this punchlist were on the open web
+- [x] Decide the split — **rejected the `app.` subdomain.** Marketing at `/`, app at `/app/`, one
+      origin. A second origin would have meant a second TLS cert, a second Supabase allowlist entry,
+      CORS between our own pages, and `localStorage` that doesn't follow the user between them.
+      The mockups showing `app.playfundai.com` are now wrong; see item 5.
+- [x] Add the DNS records without breaking Resend/Google — verified byte-identical before and after
+      (MX, SPF, `google._domainkey`, `resend._domainkey`, `links.`, `send.`). Baseline captured first.
+- [x] Point the homepage at the domain
+
+### What actually happened, and what it cost
+
+- **Only one record changed**: `www CNAME → playfund-app.pages.dev`. Chose the CNAME route over
+  moving nameservers to Cloudflare specifically to keep mail out of the blast radius.
+- **Saving that record deleted the entire "Squarespace Defaults" preset**, not just the `www` row —
+  taking the four apex `A` records and the apex `HTTPS` record with it. Mail was unaffected (every
+  email record lives under Custom records, and MX is a separate type), but **`playfundai.com` bare
+  no longer resolves**, and Squarespace's apex forwarding is served *from* those A records, so the
+  planned apex→www redirect needs a different mechanism.
+- Supabase `site_url` → `https://www.playfundai.com/app/`; `uri_allow_list` gained the www entries
+  and kept the github.io ones.
+- The old GitHub Pages address is now a redirect shim at the repo root, preserving **query and
+  hash** (`#access_token=` from Supabase auth links would be dropped by a 301 or meta-refresh).
+  Verified live. **Keep it indefinitely** — it is the only thing holding historical links open.
+
+### Still open
+
+- [ ] **Apex `playfundai.com` does not resolve.** Nothing customer-facing was there, but it needs a
+      fix. Cleanest long-term answer is moving DNS to Cloudflare and CNAME-flattening the apex onto
+      Pages — see the DNSSEC constraint below before attempting that.
+- [ ] **DNSSEC is enabled** (DS `3034 8 2 A310B37F…` live at the registry). Any future nameserver
+      move must: disable DNSSEC at Squarespace → wait for the DS to clear the registry → change
+      nameservers → re-enable at Cloudflare with a new DS. Flipping nameservers with the old DS
+      still published takes the domain hard-dark for validating resolvers, **email included**.
+- [ ] **No DMARC record.** SPF and DKIM are in place but nothing tells receivers what to do on
+      failure, so `admin@playfundai.com` is spoofable — and phishing parents with fake payment links
+      is the obvious attack on this product. Start at `p=none`, read the reports, then tighten.
+- [ ] **Cloudflare Pages previews are public.** Every non-production branch publishes to
+      `<branch>.playfund-app.pages.dev` with no auth. The publish boundary holds there too (previews
+      build `public/`), so this isn't a source leak — it's an unreviewed second front door to the
+      production Worker and production Supabase. Put Cloudflare Access in front of preview
+      deployments, scoped to `@playfundai.com`.
+- [ ] **Production deployment is still attributed to `ajjurko/move-to-www-domain`.** Changing the
+      production branch to `main` does not trigger a rebuild; Pages waits for the next commit. The
+      content is identical (`git diff 8a0227f 209787e` is empty), so this is bookkeeping only — but
+      **don't delete that branch until a production deployment from `main` exists**.
+- [ ] **The Worker has not moved.** It still runs in the personal Cloudflare account at
+      `playfund-worker.jacksonwwatkins.workers.dev`, and still holds the cron and both webhook
+      endpoints. The hostname change must ship as **one commit** covering
+      `public/app/index.html`, `public/index.html`, `worker/index.js` *and* the CSP `connect-src` in
+      `public/_headers` — if the frontend and the CSP disagree, the browser blocks every API call
+      with nothing in the Worker logs.
+- [ ] **Register `www.playfundai.com` in Stripe → Payment method domains.** Checkout is *embedded*
+      (`stripe.initEmbeddedCheckout` mounts an iframe into `/app/`), so our page is the top-level
+      document and Apple Pay / Google Pay need the domain registered. Fixing
+      `Permissions-Policy: payment=()` was only half of it. Both halves fail silently — no console
+      error, and card payments keep working.
 
 ## 4. Data tracking strategy (Stripe/Klarna + PlayFund's own instrumentation)
 
@@ -56,6 +111,14 @@ Grounded in: 11 occurrences across `worker/index.js` and `index.html` (from-addr
 - [x] Confirmed admin@playfundai.com is a real, monitored inbox
 - [x] Updated all 11 occurrences
 - [x] No separate Resend identity update needed — sending is verified at the playfundai.com domain level, not per local-part, so admin@ sends the same as hello@ did
+- [x] **Correction (2026-09-15): "all 11" missed the legal documents.** `hello@` was still the
+      contact in `privacy-policy.html` (lines 95 and 104) and `terms-of-service.html` (line 104) —
+      line 95 being the address a parent writes to **to request deletion of their child's data**.
+      Those three are now `admin@`. The earlier audit read `worker/index.js` and the old root
+      `index.html` only, and never covered the legal pages.
+- [ ] If a `privacy@playfundai.com` alias gets created, repoint the two privacy-policy contacts to
+      it. `admin@` was used because it is verified monitored; an address that bounces is worse than
+      the wrong address on a data-deletion request.
 
 ## 6. Stripe/Klarna: embedded vs. redirect
 

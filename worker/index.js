@@ -4,8 +4,14 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 // index.js
 // Stripe Payment Method Configuration scoped to "pay in full": card + bank
 // only, with Link and every BNPL method (Klarna, Affirm, Afterpay) turned
-// off. Not a secret — safe to commit, same as the publishable key.
-var PAY_IN_FULL_PMC_ID = "pmc_1UD4SnPyhgYp24ebsPEd8LSJ";
+// off. Not a secret — it lives in wrangler.toml [vars], same as the
+// publishable key.
+//
+// It is per-mode. A pmc_ created in the sandbox does not exist in live mode,
+// and this used to be hardcoded to the sandbox object, so swapping in live
+// keys returned "No such payment_method_configuration" on pay-in-full while
+// Klarna — which uses payment_method_types instead — kept working. Half a
+// checkout, with the working half hiding the broken one.
 var CORS = {
   "Access-Control-Allow-Origin": "*",
   // PATCH and DELETE are both used by the app (PATCH /admin/clubs/:id for a
@@ -2133,7 +2139,14 @@ var index_default = {
       if (payment_type === "bnpl") {
         sessionParams.payment_method_types = ["klarna"];
       } else {
-        sessionParams.payment_method_configuration = PAY_IN_FULL_PMC_ID;
+        // Deliberately fail rather than fall back. Omitting the configuration
+        // makes Stripe apply the account default, which re-admits Link and the
+        // BNPL methods — so a missing value would silently offer Klarna on a
+        // "pay in full" session, the exact thing this PMC exists to prevent.
+        if (!env.PAY_IN_FULL_PMC_ID) {
+          return err("Pay-in-full is not configured for this environment (PAY_IN_FULL_PMC_ID unset).", 500);
+        }
+        sessionParams.payment_method_configuration = env.PAY_IN_FULL_PMC_ID;
       }
       const sessionRes = await stripe(env, "POST", "/checkout/sessions", sessionParams);
       if (!sessionRes.ok) return err("Failed to create checkout session: " + JSON.stringify(sessionRes.data), 500);

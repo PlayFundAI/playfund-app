@@ -7,6 +7,13 @@ account_id = "921521fbac1614ae10f0ae059d83d006"
 # Publishable — safe to commit. Never put STRIPE_SECRET_KEY or any other
 # secret here; those stay in the Cloudflare dashboard as encrypted secrets.
 STRIPE_PUBLISHABLE_KEY = "pk_test_51U1c5LPyhgYp24ebIZN7ju9f1pr20HROJ6EWDX0dmu9J2BDjVVdFrVRjs2Jdp8GKATq5CD6vQc1OzykSj85n2qjT00UvrSdkAt"
+# Payment Method Configuration for "pay in full" — card and bank only, Link and
+# every BNPL method off. Per-mode, like the keys above: this is the SANDBOX
+# object. Swapping in live keys without also replacing this returns "No such
+# payment_method_configuration" and breaks pay-in-full while Klarna keeps
+# working. Create the live equivalent in the live dashboard and change both
+# together.
+PAY_IN_FULL_PMC_ID = "pmc_1UD4SnPyhgYp24ebsPEd8LSJ"
 APP_URL = "https://www.playfundai.com/app/"
 WORKER_URL = "https://playfund-worker.jacksonwwatkins.workers.dev"
 

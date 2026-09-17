@@ -2732,7 +2732,7 @@ var usStates = ["Virginia"];
     // longer than this splash sequence — don't let the splash's own
     // "show home" timeout win that race and stomp the real destination.
     var urlParams = new URLSearchParams(window.location.search);
-    var hasDeepLinkParams = !!(urlParams.get('code') || urlParams.get('checkout') || urlParams.get('stripe_onboard') || window.location.hash.indexOf('access_token') !== -1);
+    var hasDeepLinkParams = !!(urlParams.get('code') || urlParams.get('checkout') || urlParams.get('stripe_onboard') || urlParams.get('register') || window.location.hash.indexOf('access_token') !== -1);
 
     setTimeout(function(){
       document.getElementById('splash').classList.add('fly');
@@ -2909,6 +2909,16 @@ var usStates = ["Virginia"];
     // will show one if this doesn't.
     (async function handleDeepLink(){
       var params = new URLSearchParams(window.location.search);
+
+      // Direct link to club registration:
+      //   https://www.playfundai.com/app/?register=club
+      // Otherwise the only route in is home -> Sports Club -> Register your
+      // club, which is three clicks and, more to the point, not a URL — so a
+      // reply to an inbound enquiry had nowhere to send anyone. 'register' is
+      // in hasDeepLinkParams above, or the splash's "show home" timer stomps
+      // this a second after it lands.
+      if(params.get('register')){ showScreen('club-register-1'); return; }
+
       var code   = params.get('code');
       var athId  = params.get('athlete');
       var method = params.get('method'); // 'full' or 'bnpl'
@@ -5039,7 +5049,13 @@ var usStates = ["Virginia"];
     // used to hardcode 5%) presents an undecided price as settled. Payout
     // appears once a real fee_bps exists on the club record.
     document.getElementById('reg2PayoutPreview').textContent = '$' + Math.round(total).toLocaleString();
-    document.getElementById('reg2PayoutSub').textContent = 'Based on ' + count + ' athlete' + (count!==1?'s':'');
+    // Show the multiplication, not just the product. With 100 athletes, "$50"
+    // becomes "$5,000" — which reads exactly like the field added two zeros,
+    // and the athlete count that explains it was two screens ago. Spelling out
+    // "100 athletes x $50 each" makes the big number self-evidently a total.
+    document.getElementById('reg2PayoutSub').textContent = dues > 0
+      ? count + ' athlete' + (count!==1?'s':'') + ' \u00d7 $' + Math.round(dues).toLocaleString() + ' each'
+      : 'Based on ' + count + ' athlete' + (count!==1?'s':'');
     // Payout date — 5 days before season start
     var dateEl = document.getElementById('reg2PayoutDate');
     if(regState.seasonStart){

@@ -397,6 +397,24 @@ charge model follows from that.
       payment nets $76.20 (~5.1% of the charge) and the same payment on Klarna nets $29.85 (~2.0%).
       Stripe takes the difference.
 
+- [ ] **ACH is the best-margin path and we cannot ship it yet.** Stripe's ACH Direct Debit is
+      0.8% capped at $5, so a $1,500 payment at 8% nets **$115** against $76.20 on a card. But it
+      is a delayed-notification method, and the integration assumes payment is instant:
+      `payment_intent.succeeded` is the only payment event the webhook handles
+      (`worker/index.js:2334`), there is no `checkout.session.async_payment_succeeded` or
+      `async_payment_failed`, and there is no `processing` state — `payment_status` is unpaid or
+      paid. So a parent paying by bank transfer stays `unpaid` for 3-5 business days, and the
+      reminder sweep targets exactly `payment_status.eq.unpaid`, meaning **we would email them
+      chasing dues they had already paid**, on every interval, until it cleared. For a product
+      selling "stop chasing dues all season" that is the worst available failure. No money is at
+      risk — nothing marks paid or pays the club before funds clear — it is purely that the parent
+      is told they have not paid.
+      To enable it later: a `processing` status, the two async webhook events, the reminder query
+      excluding processing, and confirmation copy for "payment on its way". Also weigh that ACH
+      returns run up to 60 days for unauthorised-debit claims, which under destination charges
+      lands on PlayFund after the club has been paid.
+      Decided 2026-09-16: cards only on the live pay-in-full configuration.
+
 - [ ] **We now owe Stripe a restricted-business review of every club.** The Connect Platform
       Agreement acknowledgement (accepted 2026-09-15) includes "you'll review each seller to
       ensure they're not operating in a restricted business category or selling restricted

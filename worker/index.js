@@ -173,7 +173,7 @@ async function signUnsubscribe(email, secret) {
 }
 __name(signUnsubscribe, "signUnsubscribe");
 function unsubscribeLink(env, email) {
-  const workerUrl = env.WORKER_URL || "https://playfund-worker.jacksonwwatkins.workers.dev";
+  const workerUrl = env.WORKER_URL || "https://playfund-worker.playfund.workers.dev";
   return signUnsubscribe(email, env.UNSUBSCRIBE_SECRET || "").then(
     (sig) => `${workerUrl}/unsubscribe?email=${encodeURIComponent(email)}&sig=${sig}`
   );

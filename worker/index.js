@@ -1162,6 +1162,19 @@ var index_default = {
         if (!Number.isInteger(body.fee_bps) || body.fee_bps < 0 || body.fee_bps > 10000) {
           return err("fee_bps must be an integer between 0 and 10000");
         }
+        // Stripe charges the PLATFORM 5.99% + 30c on Klarna (2.9% + 30c on
+        // cards), and with destination charges we pay it. Anything under about
+        // 6.02% therefore loses money on every installment payment, and loses
+        // more on larger tickets -- which are exactly the ones a parent is most
+        // likely to pay in installments. The floor lives in wrangler.toml so
+        // changing it is a deploy, not a click.
+        const minFeeBps = parseInt(env.MIN_FEE_BPS, 10);
+        if (!Number.isInteger(minFeeBps)) {
+          return err("Fee floor is not configured for this environment (MIN_FEE_BPS unset).", 500);
+        }
+        if (body.fee_bps < minFeeBps) {
+          return err(`That rate is below PlayFund's floor of ${(minFeeBps / 100).toFixed(2)}%. Klarna costs 5.99% + 30c, which PlayFund pays, so a lower rate loses money on every installment payment. Raise the rate, or change MIN_FEE_BPS if this is a deliberate exception.`, 400);
+        }
         updateData.fee_bps = body.fee_bps;
         // Setting the rate is the act of agreeing it. fee_agreed_at is what
         // gates transactions -- fee_bps alone can't say whether 5% was
@@ -2107,6 +2120,16 @@ var index_default = {
       const duesCents = team.dues_cents;
       if (!duesCents) return err("Team has no dues configured", 400);
       const feeBps = clubFeeBps(club);
+      // Checked again here, not just when the rate is set: clubs agreed before
+      // the floor existed still carry those rates, and this is the only place
+      // money actually moves. Deliberately does not block when MIN_FEE_BPS is
+      // absent -- a missing var should not take every club's checkout down, and
+      // the PATCH guard above already covers every newly agreed rate.
+      const minFeeBpsAtCharge = parseInt(env.MIN_FEE_BPS, 10);
+      if (Number.isInteger(minFeeBpsAtCharge) && feeBps < minFeeBpsAtCharge) {
+        console.error(`Blocked checkout: club ${club.code} has fee_bps ${feeBps}, below floor ${minFeeBpsAtCharge}`);
+        return err("This club isn't set up to take payments yet. PlayFund is finalizing their account \u2014 nothing has been charged. Please check back shortly or contact your club.", 409);
+      }
       const applicationFeeAmount = Math.round(duesCents * feeBps / 1e4);
       const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
       // 'full' and 'bnpl' must never leak into each other. Naively restricting

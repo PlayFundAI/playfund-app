@@ -1986,7 +1986,7 @@
         <p id="adminDetailFeeMsg" style="font-size:11px; min-height:14px; margin:0;"></p>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <input type="number" id="adminDetailFeeInput" min="0" max="100" step="0.1"
+        <input type="number" id="adminDetailFeeInput" min="0" max="100" step="0.1" placeholder="6.5"
           style="width:70px; padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font-family:'Inter',sans-serif; font-size:14px; font-weight:700; text-align:right;">
         <span style="font-size:14px; font-weight:700; color:var(--ink);">%</span>
         <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="saveClubFee()">Save</button>
@@ -5414,10 +5414,12 @@ var usStates = ["Virginia"];
     adminDetailClubId = club.id;
     loadAdminClubPayments(club.id);
     var feeInput = document.getElementById('adminDetailFeeInput');
-    if(feeInput) feeInput.value = ((club.fee_bps != null ? club.fee_bps : 500) / 100);
-    // Until this is set, the Worker blocks checkout for the club. The input
-    // shows 5% by default, which is only the fallback used for math -- it does
-    // not mean anyone agreed to 5%, so don't let it read as though they did.
+    // Blank until a rate has actually been agreed. It used to prefill 5% --
+    // the column default, not a negotiated price -- so the quickest path to
+    // enabling a club was to accept a number nobody had discussed, which is
+    // precisely the distinction fee_agreed_at exists to record.
+    if(feeInput) feeInput.value = club.fee_agreed_at ? (club.fee_bps / 100) : '';
+    // Until this is set, the Worker blocks checkout for the club.
     var feeMsgEl = document.getElementById('adminDetailFeeMsg');
     if(feeMsgEl){
       if(club.fee_agreed_at){

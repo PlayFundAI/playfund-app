@@ -421,6 +421,18 @@ charge model follows from that.
       without processing the burst that breaches it.
       Decided 2026-09-16: cards only on the live pay-in-full configuration.
 
+- [ ] **Resend is on a personal account** — confirmed 2026-09-16, the workspace is
+      `jacksonwwatkins`. Third personal-account dependency after the Cloudflare Worker and the
+      Stripe account. **Transfer the existing workspace, do not create a new one.** The
+      playfundai.com sending domain is verified against this account: `resend._domainkey`,
+      `send.playfundai.com` MX + SPF, and the `links.` CNAME all bind to it. A fresh account means
+      a new DKIM key and re-verification, with a window where the published signature does not
+      match what is signing — on a domain whose entire output is transactional email to parents
+      about money. Add `aj@playfundai.com` under Settings -> Team and move ownership in place.
+      The workspace name is cosmetic; access and billing are what matter.
+      Note API keys are shown once and cannot be retrieved, so migrating the Worker needs a newly
+      created key rather than the existing one. Multiple keys coexist, so this costs nothing.
+
 - [ ] **We now owe Stripe a restricted-business review of every club.** The Connect Platform
       Agreement acknowledgement (accepted 2026-09-15) includes "you'll review each seller to
       ensure they're not operating in a restricted business category or selling restricted

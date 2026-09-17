@@ -1986,7 +1986,7 @@
         <p id="adminDetailFeeMsg" style="font-size:11px; min-height:14px; margin:0;"></p>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <input type="number" id="adminDetailFeeInput" min="0" max="100" step="0.1" placeholder="6.5"
+        <input type="number" id="adminDetailFeeInput" min="0" max="100" step="0.1" placeholder="8"
           style="width:70px; padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font-family:'Inter',sans-serif; font-size:14px; font-weight:700; text-align:right;">
         <span style="font-size:14px; font-weight:700; color:var(--ink);">%</span>
         <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="saveClubFee()">Save</button>
@@ -3744,7 +3744,7 @@ var usStates = ["Virginia"];
   // than payout because nothing has been agreed at that point.
   function clubFeeRate(club){
     var c = club || state.club;
-    var bps = (c && c.fee_bps != null) ? c.fee_bps : 500;
+    var bps = (c && c.fee_bps != null) ? c.fee_bps : 800;
     return 1 - (bps / 10000);
   }
 

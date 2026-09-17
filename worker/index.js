@@ -566,7 +566,12 @@ __name(sendPendingApprovalEmail, "sendPendingApprovalEmail");
 // it is NOT a published price, and must never be shown to a club as though a
 // rate had been agreed with them. Anything customer-facing that would quote a
 // percentage before that conversation has happened should show dues instead.
-var DEFAULT_FEE_BPS = 500;
+//
+// 800 is PlayFund's standard rate, decided 2026-09-16. It is distinct from
+// MIN_FEE_BPS (the floor, 605): the floor is break-even against Klarna's
+// 5.99% + 30c, this is the price. A club can be discounted between the two
+// deliberately; nothing can go below the floor.
+var DEFAULT_FEE_BPS = 800;
 function clubFeeBps(club) {
   return club && club.fee_bps != null ? club.fee_bps : DEFAULT_FEE_BPS;
 }

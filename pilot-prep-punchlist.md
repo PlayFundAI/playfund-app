@@ -373,27 +373,29 @@ charge model follows from that.
       `PAY_IN_FULL_PMC_ID` → a live-mode Payment Method Configuration. Connected accounts do not
       cross from sandbox to live, so every club re-onboards through Connect; the pilot's first
       real club will be the first ever to complete live Connect onboarding.
-- [ ] **Klarna loses money at the current 5% fee. Confirmed against Stripe's published rates
-      2026-09-15: cards 2.9% + 30c, Klarna (BNPL) 5.99% + 30c.** With destination charges the
-      *platform* pays the processing fee, and `applicationFeeAmount` is computed identically for
-      both paths (`worker/index.js:2110` — `clubFeeBps` ignores `payment_type`).
+- [x] **Platform rate set to 8%, floor set to 6.05%** — decided 2026-09-16, closing the item
+      below. Confirmed against Stripe's published rates: cards 2.9% + 30c, Klarna 5.99% + 30c.
+      Under destination charges the *platform* pays the processing fee, and `applicationFeeAmount`
+      does not vary by payment method, so a single rate has to clear the more expensive path.
 
-      | Dues | 5% fee | Card cost -> net | Klarna cost -> net |
-      |---|---|---|---|
-      | $950 | $47.50 | $27.85 -> **+$19.60** | $57.20 -> **-$9.70** |
-      | $1,500 | $75.00 | $43.80 -> **+$31.15** | $90.15 -> **-$15.15** |
-      | $1,900 | $95.00 | $55.40 -> **+$39.55** | $114.11 -> **-$19.11** |
+      | Dues | at 5% (old) | at 8% |
+      |---|---|---|
+      | $950 | card +$19.60 / klarna **-$9.70** | card +$48.15 / klarna **+$18.80** |
+      | $1,500 | card +$31.15 / klarna **-$15.15** | card +$76.20 / klarna **+$29.85** |
+      | $1,900 | card +$39.55 / klarna **-$19.11** | card +$96.60 / klarna **+$37.89** |
 
-      Break-even on Klarna is **~6.01%**; matching the card net margin needs **~8.1%**.
-      Two things follow. First, even on cards the 5% quoted to clubs nets ~2.08% of the charge —
-      Stripe takes ~58% of the fee. Second, and worse: the Klarna loss grows with ticket size,
-      and a parent facing $1,900 is far likelier to choose installments than one facing $400. The
-      method we lose most on is the one self-selected by the customers most likely to use it.
-      Installments are the product, so this is a pricing decision before it is a code one —
-      `CLAUDE.md` says flag rather than invent. Options: raise the flat rate above ~6%, make the
-      fee method-specific (`clubFeeBps` would take `payment_type`), or price Klarna separately.
-      `clubs.fee_bps` is already per-club, so any of these is a small change once the rate is
-      decided.
+      Two numbers, two jobs, deliberately kept apart. **`MIN_FEE_BPS` = 605** is the floor —
+      break-even on Klarna, enforced server-side both when a rate is agreed
+      (`PATCH /admin/clubs/:id`) and again at the point of charging, so a club discounted
+      deliberately can go to 6.05% but nothing can go below it. **`DEFAULT_FEE_BPS` = 800** is the
+      price. The `clubs.fee_bps` column default moves to 800 in
+      `migrations/2026-09-16-default-fee-bps-800.sql`; existing rows are left at 500 on purpose, so
+      the three clubs predating the floor stay blocked until someone agrees a real rate rather than
+      being silently repriced.
+
+      Still true and worth remembering in rate conversations: 8% is not 8% in hand. A $1,500 card
+      payment nets $76.20 (~5.1% of the charge) and the same payment on Klarna nets $29.85 (~2.0%).
+      Stripe takes the difference.
 
 - [ ] **We now owe Stripe a restricted-business review of every club.** The Connect Platform
       Agreement acknowledgement (accepted 2026-09-15) includes "you'll review each seller to

@@ -1,25 +1,24 @@
 name = "playfund-worker"
 main = "index.js"
 compatibility_date = "2024-01-01"
-account_id = "921521fbac1614ae10f0ae059d83d006"
+account_id = "9d5dbaaec8b4dc695ef735345a948fee"
 
 [vars]
 # Publishable — safe to commit. Never put STRIPE_SECRET_KEY or any other
 # secret here; those stay in the Cloudflare dashboard as encrypted secrets.
-STRIPE_PUBLISHABLE_KEY = "pk_test_51U1c5LPyhgYp24ebIZN7ju9f1pr20HROJ6EWDX0dmu9J2BDjVVdFrVRjs2Jdp8GKATq5CD6vQc1OzykSj85n2qjT00UvrSdkAt"
-# Payment Method Configuration for "pay in full" — card and bank only, Link and
-# every BNPL method off. Per-mode, like the keys above: this is the SANDBOX
-# object. Swapping in live keys without also replacing this returns "No such
-# payment_method_configuration" and breaks pay-in-full while Klarna keeps
-# working. Create the live equivalent in the live dashboard and change both
-# together.
-PAY_IN_FULL_PMC_ID = "pmc_1UD4SnPyhgYp24ebsPEd8LSJ"
+STRIPE_PUBLISHABLE_KEY = "pk_live_51U1c5AQ2kPXJfofJ4MqhNWkRAfPO2xSRgg9vkTfMUPFlUfy379qejsIBFuvJVZ5zRRV3k4Wo57A4bTmeQpatRwuw00HS8yRFtS"
+# Payment Method Configuration for "pay in full" — cards, Apple Pay and Google
+# Pay only, with Link and every BNPL method off. Per-mode, like the keys above,
+# so it moves with them: a pmc_ from one mode returns "No such
+# payment_method_configuration" in the other, which breaks pay-in-full while
+# Klarna keeps working, because Klarna names its type explicitly instead.
+PAY_IN_FULL_PMC_ID = "pmc_1UGUtGQ2kPXJfofJ8u02ZZHT"
 # Minimum platform rate, in basis points, that a PlayFund admin may agree with
 # a club. Stripe charges the platform 5.99% + 30c on Klarna and we pay it under
 # destination charges, so break-even on an installment payment is ~6.02%.
 MIN_FEE_BPS = "605"
 APP_URL = "https://www.playfundai.com/app/"
-WORKER_URL = "https://playfund-worker.jacksonwwatkins.workers.dev"
+WORKER_URL = "https://playfund-worker.playfund.workers.dev"
 
 # Daily reminder-email sweep (runScheduledReminders). Was previously only
 # configured through the Cloudflare dashboard, not declared here — matched

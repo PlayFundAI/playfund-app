@@ -134,10 +134,13 @@ Snapshot at the end of the session that moved the domain, the Worker and Stripe.
       live card payment, the 8% application-fee split landing correctly, Klarna, and the decline
       card `4000 0000 0000 0002`. The first real club will be the first to exercise any of it.
       Sandbox rehearsal is still possible on the old Worker, but needs a club at >= 6.05% first.
-- [ ] **Apex `playfundai.com`** redirects on HTTP but still serves Squarespace's Coming Soon on
-      HTTPS. Squarespace quoted 24-48h from 2026-09-16 01:07 UTC. Check
-      `curl -sI https://playfundai.com/ | head -1` — a 302 means done. Still 200 by Friday means
-      Squarespace failed to provision, and the fix becomes the Cloudflare DNS move (DNSSEC first).
+- [x] **Apex `playfundai.com` now redirects** — verified 2026-09-17, both `http` and `https`
+      return `302 -> https://www.playfundai.com/`. Squarespace provisioned it inside the quoted
+      24-48h. Note the forwarding rule is a **302** and strips the query string: a retyped payment
+      link without the `www` keeps its path but loses `?code=`/`?athlete=`, landing the parent on a
+      generic screen. Nothing we mint points at the apex, so this is a safety net rather than a live
+      path, and the 302 keeps the canonical-host decision reversible.
+
 - [ ] **Transfer Stripe and Resend account ownership.** Both still personal. Transfer, never
       rebuild — connected accounts and domain verification are bound to them.
 - [ ] **23 merged branches** on the remote, including `ajjurko/move-to-www-domain`, now safe to

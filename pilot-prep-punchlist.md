@@ -413,6 +413,12 @@ charge model follows from that.
       excluding processing, and confirmation copy for "payment on its way". Also weigh that ACH
       returns run up to 60 days for unauthorised-debit claims, which under destination charges
       lands on PlayFund after the club has been paid.
+      A third reason, independent of the code: Stripe applies a **weekly ACH processing limit
+      starting at $20,000**, and transactions above it are blocked rather than queued. A
+      40-athlete club at $950 is $38,000 for the season, arriving as a burst at registration —
+      so a single mid-sized club can exceed the cap in its opening week, and the parents on the
+      wrong side of it get a failed payment. The limit grows with usage, which we cannot build
+      without processing the burst that breaches it.
       Decided 2026-09-16: cards only on the live pay-in-full configuration.
 
 - [ ] **We now owe Stripe a restricted-business review of every club.** The Connect Platform

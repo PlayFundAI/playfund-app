@@ -567,13 +567,6 @@
     color: var(--line); transition: color 0.2s;
     text-align: center;
   }
-  /* A completed step doubles as a way back. Only .done steps get this —
-     you cannot jump forward past validation. */
-  .reg-progress-nav {
-    background: none; border: none; padding: 0; font: inherit; cursor: pointer;
-  }
-  .reg-progress-nav:hover .reg-progress-label,
-  .reg-progress-nav:focus-visible .reg-progress-label { text-decoration: underline; }
   .reg-progress-step.active .reg-progress-label { color: var(--ink); }
   .reg-progress-step.done   .reg-progress-label { color: var(--fund-green); }
   .reg-progress-bar-track {
@@ -2184,16 +2177,6 @@
   <!-- ══ CLUB REGISTRATION FLOW ══════════════════════════════════════════ -->
   <div class="screen" id="screen-club-register-1">
     <div class="eyebrow" style="color:var(--ink);">Register your club</div>
-        <div class="reg-progress">
-      <div class="reg-progress-steps">
-        <div class="reg-progress-step active"><div class="reg-progress-label">Basics</div></div>
-        <div class="reg-progress-step "><div class="reg-progress-label">Fees</div></div>
-        <div class="reg-progress-step "><div class="reg-progress-label">Confirm</div></div>
-      </div>
-      <div class="reg-progress-bar-track">
-        <div class="reg-progress-bar-fill" style="width:8%;"></div>
-      </div>
-    </div>
     <h1 class="title" style="font-size:26px; margin-bottom:6px;">Tell us about your season</h1>
     <p class="subtitle" style="margin-bottom:20px;">A few quick details. No account, no card, no call with sales.</p>
     <div class="field">
@@ -2249,66 +2232,39 @@
     </div>
     <div class="field">
       <label>Roughly how many athletes?</label>
-      <input type="number" id="reg1Athletes" tabindex="7" placeholder="e.g. 80" inputmode="numeric">
+      <input type="number" id="reg1Athletes" tabindex="7" placeholder="e.g. 80" inputmode="numeric"
+        oninput="updateRegEstimate();">
     </div>
-    <div class="field">
-      <label>Your name</label>
-      <input type="text" id="reg1Name" tabindex="8" placeholder="e.g. Travis Johnson" autocomplete="name">
-    </div>
-    <div class="field">
-      <label>Your email</label>
-      <input type="email" id="reg1Email" tabindex="9" placeholder="you@yourclub.com" autocomplete="email">
-    </div>
-    <p id="reg1Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
-    <div class="footer-spacer"></div>
-    <button class="btn btn-primary" onclick="regStep1Next()">Continue</button>
-    <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:12px;">No credit check · No contract</p>
-  </div>
-
-  <!-- Step 2: Fee breakdown -->
-  <div class="screen" id="screen-club-register-2">
-    <div class="eyebrow" style="color:var(--ink);">Register your club</div>
-    <div class="reg-progress">
-      <div class="reg-progress-steps">
-        <button type="button" class="reg-progress-step done reg-progress-nav" onclick="regGoToStep('club-register-1')" aria-label="Back to Basics"><div class="reg-progress-label">Basics</div></button>
-        <div class="reg-progress-step active"><div class="reg-progress-label">Fees</div></div>
-        <div class="reg-progress-step "><div class="reg-progress-label">Confirm</div></div>
-      </div>
-      <div class="reg-progress-bar-track"><div class="reg-progress-bar-fill" style="width:50%;"></div></div>
-    </div>
-    <h1 class="title" style="font-size:26px; margin-bottom:6px;">Approximate dues per athlete</h1>
-    <p class="subtitle" style="margin-bottom:20px;">Just a ballpark, you'll set exact team dues and breakdowns after signing in. This lets us show your estimated Day 1 payout.</p>
-
     <div class="field">
       <label>Approximate season dues per athlete ($)</label>
-      <input type="text" id="reg2ApproxDues" placeholder="e.g. 950" inputmode="numeric" tabindex="1"
-        oninput="var v=this.value.replace(/[^0-9]/g,''); this.value=v?Number(v).toLocaleString():''; updateReg2Preview();">
+      <input type="text" id="regDues" placeholder="e.g. 950" inputmode="numeric" tabindex="8"
+        oninput="var v=this.value.replace(/[^0-9]/g,''); this.value=v?Number(v).toLocaleString():''; updateRegEstimate();">
+      <p style="font-size:11.5px; color:var(--ink-soft); margin:6px 0 0;">Just a ballpark — you'll set exact team dues after signing in.</p>
     </div>
 
     <div style="background:var(--paper-dim); border-radius:12px; padding:14px 16px; margin-top:8px; margin-bottom:16px;">
       <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:4px;">Season dues to collect</div>
-      <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="reg2PayoutPreview">$0</div>
-      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;" id="reg2PayoutSub">Based on 0 athletes</div>
-      <div style="font-size:12px; color:var(--fund-green); font-weight:700; margin-top:6px;" id="reg2PayoutDate"></div>
+      <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="regEstTotal">$0</div>
+      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;" id="regEstSub">Enter athletes and dues above</div>
+      <div style="font-size:12px; color:var(--fund-green); font-weight:700; margin-top:6px;" id="regEstDate"></div>
     </div>
 
-    <p id="reg2Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
+    <div class="field">
+      <label>Your name</label>
+      <input type="text" id="reg1Name" tabindex="9" placeholder="e.g. Travis Johnson" autocomplete="name">
+    </div>
+    <div class="field">
+      <label>Your email</label>
+      <input type="email" id="reg1Email" tabindex="10" placeholder="you@yourclub.com" autocomplete="email">
+    </div>
+    <p id="reg1Error" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 12px;"></p>
     <div class="footer-spacer"></div>
-    <button class="btn btn-primary" id="reg2ContinueBtn" onclick="regStep2Next()">Continue</button>
+    <button class="btn btn-primary" id="regSubmitBtn" onclick="regSubmitForm()">Confirm & register</button>
+    <p style="font-size:11px; color:var(--ink-soft); text-align:center; margin-top:12px;">No credit check · No contract</p>
   </div>
 
   <!-- Step 3: Roster paste -->
   <div class="screen" id="screen-club-register-4">
-        <div class="reg-progress">
-      <div class="reg-progress-steps">
-        <div class="reg-progress-step done"><div class="reg-progress-label">Basics</div></div>
-        <div class="reg-progress-step done"><div class="reg-progress-label">Fees</div></div>
-        <div class="reg-progress-step active"><div class="reg-progress-label">Confirm</div></div>
-      </div>
-      <div class="reg-progress-bar-track">
-        <div class="reg-progress-bar-fill" style="width:100%;"></div>
-      </div>
-    </div>
     <div class="confirm-wrap" style="justify-content:flex-start; padding-top:8px;">
       <div class="confirm-icon" style="margin-bottom:14px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -2996,7 +2952,7 @@ var usStates = ["Virginia"];
       [['athleteNameInput', 'codeInput'],        function(){ submitCode(); }],
       [['adminPasscode'],                        function(){ submitAdminLogin(); }],
       [['adminEmailInput', 'adminPasswordInput'],function(){ submitAdminEmailLogin(); }],
-      [['reg1ClubName','reg1Athletes','reg1Name','reg1Email'], function(){ regStep1Next(); }],
+      [['reg1ClubName','reg1Athletes','regDues','reg1Name','reg1Email'], function(){ regSubmitForm(); }],
       [['addAthleteAdminName','addAthleteAdminEmail','addAthleteAdminPhone'], function(){ submitAddAthleteAdmin(); }],
     ];
     enterMap.forEach(function(pair){
@@ -3019,17 +2975,6 @@ var usStates = ["Virginia"];
     document.getElementById('backBtn').style.display = (name === 'home') ? 'none' : 'flex';
     window.scrollTo(0,0);
     trackEvent('screen_view', { screen: name });
-  }
-  // Navigate back to an earlier screen from the progress stepper, truncating
-  // the back stack so the header arrow stays consistent with where you are.
-  function regGoToStep(name){
-    var idx = screenOrder.lastIndexOf(name);
-    if(idx === -1){ showScreen(name); return; }
-    screenOrder = screenOrder.slice(0, idx);
-    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
-    document.getElementById('screen-' + name).classList.add('active');
-    document.getElementById('backBtn').style.display = 'flex';
-    window.scrollTo(0,0);
   }
   function goBack(){
     var prev = screenOrder.pop();
@@ -5002,7 +4947,7 @@ var usStates = ["Virginia"];
   };
   var clubRegistrationInFlight = false;
 
-  function regStep1Next(){
+  function regSubmitForm(){
     var name        = document.getElementById('reg1ClubName').value.trim();
     var sport       = document.getElementById('reg1Sport').value;
     var city        = document.getElementById('reg1City').value.trim();
@@ -5010,98 +4955,59 @@ var usStates = ["Virginia"];
     var seasonStart = document.getElementById('reg1SeasonStart').value;
     var seasonEnd   = document.getElementById('reg1SeasonEnd').value;
     var count       = parseInt(document.getElementById('reg1Athletes').value) || 0;
+    var duesRaw     = (document.getElementById('regDues').value || '').replace(/[^0-9]/g,'');
+    var dues        = parseFloat(duesRaw) || 0;
     var aName       = document.getElementById('reg1Name').value.trim();
     var email       = document.getElementById('reg1Email').value.trim();
     var errEl       = document.getElementById('reg1Error');
-    if(!name)  { errEl.textContent = 'Club name is required.'; return; }
-    if(!sport) { errEl.textContent = 'Select a sport.'; return; }
-    // Without this the next screen shows "$0" and "Based on 0 athletes" — the
-    // one screen whose whole job is to show the club what their season is
-    // worth before asking for anything.
+
+    if(!name)      { errEl.textContent = 'Club name is required.'; return; }
+    if(!sport)     { errEl.textContent = 'Select a sport.'; return; }
+    // Without a count the estimate reads "$0" — the one thing on this page
+    // meant to show a club what their season is worth before we ask anything.
     if(count <= 0) { errEl.textContent = 'Roughly how many athletes? A ballpark is fine.'; return; }
-    if(!email) { errEl.textContent = 'Your email is required.'; return; }
+    if(dues <= 0)  { errEl.textContent = 'Please enter an approximate dues amount.'; return; }
+    if(!aName)     { errEl.textContent = 'Your name is required.'; return; }
+    if(!email || email.indexOf('@') === -1) { errEl.textContent = 'A valid email is required.'; return; }
     errEl.textContent = '';
-    regState.clubName    = name;    regState.sport = sport;
-    regState.city        = city;    regState.state = state;
-    regState.seasonStart = seasonStart; regState.seasonEnd = seasonEnd;
-    regState.athleteCount = count;  regState.adminName = aName; regState.adminEmail = email;
-    regState.fees = [{ label: 'Season fee', amount: '' }];
-    renderRegFees();
-    updateReg2Preview();
-    // NOT isRoot. isRoot skips pushing the current screen, it does not clear
-    // the stack — so passing it here left 'club-login' (pushed by "Register
-    // your club ->") as the top entry, and back from Fees went to the club
-    // sign-in page instead of Basics.
-    showScreen('club-register-2');
+
+    regState.clubName     = name;  regState.sport     = sport;
+    regState.city         = city;  regState.state     = state;
+    regState.seasonStart  = seasonStart; regState.seasonEnd = seasonEnd;
+    regState.athleteCount = count; regState.adminName = aName; regState.adminEmail = email;
+    regState.fees   = [{ label: 'Season dues', amount: dues }];
+    regState.roster = [];
+    regState.teams  = [];
+    submitRegistration();
   }
 
-  function renderRegFees(){
-    var listEl = document.getElementById('regFeeList');
-    if(!listEl) return;
-    listEl.innerHTML = '';
-    regState.fees.forEach(function(fee, i){
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex; gap:10px; margin-bottom:10px; align-items:center;';
-      row.innerHTML =
-        '<input type="text" placeholder="Fee label" value="' + fee.label + '" ' +
-          'style="flex:1.5; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; font-family:\'Inter\',sans-serif; font-size:13px;" ' +
-          'oninput="regState.fees[' + i + '].label=this.value;">' +
-        '<input type="text" placeholder="$" value="' + (fee.amount ? Number(fee.amount).toLocaleString() : '') + '" inputmode="numeric" ' +
-          'style="flex:1; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; font-family:\'Inter\',sans-serif; font-size:13px;" ' +
-          'oninput="var v=this.value.replace(/[^0-9]/g,\'\'); regState.fees[' + i + '].amount=parseFloat(v)||0; this.value=v?Number(v).toLocaleString():\'\'; updateReg2Preview();">' +
-        (i > 0 ? '<button onclick="regRemoveFee(' + i + ')" style="background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:18px;padding:0 4px;">×</button>' : '<span style="width:26px;"></span>');
-      listEl.appendChild(row);
-    });
-  }
-
-  function regAddFee(){
-    regState.fees.push({ label: '', amount: 0 });
-    renderRegFees();
-  }
-
-  function regRemoveFee(i){
-    regState.fees.splice(i, 1);
-    renderRegFees();
-    updateReg2Preview();
-  }
-
-  function updateReg2Preview(){
-    var raw   = (document.getElementById('reg2ApproxDues').value || '').replace(/[^0-9]/g,'');
+  // Live estimate on the registration form. Reads the inputs directly rather
+  // than regState, because everything is on one page now and the numbers have
+  // to move as they type, not when a step is committed.
+  function updateRegEstimate(){
+    var raw   = (document.getElementById('regDues').value || '').replace(/[^0-9]/g,'');
     var dues  = parseFloat(raw) || 0;
-    var count = regState.athleteCount || 0;
+    var count = parseInt(document.getElementById('reg1Athletes').value) || 0;
     var total = dues * count;
     // Shows dues collected, not payout. At this point the club does not exist
     // yet and no rate has been agreed with them, so quoting a percentage (this
     // used to hardcode 5%) presents an undecided price as settled. Payout
     // appears once a real fee_bps exists on the club record.
-    document.getElementById('reg2PayoutPreview').textContent = '$' + Math.round(total).toLocaleString();
+    document.getElementById('regEstTotal').textContent = '$' + Math.round(total).toLocaleString();
     // Show the multiplication, not just the product. With 100 athletes, "$50"
-    // becomes "$5,000" — which reads exactly like the field added two zeros,
-    // and the athlete count that explains it was two screens ago. Spelling out
-    // "100 athletes x $50 each" makes the big number self-evidently a total.
-    document.getElementById('reg2PayoutSub').textContent = dues > 0
+    // becomes "$5,000", which reads exactly like the field added two zeros.
+    document.getElementById('regEstSub').textContent = (dues > 0 && count > 0)
       ? count + ' athlete' + (count!==1?'s':'') + ' \u00d7 $' + Math.round(dues).toLocaleString() + ' each'
-      : 'Based on ' + count + ' athlete' + (count!==1?'s':'');
-    // Payout date — 5 days before season start
-    var dateEl = document.getElementById('reg2PayoutDate');
-    if(regState.seasonStart){
-      var d = new Date(regState.seasonStart);
+      : 'Enter athletes and dues above';
+    var dateEl = document.getElementById('regEstDate');
+    var start = document.getElementById('reg1SeasonStart').value;
+    if(start && total > 0){
+      // Parse at local midnight. new Date("2026-10-01") is UTC midnight, which
+      // renders as the previous day everywhere west of Greenwich.
+      var d = new Date(start + 'T00:00:00');
       d.setDate(d.getDate() - 5);
       dateEl.textContent = 'Estimated payout: ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
     } else { dateEl.textContent = ''; }
-  }
-
-  function regStep2Next(){
-    var raw  = (document.getElementById('reg2ApproxDues').value || '').replace(/[^0-9]/g,'');
-    var dues = parseFloat(raw) || 0;
-    var errEl = document.getElementById('reg2Error');
-    if(dues <= 0){ errEl.textContent = 'Please enter an approximate dues amount.'; return; }
-    errEl.textContent = '';
-    // Store as a single fee item for the Worker payload
-    regState.fees = [{ label: 'Season dues', amount: dues }];
-    regState.roster = [];
-    regState.teams  = [];
-    submitRegistration();
   }
 
   async function submitRegistration(){
@@ -5111,7 +5017,7 @@ var usStates = ["Virginia"];
     // second club row and a second welcome email, both with identical data.
     if(clubRegistrationInFlight) return;
     clubRegistrationInFlight = true;
-    var continueBtn = document.getElementById('reg2ContinueBtn');
+    var continueBtn = document.getElementById('regSubmitBtn');
     if(continueBtn) continueBtn.disabled = true;
     try {
       await submitRegistrationInner();
@@ -5155,14 +5061,14 @@ var usStates = ["Virginia"];
       });
       if(!regRes.ok){
         trackEvent('club_signup_failed', { reason: 'server_error' });
-        var reg2Err = document.getElementById('reg2Error');
-        if(reg2Err) reg2Err.textContent = "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
+        var regErr = document.getElementById('reg1Error');
+        if(regErr) regErr.textContent = "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
         return;
       }
     } catch(e){
       trackEvent('club_signup_failed', { reason: 'network_error' });
-      var reg2ErrCatch = document.getElementById('reg2Error');
-      if(reg2ErrCatch) reg2ErrCatch.textContent = "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
+      var regErrCatch = document.getElementById('reg1Error');
+      if(regErrCatch) regErrCatch.textContent = "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
       return;
     }
     trackEvent('club_signup_completed', {});

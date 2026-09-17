@@ -117,16 +117,21 @@ Snapshot at the end of the session that moved the domain, the Worker and Stripe.
 
 ### Pending, roughly in order
 
-- [ ] **Repoint Workers Builds to the company account.** `main` still deploys to the personal
-      account, so the next merge touching `worker/` redeploys the Worker nobody talks to, and the
-      company Worker only updates when someone runs
-      `npx wrangler deploy -c wrangler.migrate.toml` by hand. `worker/wrangler.toml` is now stale
-      (old hostname, old account id); `wrangler.migrate.toml` is untracked and holds the real
-      config. Fold the latter into the former as part of this.
-- [ ] **Move the cron, last and exactly once.** Still on the old Worker, which is correct for now.
-      `crons` is declared in `wrangler.toml`, so a dashboard change on the old Worker is undone by
-      its next Builds deploy. **If both Workers hold it, every parent gets two reminder emails and
-      nothing errors.** Check Resend the following morning for exactly one per athlete.
+- [x] **Workers Builds repointed and the cron moved** — done 2026-09-17. `wrangler.toml` is now the
+      company Worker's config (company account id, new hostname, live publishable key, live PMC,
+      `[triggers]` retained), Builds is connected in the company account with **Path `worker`** and
+      the non-production command `npx wrangler versions upload`, and the cron runs there and only
+      there. The untracked `wrangler.migrate.toml` is deleted — once `wrangler.toml` pointed at the
+      company account the two were identical apart from `[triggers]`, which made deploying with the
+      migrate config a way to silently strip the cron.
+      Order used, which avoided any window with two crons: disconnect Builds on the old account ->
+      delete its cron trigger -> connect Builds on the new account -> merge. The old Worker stays
+      deployed with no Builds and no cron, as the rollback path.
+      **Watch the first company-Worker cron run.** It fires 13:00 UTC daily. One athlete is
+      eligible (`Reminder Test Athlete`, 4-day interval, last sent 2026-09-16 13:01), so the next
+      real send is ~2026-09-20 — check Resend that day for **exactly one** email, which is the
+      proof no second cron survived anywhere.
+
 - [ ] **`RESEND_WEBHOOK_SECRET` is not set** on the company Worker, so `/webhook/resend` rejects
       bounce and complaint events and suppression stops updating — a bounced address keeps being
       mailed. Needs a new Resend webhook endpoint pointing at the company Worker.

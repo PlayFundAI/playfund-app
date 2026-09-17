@@ -1,0 +1,13 @@
+-- PlayFund's standard platform rate is 8%, decided 2026-09-16.
+--
+-- The column default was 500. That is below MIN_FEE_BPS (605, break-even
+-- against Klarna's 5.99% + 30c, which the platform pays under destination
+-- charges), so every new club was born carrying a rate that loses money on
+-- every installment payment. Checkout blocks it, but a default nobody can
+-- legally use is a trap for whoever reads the schema next.
+--
+-- Existing rows are deliberately NOT changed. The three clubs currently at 500
+-- all predate the floor and are test clubs; leaving them means they stay
+-- blocked at checkout until someone re-agrees a real rate, which is the
+-- correct outcome rather than a silent repricing.
+alter table clubs alter column fee_bps set default 800;

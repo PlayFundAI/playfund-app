@@ -2302,7 +2302,20 @@ var index_default = {
     if (method === "POST" && path === "/webhook/stripe") {
       const rawBody = await request.text();
       const sig = request.headers.get("stripe-signature");
-      const valid = await verifyStripeSignature(rawBody, sig, env.STRIPE_WEBHOOK_SECRET);
+      // Stripe's event destinations are scoped: one destination carries either
+      // "Your account" events or "Connected accounts" events, never both, and
+      // each has its own signing secret. We need both scopes -- the
+      // payment_intent events fire on the platform (destination charges create
+      // the PaymentIntent there), while v1 account.updated is delivered only to
+      // a Connected accounts destination. So there are two destinations and two
+      // secrets, and an event has to verify against either.
+      //
+      // A missing STRIPE_WEBHOOK_SECRET_CONNECT is not an error: until that
+      // second destination exists, every event arrives from the first.
+      let valid = await verifyStripeSignature(rawBody, sig, env.STRIPE_WEBHOOK_SECRET);
+      if (!valid && env.STRIPE_WEBHOOK_SECRET_CONNECT) {
+        valid = await verifyStripeSignature(rawBody, sig, env.STRIPE_WEBHOOK_SECRET_CONNECT);
+      }
       if (!valid) return err("Invalid Stripe signature", 401);
       const event = JSON.parse(rawBody);
       const eventId = event.id;

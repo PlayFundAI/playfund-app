@@ -68,11 +68,13 @@ from Cloudflare Pages (project `playfund-app`, new company-owned account
 - [ ] **No DMARC record.** SPF and DKIM are in place but nothing tells receivers what to do on
       failure, so `admin@playfundai.com` is spoofable — and phishing parents with fake payment links
       is the obvious attack on this product. Start at `p=none`, read the reports, then tighten.
-- [ ] **Cloudflare Pages previews are public.** Every non-production branch publishes to
-      `<branch>.playfund-app.pages.dev` with no auth. The publish boundary holds there too (previews
-      build `public/`), so this isn't a source leak — it's an unreviewed second front door to the
-      production Worker and production Supabase. Put Cloudflare Access in front of preview
-      deployments, scoped to `@playfundai.com`.
+- [x] **Cloudflare Pages previews are gated by Cloudflare Access** — corrected 2026-09-16.
+      Recorded here earlier as an open risk ("previews are public"); that was wrong. Verified by
+      loading a branch preview: `https://<hash>.playfund-app.pages.dev` returns the Cloudflare
+      Access sign-in, not the app. The production alias `playfund-app.pages.dev` is reachable
+      without Access, which is what the earlier claim was actually based on. No action needed —
+      note only that a preview cannot be opened by a tool or teammate without a login code.
+
 - [ ] **Production deployment is still attributed to `ajjurko/move-to-www-domain`.** Changing the
       production branch to `main` does not trigger a rebuild; Pages waits for the next commit. The
       content is identical (`git diff 8a0227f 209787e` is empty), so this is bookkeeping only — but

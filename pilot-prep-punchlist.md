@@ -91,6 +91,58 @@ from Cloudflare Pages (project `playfund-app`, new company-owned account
       `Permissions-Policy: payment=()` was only half of it. Both halves fail silently — no console
       error, and card payments keep working.
 
+## 3b. Where the live-payments cutover stands (2026-09-16/17)
+
+Snapshot at the end of the session that moved the domain, the Worker and Stripe. Everything under
+"Done" was verified against production, not assumed.
+
+### Done and verified
+
+- `www.playfundai.com` serves the marketing site and the app from Cloudflare Pages in the company
+  account. Publish boundary holds (`/worker/index.js` 404s), security headers present, real 404 page.
+- The old GitHub Pages address is a redirect shim preserving query **and** hash. Keep it forever.
+- Supabase `site_url` and `uri_allow_list` point at www.
+- **The Worker runs in the company Cloudflare account** at `playfund-worker.playfund.workers.dev`
+  with all 8 secrets held there. Nothing customer-facing runs on a personal account any more.
+- **Stripe is live.** Live account `acct_1U1c5AQ2kPXJfofJ`, destination charges, embedded
+  onboarding, Express dashboard, Radar Standard, `www.playfundai.com` registered under payment
+  method domains, Klarna enabled on the platform account.
+- Pay-in-full configuration `pmc_1UGUtGQ2kPXJfofJ8u02ZZHT` — cards, Apple Pay, Google Pay only.
+- Two webhook destinations (`playfund-worker-platform` for payment_intent events,
+  `playfund-worker-connect` for v1 `account.updated`), each with its own signing secret. The Worker
+  verifies against either.
+- **Rate 8%, floor 6.05%**, enforced when a rate is agreed and again at the point of charging.
+  Verified in production: a real browser on www, against a live-mode Worker, asking to charge a card
+  on a 5% club, got a 409.
+
+### Pending, roughly in order
+
+- [ ] **Repoint Workers Builds to the company account.** `main` still deploys to the personal
+      account, so the next merge touching `worker/` redeploys the Worker nobody talks to, and the
+      company Worker only updates when someone runs
+      `npx wrangler deploy -c wrangler.migrate.toml` by hand. `worker/wrangler.toml` is now stale
+      (old hostname, old account id); `wrangler.migrate.toml` is untracked and holds the real
+      config. Fold the latter into the former as part of this.
+- [ ] **Move the cron, last and exactly once.** Still on the old Worker, which is correct for now.
+      `crons` is declared in `wrangler.toml`, so a dashboard change on the old Worker is undone by
+      its next Builds deploy. **If both Workers hold it, every parent gets two reminder emails and
+      nothing errors.** Check Resend the following morning for exactly one per athlete.
+- [ ] **`RESEND_WEBHOOK_SECRET` is not set** on the company Worker, so `/webhook/resend` rejects
+      bounce and complaint events and suppression stops updating — a bounced address keeps being
+      mailed. Needs a new Resend webhook endpoint pointing at the company Worker.
+- [ ] **Nothing has been paid for on live keys.** Untested end to end: live Connect onboarding, a
+      live card payment, the 8% application-fee split landing correctly, Klarna, and the decline
+      card `4000 0000 0000 0002`. The first real club will be the first to exercise any of it.
+      Sandbox rehearsal is still possible on the old Worker, but needs a club at >= 6.05% first.
+- [ ] **Apex `playfundai.com`** redirects on HTTP but still serves Squarespace's Coming Soon on
+      HTTPS. Squarespace quoted 24-48h from 2026-09-16 01:07 UTC. Check
+      `curl -sI https://playfundai.com/ | head -1` — a 302 means done. Still 200 by Friday means
+      Squarespace failed to provision, and the fix becomes the Cloudflare DNS move (DNSSEC first).
+- [ ] **Transfer Stripe and Resend account ownership.** Both still personal. Transfer, never
+      rebuild — connected accounts and domain verification are bound to them.
+- [ ] **23 merged branches** on the remote, including `ajjurko/move-to-www-domain`, now safe to
+      delete.
+
 ## 4. Data tracking strategy (Stripe/Klarna + PlayFund's own instrumentation)
 
 - [ ] Write down the actual questions to answer first — the ones a lender or investor will ask: payment-method mix (full vs. installments), approval/decline rates, time-to-registration, club retention, average dues size, geographic/sport demographics

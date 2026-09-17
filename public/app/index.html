@@ -567,6 +567,13 @@
     color: var(--line); transition: color 0.2s;
     text-align: center;
   }
+  /* A completed step doubles as a way back. Only .done steps get this —
+     you cannot jump forward past validation. */
+  .reg-progress-nav {
+    background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+  }
+  .reg-progress-nav:hover .reg-progress-label,
+  .reg-progress-nav:focus-visible .reg-progress-label { text-decoration: underline; }
   .reg-progress-step.active .reg-progress-label { color: var(--ink); }
   .reg-progress-step.done   .reg-progress-label { color: var(--fund-green); }
   .reg-progress-bar-track {
@@ -2263,7 +2270,7 @@
     <div class="eyebrow" style="color:var(--ink);">Register your club</div>
     <div class="reg-progress">
       <div class="reg-progress-steps">
-        <div class="reg-progress-step done"><div class="reg-progress-label">Basics</div></div>
+        <button type="button" class="reg-progress-step done reg-progress-nav" onclick="regGoToStep('club-register-1')" aria-label="Back to Basics"><div class="reg-progress-label">Basics</div></button>
         <div class="reg-progress-step active"><div class="reg-progress-label">Fees</div></div>
         <div class="reg-progress-step "><div class="reg-progress-label">Confirm</div></div>
       </div>
@@ -3012,6 +3019,17 @@ var usStates = ["Virginia"];
     document.getElementById('backBtn').style.display = (name === 'home') ? 'none' : 'flex';
     window.scrollTo(0,0);
     trackEvent('screen_view', { screen: name });
+  }
+  // Navigate back to an earlier screen from the progress stepper, truncating
+  // the back stack so the header arrow stays consistent with where you are.
+  function regGoToStep(name){
+    var idx = screenOrder.lastIndexOf(name);
+    if(idx === -1){ showScreen(name); return; }
+    screenOrder = screenOrder.slice(0, idx);
+    document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById('screen-' + name).classList.add('active');
+    document.getElementById('backBtn').style.display = 'flex';
+    window.scrollTo(0,0);
   }
   function goBack(){
     var prev = screenOrder.pop();
@@ -4997,6 +5015,10 @@ var usStates = ["Virginia"];
     var errEl       = document.getElementById('reg1Error');
     if(!name)  { errEl.textContent = 'Club name is required.'; return; }
     if(!sport) { errEl.textContent = 'Select a sport.'; return; }
+    // Without this the next screen shows "$0" and "Based on 0 athletes" — the
+    // one screen whose whole job is to show the club what their season is
+    // worth before asking for anything.
+    if(count <= 0) { errEl.textContent = 'Roughly how many athletes? A ballpark is fine.'; return; }
     if(!email) { errEl.textContent = 'Your email is required.'; return; }
     errEl.textContent = '';
     regState.clubName    = name;    regState.sport = sport;
@@ -5006,7 +5028,11 @@ var usStates = ["Virginia"];
     regState.fees = [{ label: 'Season fee', amount: '' }];
     renderRegFees();
     updateReg2Preview();
-    showScreen('club-register-2', true);
+    // NOT isRoot. isRoot skips pushing the current screen, it does not clear
+    // the stack — so passing it here left 'club-login' (pushed by "Register
+    // your club ->") as the top entry, and back from Fees went to the club
+    // sign-in page instead of Basics.
+    showScreen('club-register-2');
   }
 
   function renderRegFees(){
@@ -5163,7 +5189,10 @@ var usStates = ["Virginia"];
     var sd = document.getElementById('reg1SeasonStart'); if(sd) sd.value = '';
     var se = document.getElementById('reg1SeasonEnd'); if(se) se.value = '';
 
-    // Show as root — clears back history so back goes to home not prior steps
+    // Back from the confirmation should go home, never into the form that was
+    // just submitted. isRoot alone does not do that — it skips the push but
+    // leaves earlier entries — so clear the stack explicitly.
+    screenOrder = [];
     showScreen('club-register-4', true);
   }
 

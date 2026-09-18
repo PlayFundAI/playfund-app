@@ -30,5 +30,11 @@
 # component, and checkout.stripe.com/hooks.stripe.com are involved in the
 # redirect-based handoff Klarna uses. form-action must allow those too, or the
 # handoff is blocked silently — console only, nothing server-side.
+#
+# connect.stripe.com in frame-src is separate from connect-js.stripe.com, which
+# only serves the loader script. The onboarding component frames its own steps
+# from connect.stripe.com, so without it Stripe cannot render inline and opens a
+# popup window instead — which reads to a club as being sent off to a third
+# party, the exact thing embedded onboarding was chosen to avoid.
 /app/*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://playfund-worker.playfund.workers.dev https://klnbdvwasnnqszlhawbl.supabase.co https://api.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://q.stripe.com; frame-src https://js.stripe.com https://connect-js.stripe.com https://hooks.stripe.com https://m.stripe.network https://checkout.stripe.com; form-action 'self' https://checkout.stripe.com https://hooks.stripe.com; base-uri 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://playfund-worker.playfund.workers.dev https://klnbdvwasnnqszlhawbl.supabase.co https://api.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://q.stripe.com; frame-src https://js.stripe.com https://connect-js.stripe.com https://connect.stripe.com https://hooks.stripe.com https://m.stripe.network https://checkout.stripe.com; form-action 'self' https://checkout.stripe.com https://hooks.stripe.com; base-uri 'self'; object-src 'none'

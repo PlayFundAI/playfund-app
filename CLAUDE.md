@@ -15,12 +15,22 @@ A payments platform for youth sports clubs. Clubs get registration money upfront
 
 ## Design reference
 
-`/design-reference/playfund-portal.html` is the source of truth for UI. It contains three sections:
+`/design-reference/playfund-portal.html` is the source of truth for product design — what screens exist and why. It contains three sections:
 1. Parent registration + payment flow (5 screens, including the declined-parent fork)
 2. Club dashboard (payout amount, athlete ledger)
 3. Club onboarding (5 screens, signup through sending the registration link)
 
-Copy, colors, spacing, and component structure in that file are intentional — each traces to survey data, an operator interview, or a competitor teardown. The annotation panels in the file explain why each decision was made. **Match the design intent; don't redesign.**
+**Flows, copy intent, and product decisions in that file still stand** — each traces to survey
+data, an operator interview, or a competitor teardown, and the annotation panels explain why. What
+screens exist, what they say, and in what order: match it, don't redesign it.
+
+**Visual language is now set by `public/index.html`, the marketing site** — decided 2026-09-18,
+superseding this file on appearance only. The app had drifted: 27 uppercase rules against the
+marketing site's zero, green-tinted greys against its neutral ones, no spacing scale. A club that
+arrives from playfundai.com and signs in should not feel like it moved to a different product.
+
+So when the two disagree: **design reference wins on what and why, marketing site wins on how it
+looks.**
 
 Other reference files in the same folder document the flows and pilot structure.
 

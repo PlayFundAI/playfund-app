@@ -527,6 +527,111 @@ charge model follows from that.
       Note API keys are shown once and cannot be retrieved, so migrating the Worker needs a newly
       created key rather than the existing one. Multiple keys coexist, so this costs nothing.
 
+- [x] **The parent payment screen offered a bank transfer the checkout cannot take** — found and
+      fixed 2026-09-18, during the visual pass, by reading the screen rather than the code.
+
+      "Pay by card" and "Pay by bank transfer · ACH · lower processing fee" sat side by side on the
+      athlete detail screen, and **both called `openStripeCheckout('full')`** — the same session,
+      the same form. Pay-in-full runs on `pmc_1UGUtGQ2kPXJfofJ8u02ZZHT`, which is cards, Apple Pay
+      and Google Pay only (recorded at the top of this section). So a parent who deliberately
+      picked bank transfer *because we told them it was cheaper* landed on a card-only form,
+      mid-payment, on live money, with no bank option and no explanation.
+
+      Two more places said the same thing: the instruction line above the buttons ("enter your card
+      or bank details") and the decline screen's pay-in-full card ("Card or bank transfer via
+      Stripe"). All three are gone; the remaining card button now names what the configuration
+      actually offers.
+
+      We had already **decided against ACH** — no `processing` state in the webhook, so the reminder
+      sweep chases a parent who has already paid, plus a $20k/week cap a single club exceeds. The
+      UI had simply never been told. **If ACH is ever turned on, both of those have to be dealt
+      with first.** The `payment_method==='ach'` display mapping stays in place for that day.
+
+- [ ] **Never tested: a large ticket through Klarna. There is almost certainly a cap.** Klarna
+      underwrites every purchase and applies limits that vary by market, by product (Pay in 4 vs
+      Pay in 30 vs longer financing) and, crucially, **per consumer** — an approval is a decision
+      about that shopper, not a published ceiling. Every Klarna payment we have run has been a
+      small test amount, so we do not know where ours sits.
+
+      This is not a detail. `CLAUDE.md` locks **"Any ticket size accepted ($250-$2,000+)"** as a
+      pilot decision, and the whole pitch is that a club gets funded upfront *regardless of how a
+      family chooses to pay*. If the cap bites somewhere in that range, then the clubs with the
+      largest dues — the ones worth the most to us — are exactly the ones whose families land in
+      the decline fork by default. That inverts the pitch rather than dinging it.
+
+      **Two different failure points, and they surface in completely different places.**
+
+      1. **Stripe refuses to create the session.** `worker/index.js` sets
+         `payment_method_types: ["klarna"]` for a BNPL checkout with **no fallback**, so if the
+         amount is outside Klarna's eligible range for our account, `POST /checkout/sessions`
+         fails and the Worker returns a 500 whose body is
+         `"Failed to create checkout session: " + JSON.stringify(sessionRes.data)`.
+      2. **Klarna itself declines, or offers fewer products.** The session mounts, the parent
+         reaches Klarna, and Klarna makes its own call. This is the case the decline fork was
+         built for and it behaves correctly.
+
+      **What to actually do:** run real Klarna payments at several amounts — roughly $500,
+      $1,000, $1,500, $2,500 — rather than one. A single approval does not establish a floor for
+      everyone (the next parent is underwritten separately) and a single decline may just be that
+      tester's own limit. Record which of the two failure points fires at each amount. Then **ask
+      Klarna or Stripe directly** for the eligible range on our account; that is the only answer
+      that generalises, and it is the same conversation as the "Pay in full inside Klarna's
+      checkout" question below, so raise both at once.
+
+      **Detection is already wired:** the app fires `trackEvent('checkout_error', { payment_type,
+      stage: 'create_session' })` on that 500, so once real clubs are live, a cluster of those
+      events on high-dues clubs is the signal.
+
+- [ ] **The BNPL checkout screen renders raw Stripe error JSON to a parent.** Found while tracing
+      the Klarna cap question above, not by hitting it. `openStripeCheckout()` does
+      `errEl.textContent = data.error` on a failed session, and for this one path the Worker's
+      `data.error` is `"Failed to create checkout session: " + JSON.stringify(sessionRes.data)`.
+      So the first thing a parent sees on a screen titled **"Set up installments"** is a wall of
+      Stripe's internal error object. Every other error string in the Worker is written for a
+      human; this one is a debug dump that reached the customer by accident. The Worker should log
+      the Stripe body and return something a parent can act on — and this path is most likely to
+      fire on exactly the large-ticket case above, so fix it before that test rather than after.
+
+- [ ] **Klarna sells "Pay in full" inside its own checkout, at BNPL pricing.** Once the session is
+      handed to Klarna, that screen is Klarna's: it offers Pay Now alongside Pay in 4 and Pay in
+      30, and we do not control which of its products it shows. A parent who picks installments in
+      our app, sees Klarna, and decides to just pay it costs us Klarna's rate for what is
+      effectively a card payment.
+
+      | Route | Stripe charges | Net on $50 at 8% |
+      |---|---|---|
+      | Our card path | 2.9% + 30c = $1.75 | **$2.25** |
+      | Klarna -> "Pay in full" | 5.99% + 30c = $3.30 | **$0.70** |
+
+      On $1,500 the gap is about $46. **Ask Stripe or Klarna whether the product mix can be
+      restricted** — unknown, and not worth guessing at. If it cannot, the mitigation is copy: our
+      own payment-choice screen should make paying in full obviously the card path, so nobody
+      reaches Klarna intending to pay in one go.
+- [ ] **The declined-installment screen uses a native `alert()`.** A browser dialog saying
+      "www.playfundai.com says…" on the single most sensitive screen in the product — the moment a
+      family is told their installment plan was refused. Should be in-page, in our own voice.
+      Folded into the redesign rather than patched separately.
+- [x] **Supabase auth emails now send through Resend** — done 2026-09-18. Custom SMTP configured
+      (`smtp.resend.com:465`, user `resend`, a dedicated API key), sender `PlayFund
+      <admin@playfundai.com>`. Before this, parent signup confirmations came from Supabase's own
+      mailer as "Supabase Auth" with no mention of PlayFund or the club — and that mailer is
+      documented as development-only and rate limited to a handful per hour, so confirmations would
+      have started disappearing under real load.
+      Two limits worth remembering: **30 emails/hour** account-wide, and a **60-second minimum
+      interval per user**. The second interacts with our own forgot-password limit (3 per 15 min):
+      a parent who confirms their address and immediately requests a reset hits Supabase's throttle,
+      not ours, and gets nothing with no explanation.
+- [ ] **The three Supabase email templates are still Supabase's defaults.** SMTP is fixed; wording
+      is not. Confirm signup, Invite user, Reset password — each needs PlayFund voice and a line
+      saying why the recipient is getting it. Note the app's own password-reset email does **not**
+      go through Supabase (it is generated by the Worker and sent via Resend), so the Supabase
+      recovery template only fires for resets triggered from the Supabase dashboard.
+- [ ] **Decide whether parents need to confirm their email at all.** `mailer_autoconfirm` is off, so
+      signup returns no session and the parent is told to go and confirm. A parent who has just paid
+      by card has already proven they control that inbox — they received a Stripe receipt there. The
+      claim-authorisation fix means confirmation is no longer load-bearing for security. Turning it
+      on removes a step from a flow we advertise as taking five seconds.
+
 - [ ] **We now owe Stripe a restricted-business review of every club.** The Connect Platform
       Agreement acknowledgement (accepted 2026-09-15) includes "you'll review each seller to
       ensure they're not operating in a restricted business category or selling restricted

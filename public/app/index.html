@@ -1936,6 +1936,8 @@
     <div id="adminActionList"></div>
 
     <div class="roster-section-label">Clubs</div>
+    <input type="search" id="adminClubFilter" placeholder="Filter by name, code or city…" oninput="renderAdminClubList()"
+      style="width:100%; padding:10px 12px; margin-bottom:10px; border:1.5px solid var(--line); border-radius:8px; font-family:'Inter',sans-serif; font-size:13px;">
     <div id="adminClubList"></div>
   </div>
 
@@ -5340,6 +5342,50 @@ var usStates = ["Virginia"];
     showScreen('admin-login');
   }
 
+  var adminAllClubs = [];
+
+  function renderAdminClubList(){
+    var listEl = document.getElementById('adminClubList');
+    if(!listEl) return;
+    var q = (document.getElementById('adminClubFilter')?.value || '').trim().toLowerCase();
+    var clubs = !q ? adminAllClubs : adminAllClubs.filter(function(c){
+      return (c.name || '').toLowerCase().indexOf(q) !== -1
+          || (c.code || '').toLowerCase().indexOf(q) !== -1
+          || (c.city || '').toLowerCase().indexOf(q) !== -1;
+    });
+    listEl.innerHTML = '';
+    if(clubs.length === 0){
+      listEl.innerHTML = '<p style="color:var(--ink-soft); font-size:14px; text-align:center; padding:32px 0;">'
+        + (adminAllClubs.length === 0 ? 'No clubs yet.' : 'No clubs match “' + q + '”.') + '</p>';
+      return;
+    }
+    clubs.forEach(function(club){
+        var recoveryPct = club.fronted_cents > 0
+          ? Math.min(100, Math.round(club.collected_cents / club.fronted_cents * 100)) : 0;
+        var totalDues = club.athlete_count * (club.teams[0] ? club.teams[0].dues_cents/100 : 0);
+        var sv = sportVisual(club.sport);
+        var iconHtml = sv.icon
+          ? '<div class="team-card-icon" style="background:' + sv.bg + '; color:' + sv.color + ';">' + sv.icon + '</div>'
+          : '<div class="team-card-icon" style="background:var(--paper-dim);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20"/></svg></div>';
+        var card = document.createElement('div');
+        card.className = 'team-card';
+        card.style.marginBottom = '10px';
+        card.innerHTML =
+          iconHtml +
+          '<div class="team-card-meta">' +
+            '<div class="team-card-name">' + club.name + '</div>' +
+            '<div class="team-card-sub">' + club.code + ' &middot; ' + club.city + ' &middot; ' + club.team_count + ' teams</div>' +
+            '<div class="team-card-sub" style="margin-top:2px;">Total Dues: $' + Math.round(totalDues).toLocaleString() + '</div>' +
+          '</div>' +
+          '<div class="team-card-funded">' +
+            '<div class="team-card-funded-num">' + recoveryPct + '%</div>' +
+            '<div class="team-card-funded-label">Advances Recovered</div>' +
+          '</div>';
+        card.addEventListener('click', function(){ openAdminClubDetail(club); });
+        listEl.appendChild(card);
+    });
+  }
+
   async function loadAdminClubs(){
     showScreen('admin-clubs');
     ['adminTotalClubs','adminTotalTeams','adminTotalAthletes'].forEach(function(id){
@@ -5424,37 +5470,11 @@ var usStates = ["Virginia"];
         });
       }
 
-      // Club cards
-      var listEl = document.getElementById('adminClubList');
-      if(clubs.length === 0){
-        listEl.innerHTML = '<p style="color:var(--ink-soft); font-size:14px; text-align:center; padding:32px 0;">No clubs yet.</p>';
-        return;
-      }
-      clubs.forEach(function(club){
-        var recoveryPct = club.fronted_cents > 0
-          ? Math.min(100, Math.round(club.collected_cents / club.fronted_cents * 100)) : 0;
-        var totalDues = club.athlete_count * (club.teams[0] ? club.teams[0].dues_cents/100 : 0);
-        var sv = sportVisual(club.sport);
-        var iconHtml = sv.icon
-          ? '<div class="team-card-icon" style="background:' + sv.bg + '; color:' + sv.color + ';">' + sv.icon + '</div>'
-          : '<div class="team-card-icon" style="background:var(--paper-dim);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M2 12h20"/></svg></div>';
-        var card = document.createElement('div');
-        card.className = 'team-card';
-        card.style.marginBottom = '10px';
-        card.innerHTML =
-          iconHtml +
-          '<div class="team-card-meta">' +
-            '<div class="team-card-name">' + club.name + '</div>' +
-            '<div class="team-card-sub">' + club.code + ' &middot; ' + club.city + ' &middot; ' + club.team_count + ' teams</div>' +
-            '<div class="team-card-sub" style="margin-top:2px;">Total Dues: $' + Math.round(totalDues).toLocaleString() + '</div>' +
-          '</div>' +
-          '<div class="team-card-funded">' +
-            '<div class="team-card-funded-num">' + recoveryPct + '%</div>' +
-            '<div class="team-card-funded-label">Advances Recovered</div>' +
-          '</div>';
-        card.addEventListener('click', function(){ openAdminClubDetail(club); });
-        listEl.appendChild(card);
-      });
+      // Club cards. Held on the module so the filter box can re-render without
+      // another round trip — the list is every club, unpaginated, and most of
+      // it is historical test data.
+      adminAllClubs = clubs;
+      renderAdminClubList();
     } catch(e) {
       ['adminTotalClubs','adminTotalTeams','adminTotalAthletes'].forEach(function(id){
         document.getElementById(id).classList.remove('loading-msg');

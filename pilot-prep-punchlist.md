@@ -527,6 +527,26 @@ charge model follows from that.
       Note API keys are shown once and cannot be retrieved, so migrating the Worker needs a newly
       created key rather than the existing one. Multiple keys coexist, so this costs nothing.
 
+- [x] **The parent payment screen offered a bank transfer the checkout cannot take** — found and
+      fixed 2026-09-18, during the visual pass, by reading the screen rather than the code.
+
+      "Pay by card" and "Pay by bank transfer · ACH · lower processing fee" sat side by side on the
+      athlete detail screen, and **both called `openStripeCheckout('full')`** — the same session,
+      the same form. Pay-in-full runs on `pmc_1UGUtGQ2kPXJfofJ8u02ZZHT`, which is cards, Apple Pay
+      and Google Pay only (recorded at the top of this section). So a parent who deliberately
+      picked bank transfer *because we told them it was cheaper* landed on a card-only form,
+      mid-payment, on live money, with no bank option and no explanation.
+
+      Two more places said the same thing: the instruction line above the buttons ("enter your card
+      or bank details") and the decline screen's pay-in-full card ("Card or bank transfer via
+      Stripe"). All three are gone; the remaining card button now names what the configuration
+      actually offers.
+
+      We had already **decided against ACH** — no `processing` state in the webhook, so the reminder
+      sweep chases a parent who has already paid, plus a $20k/week cap a single club exceeds. The
+      UI had simply never been told. **If ACH is ever turned on, both of those have to be dealt
+      with first.** The `payment_method==='ach'` display mapping stays in place for that day.
+
 - [ ] **Never tested: a large ticket through Klarna. There is almost certainly a cap.** Klarna
       underwrites every purchase and applies limits that vary by market, by product (Pay in 4 vs
       Pay in 30 vs longer financing) and, crucially, **per consumer** — an approval is a decision

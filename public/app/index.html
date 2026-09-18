@@ -364,7 +364,7 @@
   .role-card:active { transform: scale(0.97); }
   .role-icon {
     width: 52px; height: 52px;
-    border-radius: 14px;
+    border-radius: var(--r-lg);
     display: flex; align-items: center; justify-content: center;
     background: var(--paper-dim);
   }
@@ -530,7 +530,7 @@
   .roster-action-row { display: flex; align-items: center; gap: 6px; }
   .roster-action-btn {
     display: flex; align-items: center; justify-content: center;
-    width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line);
+    width: 26px; height: 26px; border-radius: var(--r-sm); border: 1px solid var(--line);
     background: var(--white); color: var(--ink-soft); cursor: pointer; flex-shrink: 0;
   }
   .roster-action-btn svg { width: 14px; height: 14px; }
@@ -1070,7 +1070,7 @@
   .receipt-stamp b { color: var(--ink); font-weight: 600; }
 
   /* ── Due banner ── */
-  .due-banner { background: var(--paper-dim); border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 16px; }
+  .due-banner { background: var(--paper-dim); border-radius: var(--r-lg); padding: 16px 18px; margin-bottom: var(--sp-4); }
   .due-banner-top { display: flex; justify-content: space-between; align-items: flex-start; }
   .due-banner-label { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-faint); }
   .due-banner-amt { font-family: 'Anton', sans-serif; font-size: 32px; color: var(--ink); }
@@ -1562,12 +1562,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
         </div>
         <div>
-          <div class="payment-section-title">Pay In Full</div>
+          <div class="payment-section-title">Pay in full</div>
           <div class="payment-section-subtitle">Full season dues charged today</div>
         </div>
       </div>
       <div class="payment-instruction">
-        On Stripe's checkout, enter your card or bank details and tap <b>Pay</b>. The full season dues will be charged once.
+        Enter your card details and tap <b>Pay</b>. The full season dues are charged once.
       </div>
       <div class="payment-btn-row">
         <button class="payment-method-btn" onclick="openStripeCheckout('full')">
@@ -1576,17 +1576,7 @@
           </div>
           <div>
             <div class="payment-method-label">Pay by card</div>
-            <div class="payment-method-sub">Visa, Mastercard, Amex</div>
-          </div>
-          <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-        <button class="payment-method-btn" onclick="openStripeCheckout('full')">
-          <div class="payment-method-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          </div>
-          <div>
-            <div class="payment-method-label">Pay by bank transfer</div>
-            <div class="payment-method-sub">ACH · lower processing fee</div>
+            <div class="payment-method-sub">Visa, Mastercard, Amex, Apple&nbsp;Pay, Google&nbsp;Pay</div>
           </div>
           <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -1600,7 +1590,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/></svg>
         </div>
         <div>
-          <div class="payment-section-title">Pay In Installments</div>
+          <div class="payment-section-title">Pay in installments</div>
           <div class="payment-section-subtitle">Split dues over time via Klarna</div>
         </div>
       </div>
@@ -1735,7 +1725,7 @@
         <div style="font-size:13px; font-weight:700; color:var(--ink);">Pay in full</div>
         <div style="font-family:'Anton',sans-serif; font-size:18px; color:var(--ink);" id="declineFullAmt">$950</div>
       </div>
-      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">One charge today. Card or bank transfer via Stripe.</div>
+      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">One charge today, by card.</div>
     </div>
 
 

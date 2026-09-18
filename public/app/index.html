@@ -1335,15 +1335,15 @@
       <div class="funded-note" id="fundedNote"></div>
     </div>
 
-    <button class="btn btn-secondary" onclick="openReminderModal()" style="margin-bottom:16px; width:100%;">📧 Send reminders to unpaid families</button>
+    <button class="btn btn-secondary" id="rosterRemindBtn" onclick="openReminderModal()" style="margin-bottom:16px; width:100%; display:none;">Send reminders to unpaid families</button>
 
     <div class="roster-section-label">Roster &middot; 0 athletes</div>
     <div id="rosterList"></div>
     <div style="display:flex; gap:10px; margin-top:12px;">
-      <button class="btn btn-secondary" onclick="showAddAthleteScreen()" style="flex:1;">+ Add athlete</button>
-      <button class="btn btn-secondary" onclick="showInviteAdminScreen()" style="flex:1;">+ Invite coach</button>
+      <button class="btn btn-primary" onclick="showAddAthleteScreen()" style="flex:1;">+ Add athlete</button>
+      <button class="btn btn-secondary" onclick="showInviteAdminScreen()" style="flex:1; margin-top:0;">+ Invite coach</button>
     </div>
-    <button class="btn btn-secondary" onclick="exportRosterCSV()" style="margin-top:8px; width:100%;">⬇ Export roster as CSV</button>
+    <button class="btn btn-secondary" id="rosterExportBtn" onclick="exportRosterCSV()" style="margin-top:8px; width:100%; display:none;">Export roster as CSV</button>
   </div>
 
   <!-- SCREEN: parent home -->
@@ -1833,7 +1833,13 @@
     </div>
 
     <div class="section-label" style="margin-top:20px;">Fee breakdown</div>
-    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px; line-height:1.5;">List every fee families will pay. This is what appears on their registration email.</p>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 6px; line-height:1.5;">List every fee families will pay. This is what appears on their registration email.</p>
+    <!-- Examples up front rather than in the placeholder of the next empty row.
+         Placeholders only revealed one suggestion at a time, in whatever order
+         we happened to pick, and only after the row above was filled — so a
+         club had to guess what kind of thing belonged here, and never saw the
+         shape of a complete answer. -->
+    <p style="font-size:12.5px; color:var(--ink-faint); margin:0 0 12px; line-height:1.5;">Most clubs list some of: registration, uniforms, coaching, tournament or league fees, facility time, equipment.</p>
     <p id="addTeamEstimateHint" style="font-size:12.5px; color:var(--ink-faint); margin:-6px 0 12px; display:none;"></p>
     <div id="addTeamFeeList"></div>
     <button onclick="addTeamFeeRow()" style="background:none; border:none; font-size:13px; font-weight:700; color:var(--fund-green); cursor:pointer; font-family:'Inter',sans-serif; padding:6px 0; margin-bottom:12px;">+ Add fee item</button>
@@ -3715,6 +3721,16 @@ var usStates = ["Virginia"];
         banner.style.background = 'var(--paid-bg)';
         banner.style.borderColor = 'var(--paid)';
         msg.style.color = 'var(--paid)';
+        // A club that has just finished Stripe has no teams and no athletes, so
+        // "send payment links to families" offers to mail nobody. Keep the
+        // reassurance that setup worked, but only offer the action once there
+        // is someone to send to.
+        var athleteCount = (c.teams || []).reduce(function(n, t){ return n + ((t.athletes || []).length); }, 0);
+        if(athleteCount === 0){
+          msg.innerHTML = '✓ <b>You\'re ready to accept payments.</b> Add a team and your athletes, then you can send families their payment links.';
+          btn.style.display = 'none';
+          return;
+        }
         msg.innerHTML = '✓ <b>You\'re ready to accept payments.</b> Send families their payment links when your roster looks right.';
         // Payment links are held back while a club can't be charged, so this
         // is how the club releases them once it can. A button rather than an
@@ -3913,10 +3929,23 @@ var usStates = ["Virginia"];
 
     var listEl = document.getElementById('rosterList');
     listEl.innerHTML = '';
+    // Reminders and CSV export both act on a roster. With nobody on it, one
+    // mails no one and the other downloads an empty file — so they are offered
+    // only once there is something to act on.
+    var remindBtn = document.getElementById('rosterRemindBtn');
+    var exportBtn = document.getElementById('rosterExportBtn');
+    if(remindBtn) remindBtn.style.display = athletes.length ? 'block' : 'none';
+    if(exportBtn) exportBtn.style.display = athletes.length ? 'block' : 'none';
     if(athletes.length === 0){
-      listEl.innerHTML = '<div style="text-align:center;padding:32px 0;color:var(--ink-soft);font-size:14px;">No athletes yet.<br>Tap below to add your first athlete.</div>';
+      listEl.innerHTML =
+        '<div style="border:1.5px dashed var(--line); border-radius:var(--r-md); padding:20px 18px; text-align:center;">' +
+          '<div style="font-size:15px; font-weight:700; color:var(--ink); margin-bottom:6px;">Add your first athlete</div>' +
+          '<p style="font-size:13px; color:var(--ink-soft); line-height:1.5; margin:0;">' +
+            'Add each player and their parent\'s email. Families get a payment link for this team\'s dues.' +
+          '</p>' +
+        '</div>';
     } else {
-      var statusLabels   = {paid_full:'Paid',bnpl_active:'BNPL Active',bnpl_complete:'Complete',unpaid:'Not Paid',defaulted:'Defaulted'};
+      var statusLabels   = {paid_full:'Paid',bnpl_active:'BNPL Active',bnpl_complete:'Complete',unpaid:'Awaiting payment',defaulted:'Defaulted'};
       var statusColorVar = {paid_full:'--paid',bnpl_active:'--paid',bnpl_complete:'--paid',unpaid:'--unpaid',defaulted:'--unpaid'};
       var statusBgVar    = {paid_full:'--paid-bg',bnpl_active:'--paid-bg',bnpl_complete:'--paid-bg',unpaid:'--unpaid-bg',defaulted:'--unpaid-bg'};
 
@@ -3961,7 +3990,7 @@ var usStates = ["Virginia"];
             
           '</div>'+
           '<div class="roster-right">'+
-            '<div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div>'+
+            '<div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Awaiting payment')+'</div>'+
             methodTag+
           '</div>'+
           '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteRosterAthlete(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+trashIcon+'</button>';
@@ -4744,7 +4773,7 @@ var usStates = ["Virginia"];
 
     var statusLabels = {
       paid_full: 'Paid in Full', bnpl_active: 'BNPL Active',
-      bnpl_complete: 'BNPL Complete', unpaid: 'Not Paid', defaulted: 'Defaulted'
+      bnpl_complete: 'BNPL Complete', unpaid: 'Awaiting payment', defaulted: 'Defaulted'
     };
     var methodLabels = {
       card: 'Card', ach: 'ACH', klarna: 'Klarna / Installment', null: ''
@@ -5255,7 +5284,7 @@ var usStates = ["Virginia"];
         return;
       }
       listEl.innerHTML = '';
-      var statusLabels = { paid_full:'Paid', bnpl_active:'BNPL Active', bnpl_complete:'Complete', unpaid:'Not Paid', defaulted:'Defaulted' };
+      var statusLabels = { paid_full:'Paid', bnpl_active:'BNPL Active', bnpl_complete:'Complete', unpaid:'Awaiting payment', defaulted:'Defaulted' };
       var taTrashIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>';
       var taCheckIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
       var byNameTA = function(a, b){ return (a.name||'').localeCompare(b.name||''); };
@@ -5292,7 +5321,7 @@ var usStates = ["Virginia"];
         row.innerHTML =
           '<div class="roster-icon">'+(isPaid?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>')+'</div>'+
           '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+'</div>'+
-          '<div class="roster-right"><div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Not Paid')+'</div></div>'+
+          '<div class="roster-right"><div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Awaiting payment')+'</div></div>'+
           '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>';
         return row;
       }
@@ -5850,7 +5879,7 @@ var usStates = ["Virginia"];
         return;
       }
       listEl.innerHTML = '';
-      var statusLabels = { paid_full:'Paid', bnpl_active:'BNPL Active', bnpl_complete:'Complete', unpaid:'Not Paid', defaulted:'Defaulted' };
+      var statusLabels = { paid_full:'Paid', bnpl_active:'BNPL Active', bnpl_complete:'Complete', unpaid:'Awaiting payment', defaulted:'Defaulted' };
       var adminTrashIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>';
       var adminCheckIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
@@ -5893,7 +5922,7 @@ var usStates = ["Virginia"];
             (a.parent_email ? '<div class="roster-age">' + a.parent_email + '</div>' : '') +
           '</div>' +
           '<div class="roster-right">' +
-            '<div class="status-pill ' + (isPaid ? 'status-paid' : 'status-unpaid') + '">' + (statusLabels[status] || 'Not Paid') + '</div>' +
+            '<div class="status-pill ' + (isPaid ? 'status-paid' : 'status-unpaid') + '">' + (statusLabels[status] || 'Awaiting payment') + '</div>' +
           '</div>' +
           '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteAthleteAdmin(\'' + a.id + '\', \'' + (a.name || 'this athlete').replace(/'/g,"\\'") + '\')">' + adminTrashIcon + '</button>';
         return row;

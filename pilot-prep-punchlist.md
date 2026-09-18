@@ -115,6 +115,29 @@ Snapshot at the end of the session that moved the domain, the Worker and Stripe.
   Verified in production: a real browser on www, against a live-mode Worker, asking to charge a card
   on a 5% club, got a 409.
 
+### First live payment — 2026-09-18
+
+A real $50 card payment went end to end on live keys. Everything below was unverified before it.
+
+| | |
+|---|---|
+| Live Connect onboarding | completed, `charges_enabled: true` (`acct_1UGpO3LjtBwZmjCO`) |
+| Live secret key + live PMC | pay-in-full did not 500 |
+| Platform webhook + signing secret | `evt_3UGr6vQ2kPXJfofJ0TCwxJUn` recorded, athlete flipped to `paid_full` |
+| `verifyStripeSignature` | verified a real Stripe signature |
+| **Fee split at 8%** | charge $50.00, Stripe −$1.75, transfer −$50.00, application fee +$4.00 → **club $46.00, PlayFund $2.25** |
+
+The split is the one that had never been checked: `Math.round(duesCents * feeBps / 1e4)` is correct
+against real money.
+
+Onboarding as an individual rather than the company was deliberate — Stripe verifies every
+beneficial owner at 25% or more, and all three founders clear that, so the company path would have
+needed Jackson's and Clyde's SSNs and dates of birth for a $50 test. **Every incorporated club will
+hit the same rule**, and a 501(c)(3) gets asked for directors and officers instead. That is real
+friction landing on a volunteer treasurer, and it sits against "completable in one sitting".
+
+Still untested on live keys: **Klarna** and a **declined card**.
+
 ### Pending, roughly in order
 
 - [x] **Workers Builds repointed and the cron moved** — done 2026-09-17. `wrangler.toml` is now the
@@ -412,15 +435,26 @@ charge model follows from that.
       term in the club agreement. Lawyer question, not a code one. Radar Standard was enabled as
       partial mitigation (tickets run $1,000–$1,900, so one prevented dispute pays for ~30,000
       screenings).
-- [ ] **Three different answers to "when do I get paid."** The signup form says
-      `seasonStart − 5 days` (`public/app/index.html:5044`), the welcome email says
-      `seasonStart + 14 days` (`worker/index.js:656`), and the app copy promises "Day 1 payout"
-      (`public/app/index.html:2273, 2320`). A club sees two of them within a minute of each
-      other. Payout timing is listed in `CLAUDE.md` as an unresolved policy — two places invented
-      answers anyway, and they disagree. Decide the policy, then make it one shared helper.
-      The app's version also has a timezone bug: `new Date("2026-10-01")` parses as UTC midnight,
-      so US users see a date one day earlier than the code's own comment describes. The Worker
-      does it correctly with `new Date(season_start + "T00:00:00")`.
+- [ ] **All three answers to "when do I get paid" are fiction, not just inconsistent.** Measured
+      against the first live payment (2026-09-17): a $50 charge showed **Available on Sep 25** —
+      eight days later — on a club whose season starts in October. Actual timing is Stripe's fund
+      availability plus the *connected account's* own payout schedule, which is separate from the
+      platform's and holds the first payout longer for a new account. It has nothing to do with the
+      season dates.
+
+      What the product currently says, none of which matches that mechanism:
+
+      | Where | Rule | For an Oct 1 season |
+      |---|---|---|
+      | Signup form (`public/app/index.html:5044`) | `seasonStart − 5 days` | Sep 26 |
+      | Welcome email (`worker/index.js:656`) | `seasonStart + 14 days` | Oct 15 |
+      | App copy (`public/app/index.html:2273`, 2320) | "Day 1 payout" | neither |
+
+      The marketing site promises Day 1 payout, so this is a claim to get right, not just a display
+      bug. `CLAUDE.md` lists payout timing as an unresolved policy — the answer is now partly
+      empirical rather than a decision: read the real schedule off the connected account, decide
+      what to promise against it, then make it one shared helper instead of three inventions.
+
 - [ ] **"One combined plan" for siblings isn't built.** `CLAUDE.md` product principles say
       multiple children register in one flow on one combined plan, and 66% of surveyed parents
       have 2+ kids playing. `POST /athlete/:id/checkout` creates a separate payment per athlete.

@@ -1068,6 +1068,35 @@ var index_default = {
     // other email the product sends. The app already consumes
     // ?club_verify=<hash>&verify_type=recovery -- proceedToSetPassword has had
     // a 'recovery' branch all along, it just had no way to be reached.
+    // Exchange a refresh token for a new access token. Kept on the Worker so
+    // the browser never needs Supabase credentials of its own beyond the anon
+    // key it already has.
+    if (method === "POST" && path === "/auth/refresh") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return err("Invalid JSON");
+      }
+      const refreshToken = (body.refresh_token || "").trim();
+      if (!refreshToken) return err("refresh_token required", 400);
+      const res = await fetch(`${env.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+        method: "POST",
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.access_token) {
+        // A refresh token is single-use and itself expires, so this is a normal
+        // end-of-session outcome, not an error worth alarming about.
+        return err("Session expired", 401);
+      }
+      return json({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at: data.expires_at || null
+      });
+    }
     if (method === "POST" && path === "/auth/forgot-password") {
       let body;
       try {
@@ -1172,6 +1201,12 @@ var index_default = {
       }
       return json({
         access_token: data.access_token,
+        // Without these the client cannot renew anything: Supabase access
+        // tokens last about an hour, and a club that signs in, connects a bank
+        // and then adds a team is easily past that. It used to fail with the
+        // API's own words, "Invalid token", on the button press.
+        refresh_token: data.refresh_token,
+        expires_at: data.expires_at || null,
         user: {
           id: data.user.id,
           email: data.user.email,

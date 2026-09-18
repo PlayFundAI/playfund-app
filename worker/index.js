@@ -1045,17 +1045,57 @@ var index_default = {
           display_name: null
         });
       }
+      // Claiming is scoped to athletes whose parent_email already matches the
+      // address signing up. This endpoint is unauthenticated and used to take
+      // whatever athlete_ids it was handed, with no check that the caller had
+      // any connection to them -- and athlete UUIDs are not secret, they sit in
+      // every payment link as ?athlete=<uuid>. So anyone with a forwarded link
+      // could sign up, permanently claim that child's record, and then read
+      // their name, team, club and parent's email through /parent/athletes.
+      //
+      // The parent_email filter does the authorising: PostgREST applies both
+      // conditions, so an id the address does not own updates nothing rather
+      // than erroring. Counted so a mismatch is visible in the logs instead of
+      // looking like success.
+      let claimed = 0;
       if (athlete_ids?.length) {
-        for (const aid of athlete_ids) {
-          await supabase(env, "PATCH", `/athletes?id=eq.${aid}`, {
-            parent_user_id: userId
-          });
+        const signupEmail = email.toLowerCase().trim();
+        // Read first, compare in code, then write only what matched. A filtered
+        // PATCH would be one round trip fewer, but parent_email=eq. is
+        // case-sensitive -- a club that typed "Parent@Example.com" would leave
+        // the real parent unable to claim their own child -- and ilike treats
+        // _ as a wildcard, which plenty of addresses contain. Comparing
+        // lowercased strings is the only version that is both correct and not
+        // accidentally wider than intended.
+        const ids = athlete_ids.filter((a) => typeof a === "string").slice(0, 25);
+        const listRes = await supabase(
+          env,
+          "GET",
+          `/athletes?id=in.(${ids.map(encodeURIComponent).join(",")})&select=id,parent_email`
+        );
+        const mine = (listRes.data || []).filter(
+          (a) => (a.parent_email || "").toLowerCase().trim() === signupEmail
+        );
+        for (const a of mine) {
+          const res = await supabase(env, "PATCH", `/athletes?id=eq.${a.id}`, { parent_user_id: userId });
+          if (res.ok) claimed++;
+        }
+        if (claimed !== ids.length) {
+          console.log(`Signup claimed ${claimed}/${ids.length} athletes for ${signupEmail} -- the rest are registered to a different address`);
         }
       }
+      // With email confirmation on, Supabase's signup returns a user but no
+      // session, so accessToken is undefined here. Saying so lets the app tell
+      // the parent to check their email; it used to return undefined, which the
+      // client stored as a session and then sent as "Bearer undefined" on every
+      // request -- so a parent who had just paid landed on a dashboard that
+      // could not load their own child, with no explanation.
       return json({
         success: true,
         user: { id: userId, email, role: "parent" },
-        access_token: accessToken
+        access_token: accessToken || null,
+        needs_email_confirmation: !accessToken,
+        claimed_athletes: claimed
       }, 201);
     }
     // Password reset. Clubs are run by volunteer treasurers who sign in rarely

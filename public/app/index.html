@@ -4339,7 +4339,18 @@ var usStates = ["Virginia"];
       });
       var data = await res.json();
       if(!res.ok){ errEl.textContent = data.error || 'Failed to create account.'; errEl.classList.remove('loading-msg'); return; }
-      errEl.textContent = ''; errEl.classList.remove('loading-msg');
+      errEl.classList.remove('loading-msg');
+      // No session comes back while email confirmation is switched on, so there
+      // is nothing to sign in with yet. Storing the undefined token anyway sent
+      // "Bearer undefined" on every request and dropped a parent who had just
+      // paid onto a dashboard that could not load their own child.
+      if(!data.access_token){
+        errEl.style.color = 'var(--ink-soft)';
+        errEl.innerHTML = '<b>Account created.</b> Check ' + email + ' for a link to confirm your address, then sign in. Your payment is already complete.';
+        document.getElementById('parentSavePassword').value = '';
+        return;
+      }
+      errEl.textContent = '';
       var session = { access_token: data.access_token, user: Object.assign({}, data.user, { display_name: name }) };
       try { sessionStorage.setItem(PARENT_SESSION_KEY, JSON.stringify(session)); } catch(e){}
       setParentEyebrow(name);

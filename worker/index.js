@@ -661,7 +661,7 @@ async function alertIfClubAwaitingFee(env, club) {
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: "PlayFund Alerts <alerts@playfundai.com>",
-        to: ["jackson@playfundai.com", "clyde@playfundai.com"],
+        to: ["alerts@playfundai.com"],
         subject: `ACTION NEEDED \u2014 set a rate for ${club.name}, families can't pay yet`,
         html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
   <p style="margin:0 0 16px;font-size:15px;color:#B42318;"><strong>${club.name}</strong> has finished Stripe onboarding and can accept charges, but no PlayFund rate has been set \u2014 so every family is being turned away at checkout.</p>
@@ -850,7 +850,7 @@ async function sendInternalClubAlert(env, club, inviteError) {
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: "PlayFund Alerts <alerts@playfundai.com>",
-        to: ["jackson@playfundai.com", "clyde@playfundai.com"],
+        to: ["alerts@playfundai.com"],
         subject: inviteError
           ? `ACTION NEEDED — setup link failed for ${club.name} (${location})`
           : `New club: ${club.name} (${location}), est. $${payout > 0 ? payout.toLocaleString() : "TBD"} payout`,
@@ -1777,7 +1777,7 @@ var index_default = {
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             from: "PlayFund Site <alerts@playfundai.com>",
-            to: ["jackson@playfundai.com", "clyde@playfundai.com", "admin@playfundai.com"],
+            to: ["alerts@playfundai.com"],
             reply_to: email,
             subject: `New enquiry: ${club}`,
             html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">

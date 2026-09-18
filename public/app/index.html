@@ -32,12 +32,15 @@
   :root {
     /* Brand colors */
     --ink:            #004643;
-    --ink-soft:       #3A6B67;
-    --ink-faint:      #6B9E99;
+    /* Neutral greys, as on the marketing site. These were green-tinted
+       (#3A6B67 / #6B9E99), which gave every piece of secondary text a cast and
+       read as muddy beside the same copy on playfundai.com. */
+    --ink-soft:       #6B7280;
+    --ink-faint:      #9CA3AF;
     --paper:          #FFFFFF;
     --paper-dim:      #F4F7F6;
     --paper-mid:      #EBF1F0;
-    --line:           #DDE8E7;
+    --line:           #E8EDEC;   /* was #DDE8E7 — heavier than the marketing site's */
     --fund-green:     #5BA888;
     --fund-green-dk:  #3D8A6A;
     --white:          #FFFFFF;
@@ -243,7 +246,11 @@
     font-family: 'Anton', sans-serif;
     font-weight: 400;
     font-size: var(--text-2xl);
-    text-transform: uppercase;
+    /* Sentence case, matching playfundai.com, which carries no uppercase rules
+       at all. Anton is already a heavy condensed display face — uppercasing it
+       as well made every screen read as a shout, and "ADD A TEAM" next to the
+       marketing site's sentence-case headings is most of why the app looked
+       like a different, cruder product. */
     letter-spacing: 0.01em;
     margin: 0 0 5px;
     line-height: 1.1;

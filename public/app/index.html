@@ -4946,21 +4946,26 @@ var usStates = ["Virginia"];
       var data = await res.json();
       if(!res.ok){ errEl.textContent = data.message || data.error_description || 'Failed to set password.'; errEl.classList.remove('loading-msg'); return; }
 
-      // Check what role this user has
-      var userId = data.id;
-      var role   = null;
-      if(userId){
-        try {
-          var profileRes = await fetch(SUPABASE_URL + '/rest/v1/user_profiles?id=eq.' + userId + '&select=role', {
-            headers: {
-              'apikey':        SUPABASE_ANON_KEY,
-              'Authorization': 'Bearer ' + state.authToken,
-            }
-          });
-          var profileData = await profileRes.json();
-          role = profileData?.[0]?.role || null;
-        } catch(e){ console.warn('Profile fetch error:', e); }
-      }
+      // Sign in through the Worker to learn the role and get a session in one
+      // step. This used to read user_profiles straight from Supabase with the
+      // anon key, which always returned 403: the `authenticated` role has no
+      // SELECT grant on that table, so PostgREST refuses before the RLS policy
+      // is evaluated. A 403 does not throw, so the catch never fired and role
+      // silently stayed null — routing every playfund_admin who set or reset a
+      // password to the club sign-in screen instead of the admin dashboard.
+      // The Worker already returns the role here, and the admin branch below
+      // called this same endpoint immediately afterwards anyway.
+      var role = null;
+      var session = null;
+      try {
+        var sessRes = await fetch(WORKER_URL + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: document.getElementById('setPasswordEmail').value, password: pw1 })
+        });
+        var sessData = await sessRes.json();
+        if(sessRes.ok){ role = sessData?.user?.role || null; session = sessData; }
+      } catch(e){ console.warn('Post-password sign-in failed:', e); }
 
       errEl.textContent = ''; errEl.classList.remove('loading-msg');
       state.authToken = null; state.authType = null;
@@ -4970,23 +4975,14 @@ var usStates = ["Virginia"];
 
       // Route based on role
       if(role === 'playfund_admin'){
-        // Store session and go straight to admin dashboard
-        var email = document.getElementById('setPasswordEmail').value;
-        // Log them in via the Worker to get a proper session
-        try {
-          var loginRes = await fetch(WORKER_URL + '/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, password: pw1 })
-          });
-          var loginData = await loginRes.json();
-          if(loginRes.ok && loginData.access_token){
-            try { sessionStorage.setItem('pf_admin_token', loginData.access_token); } catch(e){}
-            loadAdminClubs();
-            return;
-          }
-        } catch(e){ console.warn('Auto-login error:', e); }
-        // Fallback — go to admin login screen
+        // The session came back with the role above, so there is nothing left
+        // to fetch — just keep it and go.
+        if(session && session.access_token){
+          adminSession = session.access_token;
+          try { sessionStorage.setItem('pf_admin_token', adminSession); } catch(e){}
+          loadAdminClubs();
+          return;
+        }
         showScreen('admin-login');
       } else {
         // Club admin or unknown — go to club login

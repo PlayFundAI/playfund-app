@@ -67,18 +67,16 @@
     --sport-lacrosse:      #7A4B8A;
     --sport-lacrosse-bg:   #EEE3F0;
 
-    /* Shadows. The marketing site uses exactly one — a wide soft lift under
-       the hero screenshot — and nothing else on the page is elevated at all.
-       The app had three tiers and put the smallest one on every card at rest,
-       so a roster of eight athletes was eight floating slabs. Cards now sit
-       flat on the page and respond to hover with their border, which is what
-       .btn-ghost does on the marketing site.
-       --shadow-xl stays: it draws the desktop phone-card frame, which has no
-       marketing-site equivalent. */
-    --lift:      0 18px 50px rgba(0,70,67,0.10);
-    --shadow:    none;
-    --shadow-lg: none;
-    --shadow-xl: 0 20px 48px rgba(0,70,67,0.16), 0 4px 12px rgba(0,70,67,0.08);
+    /* One shadow, matching the marketing site's, which uses exactly one — a
+       wide soft lift under the hero screenshot — and elevates nothing else on
+       the page. The app had three tiers and put the smallest on every card at
+       rest, so a roster of eight athletes was eight floating slabs. Cards sit
+       flat now and answer hover with their border, which is what .btn-ghost
+       does on the marketing site. --lift is for something genuinely floating
+       above the page: today, a toast.
+       The desktop phone-card frame writes its own shadow inline, because it
+       has no marketing-site equivalent to match. */
+    --lift: 0 18px 50px rgba(0,70,67,0.10);
 
     /* Type scale */
     --text-xs:   11px;
@@ -969,9 +967,6 @@
 
   /* ── Misc utilities ── */
   .footer-spacer { flex: 1; }
-  /* The single elevated surface in the design, for a panel that is genuinely
-     lifted off the page (the marketing hero screenshot's treatment). */
-  .lifted { box-shadow: var(--lift); }
   .loading-indicator {
     display: flex; align-items: center; justify-content: center;
     padding: 32px; color: var(--ink-faint); font-size: 13px;

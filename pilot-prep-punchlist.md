@@ -527,6 +527,51 @@ charge model follows from that.
       Note API keys are shown once and cannot be retrieved, so migrating the Worker needs a newly
       created key rather than the existing one. Multiple keys coexist, so this costs nothing.
 
+- [ ] **Never tested: a large ticket through Klarna. There is almost certainly a cap.** Klarna
+      underwrites every purchase and applies limits that vary by market, by product (Pay in 4 vs
+      Pay in 30 vs longer financing) and, crucially, **per consumer** — an approval is a decision
+      about that shopper, not a published ceiling. Every Klarna payment we have run has been a
+      small test amount, so we do not know where ours sits.
+
+      This is not a detail. `CLAUDE.md` locks **"Any ticket size accepted ($250-$2,000+)"** as a
+      pilot decision, and the whole pitch is that a club gets funded upfront *regardless of how a
+      family chooses to pay*. If the cap bites somewhere in that range, then the clubs with the
+      largest dues — the ones worth the most to us — are exactly the ones whose families land in
+      the decline fork by default. That inverts the pitch rather than dinging it.
+
+      **Two different failure points, and they surface in completely different places.**
+
+      1. **Stripe refuses to create the session.** `worker/index.js` sets
+         `payment_method_types: ["klarna"]` for a BNPL checkout with **no fallback**, so if the
+         amount is outside Klarna's eligible range for our account, `POST /checkout/sessions`
+         fails and the Worker returns a 500 whose body is
+         `"Failed to create checkout session: " + JSON.stringify(sessionRes.data)`.
+      2. **Klarna itself declines, or offers fewer products.** The session mounts, the parent
+         reaches Klarna, and Klarna makes its own call. This is the case the decline fork was
+         built for and it behaves correctly.
+
+      **What to actually do:** run real Klarna payments at several amounts — roughly $500,
+      $1,000, $1,500, $2,500 — rather than one. A single approval does not establish a floor for
+      everyone (the next parent is underwritten separately) and a single decline may just be that
+      tester's own limit. Record which of the two failure points fires at each amount. Then **ask
+      Klarna or Stripe directly** for the eligible range on our account; that is the only answer
+      that generalises, and it is the same conversation as the "Pay in full inside Klarna's
+      checkout" question below, so raise both at once.
+
+      **Detection is already wired:** the app fires `trackEvent('checkout_error', { payment_type,
+      stage: 'create_session' })` on that 500, so once real clubs are live, a cluster of those
+      events on high-dues clubs is the signal.
+
+- [ ] **The BNPL checkout screen renders raw Stripe error JSON to a parent.** Found while tracing
+      the Klarna cap question above, not by hitting it. `openStripeCheckout()` does
+      `errEl.textContent = data.error` on a failed session, and for this one path the Worker's
+      `data.error` is `"Failed to create checkout session: " + JSON.stringify(sessionRes.data)`.
+      So the first thing a parent sees on a screen titled **"Set up installments"** is a wall of
+      Stripe's internal error object. Every other error string in the Worker is written for a
+      human; this one is a debug dump that reached the customer by accident. The Worker should log
+      the Stripe body and return something a parent can act on — and this path is most likely to
+      fire on exactly the large-ticket case above, so fix it before that test rather than after.
+
 - [ ] **Klarna sells "Pay in full" inside its own checkout, at BNPL pricing.** Once the session is
       handed to Klarna, that screen is Klarna's: it offers Pay Now alongside Pay in 4 and Pay in
       30, and we do not control which of its products it shows. A parent who picks installments in

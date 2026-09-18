@@ -3165,7 +3165,12 @@ var usStates = ["Virginia"];
   }
 
   // ---------- decline handling ----------
-  function showDeclineScreen(){
+  // reason 'declined'    — Klarna looked at this parent and said no.
+  // reason 'unavailable'  — the installment session could not be created at
+  //                         all, so Klarna never saw them. Saying "couldn't be
+  //                         approved" there would invent a credit decision
+  //                         that did not happen.
+  function showDeclineScreen(reason){
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
     var ct   = getAthleteClubTeam(athlete);
     var dues = ct && ct.team ? (ct.team.dues || 0) : 950;
@@ -3175,7 +3180,10 @@ var usStates = ["Virginia"];
     var sub  = document.getElementById('declineSub');
     var csub = document.getElementById('declineClubSub');
     if(el)   el.textContent   = '$' + dues.toLocaleString();
-    if(sub)  sub.textContent  = "The installment plan couldn't be approved, but there are still a few ways to get " + athleteName + " on the roster.";
+    if(sub)  sub.textContent  = (reason === 'unavailable'
+      ? "Installments aren't available for this amount, but there are still a few ways to get "
+      : "The installment plan couldn't be approved, but there are still a few ways to get ")
+      + athleteName + " on the roster.";
     if(csub) csub.textContent = clubName + " offers their own payment plan. We'll pass your details along so you don't start over.";
     showScreen('decline');
   }
@@ -6109,7 +6117,11 @@ var usStates = ["Virginia"];
       });
       var data = await res.json();
       if(!res.ok || !data.client_secret){
-        trackEvent('checkout_error', { payment_type: paymentType, stage: 'create_session' });
+        trackEvent('checkout_error', { payment_type: paymentType, stage: 'create_session', reason: data.reason || null });
+        if(data.reason === 'bnpl_unavailable'){
+          showDeclineScreen('unavailable');
+          return;
+        }
         if(errEl){ errEl.textContent = data.error || 'Unable to start checkout. Please try again.'; errEl.style.display = 'block'; }
         return;
       }

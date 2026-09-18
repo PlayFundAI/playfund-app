@@ -535,7 +535,10 @@
 
   /* ── Step progress (parent flow) ── */
   .step-progress {
-    display: flex; align-items: center; gap: 4px;
+    /* Centred because every screen that carries it centres its content; left
+       aligned, it read as a stray line above a centred page. */
+    display: flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; row-gap: 4px; gap: 4px;
     margin-bottom: 18px;
   }
   .step-progress-item {
@@ -3081,11 +3084,22 @@ var usStates = ["Virginia"];
   }
 
   function offerParentAccount(){
-    // Check if they already have a parent session — if so just go home
-    try {
-      var saved = JSON.parse(sessionStorage.getItem(PARENT_SESSION_KEY) || 'null');
-      if(saved && saved.access_token){ renderAthleteList(); showScreen('parent-home'); return; }
-    } catch(e){}
+    // Already signed in? Go home rather than asking them to create the account
+    // they are currently using.
+    //
+    // The try used to wrap the navigation as well as the parse. Anything thrown
+    // by renderAthleteList or showScreen skipped the return, was swallowed by
+    // an empty catch, and dropped the parent into "Save your account" while
+    // logged in. Only the parse can throw on bad JSON, so only the parse is
+    // guarded; a failure in the navigation should surface, not silently send
+    // someone to a sign-up screen.
+    var saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(PARENT_SESSION_KEY) || 'null'); } catch(e){}
+    if(saved && saved.access_token){
+      renderAthleteList();
+      showScreen('parent-home');
+      return;
+    }
 
     // Get the parent email from the current athlete
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });

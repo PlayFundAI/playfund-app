@@ -2356,7 +2356,31 @@ var index_default = {
         sessionParams.payment_method_configuration = env.PAY_IN_FULL_PMC_ID;
       }
       const sessionRes = await stripe(env, "POST", "/checkout/sessions", sessionParams);
-      if (!sessionRes.ok) return err("Failed to create checkout session: " + JSON.stringify(sessionRes.data), 500);
+      if (!sessionRes.ok) {
+        // Stripe's error envelope goes to the logs and nowhere else. This used
+        // to be returned verbatim as `error`, and the app writes `error`
+        // straight into the page — so a parent on a screen titled "Set up
+        // installments" was shown a dump of Stripe's internal error object.
+        const se = sessionRes.data && sessionRes.data.error || {};
+        console.error(
+          `Checkout session failed: athlete=${athleteId} club=${club.code} ` +
+          `type=${payment_type} amount_cents=${duesCents} http=${sessionRes.status} ` +
+          `stripe_type=${se.type} stripe_code=${se.code} param=${se.param} msg=${se.message}`
+        );
+        // invalid_request_error means the request as built cannot succeed, so
+        // "try again" would be a lie. For an installment session that is where
+        // a Klarna cap shows up: Stripe refuses to create it at all and the
+        // parent never reaches Klarna, so this never becomes a credit decision.
+        // Say what is available instead, and hand the app a machine-readable
+        // reason rather than making it match on our prose.
+        if (payment_type === "bnpl" && se.type === "invalid_request_error") {
+          return json({
+            error: "Installments aren't available for this amount. You can still pay in full, or ask your club about their own payment plan.",
+            reason: "bnpl_unavailable"
+          }, 409);
+        }
+        return err("We couldn't start checkout just now. Nothing has been charged — please try again in a moment.", 502);
+      }
       return json({ client_secret: sessionRes.data.client_secret });
     }
     // The email a parent typed at Stripe checkout, for prefilling the

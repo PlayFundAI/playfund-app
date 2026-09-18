@@ -2551,6 +2551,18 @@
     </div>
   </div>
 
+
+  <!-- Sits inside #app, outside every .screen, so it is present on all of them
+       without being repeated. A club that hits something we did not anticipate
+       should never have to work out how to reach us — before this, a dead end
+       was a dead end. -->
+  <div id="helpFooter" style="padding:18px 20px 22px; text-align:center; border-top:1px solid var(--line); margin-top:auto;">
+    <p style="margin:0; font-size:12px; color:var(--ink-soft); line-height:1.5;">
+      Having trouble? Email
+      <a href="mailto:admin@playfundai.com" style="color:var(--fund-green); text-decoration:none; font-weight:700;">admin@playfundai.com</a>
+      and we'll sort it out.
+    </p>
+  </div>
 </div>
 
 <!-- Send reminder modal (outside app div, overlays everything) -->
@@ -3417,7 +3429,8 @@ var usStates = ["Virginia"];
     if(!c)              { errEl.textContent = 'No club loaded. Please log in again.'; return; }
 
     var clubSession = null;
-    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    var clubTok = await getClubSessionToken();
+    if(clubTok) clubSession = { access_token: clubTok };
     if(!clubSession || !clubSession.access_token){ errEl.textContent = 'Session expired. Please sign in again.'; return; }
 
     errEl.textContent = 'Saving\u2026'; errEl.classList.add('loading-msg');
@@ -3482,7 +3495,8 @@ var usStates = ["Virginia"];
     if(!c || !team) { errEl.textContent = 'No team loaded. Go back and try again.'; errEl.classList.remove('loading-msg'); return; }
 
     var clubSession = null;
-    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    var clubTok = await getClubSessionToken();
+    if(clubTok) clubSession = { access_token: clubTok };
     if(!clubSession || !clubSession.access_token){ errEl.textContent = 'Session expired. Please sign in again.'; errEl.classList.remove('loading-msg'); return; }
 
     errEl.textContent = 'Saving…'; errEl.classList.add('loading-msg');
@@ -3732,7 +3746,8 @@ var usStates = ["Virginia"];
     var msg = document.getElementById('stripeConnectMsg');
     if(!c) return;
     var clubSession = null;
-    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    var clubTok = await getClubSessionToken();
+    if(clubTok) clubSession = { access_token: clubTok };
     if(!clubSession || !clubSession.access_token){ alert('Session expired. Please sign in again.'); return; }
     if(!confirm('Email a payment link to every approved family who hasn\'t paid yet?')) return;
 
@@ -3769,7 +3784,8 @@ var usStates = ["Virginia"];
     var c = state.club;
     if(!c) return;
     var clubSession = null;
-    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    var clubTok = await getClubSessionToken();
+    if(clubTok) clubSession = { access_token: clubTok };
     if(!clubSession || !clubSession.access_token){ alert('Session expired. Please sign in again.'); return; }
 
     var errEl = document.getElementById('clubStripeOnboardingError');
@@ -3967,15 +3983,41 @@ var usStates = ["Virginia"];
     showScreen('roster');
   }
 
-  function getClubSessionToken(){
+  // Supabase access tokens last about an hour. A club that signs in, connects a
+  // bank and then adds a team is easily past that, and every authenticated call
+  // used to fail with the API's own words — "Invalid token" — on the button
+  // press, with the completed form still on screen and no way forward.
+  //
+  // Renews shortly before expiry rather than waiting for a 401, so no request
+  // is spent discovering the session is stale. Returns null only when the
+  // refresh token is itself dead, which is a genuine end of session.
+  async function getClubSessionToken(){
+    var sess = null;
+    try { sess = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    if(!sess || !sess.access_token) return null;
+    var expiresAt = sess.expires_at ? sess.expires_at * 1000 : 0;   // epoch seconds
+    if(expiresAt && Date.now() < expiresAt - 60000) return sess.access_token;
+    // Sessions created before this shipped have no refresh token. Hand back
+    // what we have and let the call fail honestly rather than pretending.
+    if(!sess.refresh_token) return sess.access_token;
     try {
-      var s = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null');
-      return s && s.access_token;
+      var res = await fetch(WORKER_URL + '/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: sess.refresh_token })
+      });
+      if(!res.ok) return null;
+      var data = await res.json();
+      sess.access_token  = data.access_token;
+      sess.refresh_token = data.refresh_token || sess.refresh_token;
+      sess.expires_at    = data.expires_at || null;
+      try { sessionStorage.setItem(CLUB_SESSION_KEY, JSON.stringify(sess)); } catch(e){}
+      return sess.access_token;
     } catch(e){ return null; }
   }
 
   async function approvePendingAthlete(athleteId){
-    var token = getClubSessionToken();
+    var token = await getClubSessionToken();
     if(!token){ alert('Session expired. Please sign in again.'); return; }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athleteId + '/approve', {
@@ -3996,7 +4038,7 @@ var usStates = ["Virginia"];
 
   async function deleteRosterAthlete(athleteId, athleteName){
     if(!confirm('Remove ' + (athleteName || 'this athlete') + ' from the roster? This can\'t be undone.')) return;
-    var token = getClubSessionToken();
+    var token = await getClubSessionToken();
     if(!token){ alert('Session expired. Please sign in again.'); return; }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athleteId, {
@@ -4806,10 +4848,8 @@ var usStates = ["Virginia"];
 
     var token = adminSession;
     if(!token){
-      try {
-        var clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null');
-        if(clubSession && clubSession.access_token) token = clubSession.access_token;
-      } catch(e){}
+      var clubTok = await getClubSessionToken();
+      if(clubTok) token = clubTok;
     }
     if(!token){ errEl.textContent = 'Session expired. Please sign in again.'; return; }
 
@@ -5335,7 +5375,8 @@ var usStates = ["Virginia"];
     if(!teamId) { errEl.textContent = 'Select a team.'; return; }
     if(!state.club){ errEl.textContent = 'No club loaded.'; return; }
     var clubSession = null;
-    try { clubSession = JSON.parse(sessionStorage.getItem(CLUB_SESSION_KEY) || 'null'); } catch(e){}
+    var clubTok = await getClubSessionToken();
+    if(clubTok) clubSession = { access_token: clubTok };
     if(!clubSession || !clubSession.access_token){ errEl.textContent = 'Session expired. Please sign in again.'; return; }
     errEl.textContent = 'Sending invite\u2026'; errEl.classList.add('loading-msg');
     try {

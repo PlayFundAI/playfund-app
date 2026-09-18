@@ -348,10 +348,8 @@
   .btn + .btn { margin-top: 10px; }
 
   /* ── Role picker (home screen) ── */
-  .role-row {
-    display: flex; gap: 12px;
-    margin-top: auto; margin-bottom: auto;
-  }
+  .role-group { margin: auto 0; }
+  .role-row { display: flex; gap: 12px; }
   .role-card {
     flex: 1;
     background: var(--white);
@@ -380,6 +378,8 @@
     color: var(--ink-soft);
     margin-bottom: 16px;
   }
+  .role-foot { text-align: center; }
+  .role-foot .btn-quiet + .btn-quiet { margin-left: var(--sp-4); }
 
   /* ── Form fields ── */
   .field { margin-bottom: 16px; }
@@ -1173,6 +1173,68 @@
   .tournament-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
   .tournament-meta { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
 
+  /* ── Toasts and the ask sheet ──
+     These replace window.alert and window.confirm. A native dialog is headed
+     "www.playfundai.com says", blocks the page, cannot be styled, and reads as
+     a browser warning rather than as us — and one of the 32 alert() calls this
+     app made fired on the declined-installment screen, so a browser warning
+     was the first thing a family saw after being told their plan was refused.
+
+     Both layers live inside #app, which is position:relative, so on desktop
+     they are anchored to the phone card rather than to the browser window. */
+  .toast-stack {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 300;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 0 16px calc(16px + var(--help-h, 0px));
+    pointer-events: none;
+  }
+  .toast {
+    display: flex; align-items: flex-start; gap: 10px;
+    width: 100%; max-width: 420px;
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: var(--lift);
+    padding: 13px 15px;
+    font-size: 13.5px; line-height: 1.5; color: var(--ink);
+    pointer-events: auto;
+    animation: toastIn 0.22s cubic-bezier(.4,0,.2,1);
+  }
+  .toast.leaving { animation: toastOut 0.18s ease forwards; }
+  .toast-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; background: var(--ink-faint); }
+  .toast.is-good .toast-dot { background: var(--paid); }
+  .toast.is-bad  .toast-dot { background: var(--unpaid); }
+  .toast-text { flex: 1; min-width: 0; }
+  .toast-close {
+    background: none; border: none; padding: 2px; margin: -2px -4px 0 0;
+    cursor: pointer; color: var(--ink-faint); flex-shrink: 0;
+  }
+  .toast-close svg { width: 14px; height: 14px; display: block; }
+  @keyframes toastIn  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes toastOut { to { opacity: 0; transform: translateY(6px); } }
+
+  /* The ask sheet. Same bottom-sheet shape as the reminder modal, so a
+     decision always arrives from the same place. */
+  .ask-backdrop {
+    position: absolute; inset: 0; z-index: 310;
+    background: rgba(0,0,0,0.40);
+    display: flex; align-items: flex-end;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+  }
+  .ask-backdrop.open { opacity: 1; pointer-events: auto; }
+  .ask-sheet {
+    background: var(--white);
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding: 22px 20px 28px;
+    width: 100%;
+    transform: translateY(100%); transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+  }
+  .ask-backdrop.open .ask-sheet { transform: none; }
+  .ask-title { font-size: 17px; font-weight: 800; color: var(--ink); margin: 0 0 8px; line-height: 1.3; }
+  .ask-body  { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 20px; }
+  .ask-danger .btn-primary { background: var(--unpaid); }
+  .ask-danger .btn-primary:hover { background: #A63E2E; }
+
   /* ── Parent account screens ── */
   .parent-account-header {
     background: var(--ink); padding: 22px 20px 20px;
@@ -1206,6 +1268,7 @@
 
   <!-- SCREEN: home / role picker -->
   <div class="screen" id="screen-home">
+    <div class="role-group">
     <div class="role-prompt">I am a&hellip;</div>
     <div class="role-row">
       <div class="role-card" onclick="enterClubMode()">
@@ -1223,13 +1286,12 @@
         <div class="role-sub">Pay season dues</div>
       </div>
     </div>
-    <button onclick="showScreen('faq')" style="background:var(--paper-dim); border:1.5px solid var(--line); border-radius:var(--r-md); margin-top:16px; padding:13px 0; width:100%; font-size:14px; font-weight:600; color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; letter-spacing:0.01em;">
-      How it works
-    </button>
-    <button onclick="enterAdminMode()" style="background:none; border:none; margin-top:14px; font-size:11.5px; color:var(--ink-soft); cursor:pointer; font-family:'Inter',sans-serif; opacity:0.6;">
-      PlayFund Admin ↗
-    </button>
-    <div style="margin-top:10px; font-size:11px; color:var(--ink-faint);">
+    </div>
+    <div class="role-foot">
+      <button type="button" class="btn-quiet" onclick="showScreen('faq')">How it works</button>
+      <button type="button" class="btn-quiet" onclick="enterAdminMode()" style="color:var(--ink-faint);">PlayFund Admin ↗</button>
+    </div>
+    <div style="margin-top:6px; text-align:center; font-size:11px; color:var(--ink-faint);">
       <a href="../privacy-policy.html" target="_blank" rel="noopener" style="color:inherit;">Privacy</a>
       &nbsp;·&nbsp;
       <a href="../terms-of-service.html" target="_blank" rel="noopener" style="color:inherit;">Terms</a>
@@ -1692,6 +1754,30 @@
 
     <div class="footer-spacer"></div>
     <button class="btn btn-secondary" onclick="goBack()">Go back</button>
+  </div>
+
+  <!-- SCREEN: club notified (the "pay the club directly" fork's outcome) -->
+  <div class="screen" id="screen-decline-sent">
+    <div class="confirm-wrap" style="padding-top:40px;">
+      <div class="confirm-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </div>
+      <h1 class="title" style="margin-bottom:8px;">Your club knows</h1>
+      <p class="subtitle" style="margin-bottom:20px;">
+        <b id="declineSentClub">Your club</b> has been told you tried the installment plan.
+        Expect to hear from them within 1&ndash;2 business days about their own payment options.
+      </p>
+      <div class="confirm-reassurance">
+        <ul style="margin:0; padding-left:18px;">
+          <li>Nothing has been charged, and your spot is not cancelled.</li>
+          <li>You don't have to explain anything &mdash; they already know you're working on it.</li>
+          <li>You can still pay in full here at any time.</li>
+        </ul>
+      </div>
+      <div class="footer-spacer"></div>
+      <button class="btn btn-primary" onclick="showScreen('parent-home', true)" style="width:100%;">Done</button>
+      <button class="btn btn-secondary" onclick="goBack()" style="width:100%;">Back to the other options</button>
+    </div>
   </div>
 
   <!-- SCREEN: scholarship application -->
@@ -2621,6 +2707,19 @@
       and we'll sort it out.
     </p>
   </div>
+
+  <!-- Toasts and the ask sheet. Inside #app so that on desktop they belong to
+       the phone card rather than floating in the browser window. -->
+  <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="false"></div>
+  <div class="ask-backdrop" id="askBackdrop" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="ask-sheet">
+      <div class="reminder-modal-handle"></div>
+      <h2 class="ask-title" id="askTitle"></h2>
+      <p class="ask-body" id="askBody"></p>
+      <button class="btn btn-primary" id="askConfirm"></button>
+      <button class="btn btn-secondary" id="askCancel">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <!-- Send reminder modal (outside app div, overlays everything) -->
@@ -2647,6 +2746,107 @@
 </div> <!-- /.reminder-modal-backdrop -->
 
 <script>
+  // ---------- toast / ask ----------
+  // Stand-ins for window.alert and window.confirm. Every native dialog this
+  // app raised was headed "www.playfundai.com says", blocked the page, and
+  // looked like a browser warning rather than like us.
+
+  // Long messages need longer than short ones. Roughly 55ms a character on
+  // top of a 2.6s floor, capped so nothing camps on the screen.
+  function toastDuration(message){
+    return Math.min(9000, Math.max(2600, 2000 + message.length * 55));
+  }
+
+  var TOAST_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/>' +
+    '<line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+  // kind: 'bad' (something failed), 'good' (something worked), or omitted.
+  function toast(message, kind){
+    var stack = document.getElementById('toastStack');
+    if(!stack){ return; }                       // never block on a missing node
+    message = String(message == null ? '' : message);
+    if(!message) return;
+
+    var el = document.createElement('div');
+    el.className = 'toast' + (kind ? ' is-' + kind : '');
+    // role=alert on a failure so a screen reader interrupts; the stack's own
+    // aria-live=polite covers the rest.
+    if(kind === 'bad') el.setAttribute('role', 'alert');
+    el.innerHTML =
+      '<div class="toast-dot"></div>' +
+      '<div class="toast-text"></div>' +
+      '<button type="button" class="toast-close" aria-label="Dismiss">' + TOAST_X + '</button>';
+    el.querySelector('.toast-text').textContent = message;   // never innerHTML
+
+    var timer;
+    function dismiss(){
+      clearTimeout(timer);
+      if(el.classList.contains('leaving')) return;
+      el.classList.add('leaving');
+      setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 200);
+    }
+    el.querySelector('.toast-close').addEventListener('click', dismiss);
+    timer = setTimeout(dismiss, toastDuration(message));
+
+    // Three deep is plenty; older ones go first.
+    while(stack.children.length >= 3){ stack.removeChild(stack.firstChild); }
+    stack.appendChild(el);
+    return dismiss;
+  }
+
+  // Bottom-sheet replacement for confirm(). Resolves true or false, so call
+  // sites read `if(!(await ask({...}))) return;`.
+  var askResolve = null;
+  function ask(opts){
+    opts = opts || {};
+    var back    = document.getElementById('askBackdrop');
+    var confirmBtn = document.getElementById('askConfirm');
+    // If the sheet is missing, fail closed: a destructive action must not
+    // proceed just because its confirmation could not be drawn.
+    if(!back || !confirmBtn) return Promise.resolve(false);
+
+    document.getElementById('askTitle').textContent = opts.title || 'Are you sure?';
+    document.getElementById('askBody').textContent  = opts.body  || '';
+    document.getElementById('askBody').style.display = opts.body ? '' : 'none';
+    confirmBtn.textContent = opts.confirmLabel || 'Continue';
+    document.getElementById('askCancel').textContent = opts.cancelLabel || 'Cancel';
+    back.querySelector('.ask-sheet').classList.toggle('ask-danger', !!opts.danger);
+
+    back.classList.add('open');
+    confirmBtn.focus();
+    return new Promise(function(resolve){
+      askResolve = function(answer){
+        askResolve = null;
+        back.classList.remove('open');
+        resolve(answer);
+      };
+    });
+  }
+
+  // The help footer sits at the bottom of every screen, so the toast stack has
+  // to clear it. Measured rather than assumed — the footer wraps to two lines
+  // on a narrow phone.
+  function syncHelpFooterHeight(){
+    var app = document.getElementById('app');
+    var foot = document.getElementById('helpFooter');
+    if(app && foot) app.style.setProperty('--help-h', foot.offsetHeight + 'px');
+  }
+  window.addEventListener('resize', syncHelpFooterHeight);
+
+  document.addEventListener('DOMContentLoaded', function(){
+    syncHelpFooterHeight();
+    var back = document.getElementById('askBackdrop');
+    if(!back) return;
+    document.getElementById('askConfirm').addEventListener('click', function(){ if(askResolve) askResolve(true); });
+    document.getElementById('askCancel').addEventListener('click',  function(){ if(askResolve) askResolve(false); });
+    // Tapping the dim area or pressing Escape cancels — neither ever confirms.
+    back.addEventListener('click', function(e){ if(e.target === back && askResolve) askResolve(false); });
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape' && askResolve) askResolve(false);
+    });
+  });
+
   // ---------- data ----------
   var clubs = [{"name":"Basketball Club","sport":"Basketball","city":"Richmond, VA","state":"Virginia","dues":950,"start":"Sept 6","end":"Nov 22","due":"Aug 23","id":0,"badge":"B","code":"BBALL1","teams":[{"id":0,"name":"12U Travel","age":"12U","dues":950,"start":"Sept 6","end":"Nov 22","due":"Aug 23"},{"id":1,"name":"14U Select","age":"14U","dues":950,"start":"Sept 6","end":"Nov 22","due":"Aug 23"},{"id":2,"name":"16U Elite","age":"16U","dues":950,"start":"Sept 6","end":"Nov 22","due":"Aug 23"}]}];
 var usStates = ["Virginia"];
@@ -3310,22 +3510,28 @@ var usStates = ["Virginia"];
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
     var ct      = getAthleteClubTeam(athlete);
     var clubName = ct && ct.club ? ct.club.name : 'your club';
+    var unreachable = "We couldn't reach " + clubName + " right now. Please try again in a moment.";
     if(!athlete || !athlete.supabaseId){
-      alert("We couldn't reach " + clubName + " right now. Please try again in a moment.");
+      toast(unreachable, 'bad');
       return;
     }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athlete.supabaseId + '/notify-club', { method: 'POST' });
       var data = await res.json();
       if(!res.ok){
-        alert(data.error || ("We couldn't reach " + clubName + " right now. Please try again in a moment."));
+        toast(data.error || unreachable, 'bad');
         return;
       }
     } catch(e){
-      alert("We couldn't reach " + clubName + " right now. Please try again in a moment.");
+      toast(unreachable, 'bad');
       return;
     }
-    alert(clubName + ' has been notified that you tried the installment plan. Expect to hear from them within 1–2 business days about their own payment options.');
+    // Not a toast. This is the whole outcome of the declined-installment fork:
+    // the family has just been refused, and the one reassuring thing we can
+    // tell them — that the club knows and will be in touch — was arriving in a
+    // browser dialog that vanished on OK, with nothing left on screen.
+    document.getElementById('declineSentClub').textContent = clubName;
+    showScreen('decline-sent', true);
   }
 
   // ---------- club login (code + PIN) ----------
@@ -3831,8 +4037,13 @@ var usStates = ["Virginia"];
     var clubSession = null;
     var clubTok = await getClubSessionToken();
     if(clubTok) clubSession = { access_token: clubTok };
-    if(!clubSession || !clubSession.access_token){ alert('Session expired. Please sign in again.'); return; }
-    if(!confirm('Email a payment link to every approved family who hasn\'t paid yet?')) return;
+    if(!clubSession || !clubSession.access_token){ toast('Session expired. Please sign in again.', 'bad'); return; }
+    var go = await ask({
+      title: 'Send payment links?',
+      body: 'Every approved family who hasn\'t paid yet gets an email with a link to this team\'s dues.',
+      confirmLabel: 'Send links'
+    });
+    if(!go) return;
 
     var original = btn ? btn.textContent : '';
     if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
@@ -3869,7 +4080,7 @@ var usStates = ["Virginia"];
     var clubSession = null;
     var clubTok = await getClubSessionToken();
     if(clubTok) clubSession = { access_token: clubTok };
-    if(!clubSession || !clubSession.access_token){ alert('Session expired. Please sign in again.'); return; }
+    if(!clubSession || !clubSession.access_token){ toast('Session expired. Please sign in again.', 'bad'); return; }
 
     var errEl = document.getElementById('clubStripeOnboardingError');
     var containerEl = document.getElementById('clubStripeOnboardingContainer');
@@ -4115,14 +4326,14 @@ var usStates = ["Virginia"];
 
   async function approvePendingAthlete(athleteId){
     var token = await getClubSessionToken();
-    if(!token){ alert('Session expired. Please sign in again.'); return; }
+    if(!token){ toast('Session expired. Please sign in again.', 'bad'); return; }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athleteId + '/approve', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + token }
       });
       var data = await res.json();
-      if(!res.ok){ alert(data.error || 'Failed to approve athlete.'); return; }
+      if(!res.ok){ toast(data.error || 'Failed to approve athlete.', 'bad'); return; }
       var team = state.team;
       if(team && team.athletes){
         var a = team.athletes.find(function(x){ return x.id === athleteId; });
@@ -4130,13 +4341,19 @@ var usStates = ["Virginia"];
       }
       if(state.club) delete clubCache[state.club.code];
       openRoster();
-    } catch(e){ alert('Network error. Please try again.'); }
+    } catch(e){ toast('Network error. Please try again.', 'bad'); }
   }
 
   async function deleteRosterAthlete(athleteId, athleteName){
-    if(!confirm('Remove ' + (athleteName || 'this athlete') + ' from the roster? This can\'t be undone.')) return;
+    var go = await ask({
+      title: 'Remove ' + (athleteName || 'this athlete') + '?',
+      body: 'They come off the roster and their payment link stops working. This cannot be undone.',
+      confirmLabel: 'Remove',
+      danger: true
+    });
+    if(!go) return;
     var token = await getClubSessionToken();
-    if(!token){ alert('Session expired. Please sign in again.'); return; }
+    if(!token){ toast('Session expired. Please sign in again.', 'bad'); return; }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athleteId, {
         method: 'DELETE',
@@ -4144,7 +4361,7 @@ var usStates = ["Virginia"];
       });
       if(!res.ok){
         var data = await res.json().catch(function(){ return {}; });
-        alert(data.error || 'Failed to remove athlete.');
+        toast(data.error || 'Failed to remove athlete.', 'bad');
         return;
       }
       var team = state.team;
@@ -4153,7 +4370,7 @@ var usStates = ["Virginia"];
       }
       if(state.club) delete clubCache[state.club.code];
       openRoster();
-    } catch(e){ alert('Network error. Please try again.'); }
+    } catch(e){ toast('Network error. Please try again.', 'bad'); }
   }
 
   // ---------- shared currency formatter (always comma-grouped, 2 decimals) ----------
@@ -4846,7 +5063,7 @@ var usStates = ["Virginia"];
 
     var athletes = team.athletes || [];
     if(!athletes.length){
-      alert('No athletes on this roster yet.');
+      toast('No athletes on this roster yet.');
       return;
     }
 
@@ -4905,7 +5122,7 @@ var usStates = ["Virginia"];
     // Called from admin team roster — use state.adminCurrentTeam
     var team = state.adminCurrentTeam;
     var club = state.adminCurrentClub;
-    if(!team || !club){ alert('No team loaded.'); return; }
+    if(!team || !club){ toast("We lost track of which team this is. Go back and open it again.", 'bad'); return; }
 
     var athletes = team.athletes || [];
     var unpaid   = athletes.filter(function(a){ return (a.payment_status || 'unpaid') === 'unpaid'; });
@@ -4974,9 +5191,9 @@ var usStates = ["Virginia"];
       var data = await res.json();
       closeReminderModal();
       if(res.ok){
-        alert('Sent ' + data.sent + ' reminder' + (data.sent !== 1 ? 's' : '') + ' successfully.' + (data.skipped && data.skipped.length ? ' ' + data.skipped.length + ' skipped (no email on file).' : ''));
+        toast('Sent ' + data.sent + ' reminder' + (data.sent !== 1 ? 's' : '') + '.' + (data.skipped && data.skipped.length ? ' ' + data.skipped.length + ' skipped \u2014 no email on file.' : ''), 'good');
       } else {
-        alert('Error: ' + (data.error || 'Failed to send reminders.'));
+        toast(data.error || 'Failed to send reminders.', 'bad');
       }
     } catch(e) {
       errEl.textContent = 'Network error. Please try again.';
@@ -5413,32 +5630,38 @@ var usStates = ["Virginia"];
 
   async function approveAthleteTeamAdmin(athleteId){
     var s = state.teamAdminSession;
-    if(!s || !s.access_token){ alert('Session expired. Please sign in again.'); return; }
+    if(!s || !s.access_token){ toast('Session expired. Please sign in again.', 'bad'); return; }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athleteId + '/approve', {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + s.access_token }
       });
       var data = await res.json();
-      if(!res.ok){ alert(data.error || 'Failed to approve athlete.'); return; }
+      if(!res.ok){ toast(data.error || 'Failed to approve athlete.', 'bad'); return; }
       openTeamAdminView(s);
-    } catch(e){ alert('Network error. Please try again.'); }
+    } catch(e){ toast('Network error. Please try again.', 'bad'); }
   }
 
   async function deleteAthleteTeamAdmin(athleteId, athleteName){
-    if(!confirm('Remove ' + (athleteName || 'this athlete') + ' from the roster? This can\'t be undone.')) return;
+    var go = await ask({
+      title: 'Remove ' + (athleteName || 'this athlete') + '?',
+      body: 'They come off the roster and their payment link stops working. This cannot be undone.',
+      confirmLabel: 'Remove',
+      danger: true
+    });
+    if(!go) return;
     var s = state.teamAdminSession;
-    if(!s || !s.access_token){ alert('Session expired. Please sign in again.'); return; }
+    if(!s || !s.access_token){ toast('Session expired. Please sign in again.', 'bad'); return; }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athleteId, {
         method: 'DELETE', headers: { 'Authorization': 'Bearer ' + s.access_token }
       });
       if(!res.ok){
         var data = await res.json().catch(function(){ return {}; });
-        alert(data.error || 'Failed to remove athlete.');
+        toast(data.error || 'Failed to remove athlete.', 'bad');
         return;
       }
       openTeamAdminView(s);
-    } catch(e){ alert('Network error. Please try again.'); }
+    } catch(e){ toast('Network error. Please try again.', 'bad'); }
   }
 
   function teamAdminSignOut(){
@@ -5496,7 +5719,7 @@ var usStates = ["Virginia"];
       var data = await res.json();
       if(!res.ok){ errEl.textContent = data.error || 'Failed to send invite.'; errEl.classList.remove('loading-msg'); return; }
       errEl.textContent = '';
-      alert('Invite sent to ' + email + '. They\'ll receive an email to set their password.');
+      toast('Invite sent to ' + email + '. They\'ll get an email to set their password.', 'good');
       goBack();
     } catch(e){ errEl.textContent = 'Network error.'; errEl.classList.remove('loading-msg'); }
   }
@@ -5780,7 +6003,7 @@ var usStates = ["Virginia"];
   }
 
   function exportAdminClubPaymentsCSV(){
-    if(!adminClubPayments.length){ alert('No payments to export yet.'); return; }
+    if(!adminClubPayments.length){ toast('No payments to export yet.'); return; }
     var clubName = (document.getElementById('adminClubDetailName').textContent || 'club').trim();
     var rows = [['Date', 'Athlete', 'Team', 'Amount', 'Method', 'Status']];
     adminClubPayments.forEach(function(p){
@@ -6025,21 +6248,27 @@ var usStates = ["Virginia"];
   }
 
   async function approveAthleteAdmin(athleteId){
-    if(!adminSession){ alert('Session expired. Please sign in again.'); return; }
+    if(!adminSession){ toast('Session expired. Please sign in again.', 'bad'); return; }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athleteId + '/approve', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + adminSession }
       });
       var data = await res.json();
-      if(!res.ok){ alert(data.error || 'Failed to approve athlete.'); return; }
+      if(!res.ok){ toast(data.error || 'Failed to approve athlete.', 'bad'); return; }
       openAdminTeamRoster(state.adminCurrentClub, state.adminCurrentTeam);
-    } catch(e){ alert('Network error. Please try again.'); }
+    } catch(e){ toast('Network error. Please try again.', 'bad'); }
   }
 
   async function deleteAthleteAdmin(athleteId, athleteName){
-    if(!confirm('Remove ' + (athleteName || 'this athlete') + ' from the roster? This can\'t be undone.')) return;
-    if(!adminSession){ alert('Session expired. Please sign in again.'); return; }
+    var go = await ask({
+      title: 'Remove ' + (athleteName || 'this athlete') + '?',
+      body: 'They come off the roster and their payment link stops working. This cannot be undone.',
+      confirmLabel: 'Remove',
+      danger: true
+    });
+    if(!go) return;
+    if(!adminSession){ toast('Session expired. Please sign in again.', 'bad'); return; }
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athleteId, {
         method: 'DELETE',
@@ -6047,11 +6276,11 @@ var usStates = ["Virginia"];
       });
       if(!res.ok){
         var data = await res.json().catch(function(){ return {}; });
-        alert(data.error || 'Failed to remove athlete.');
+        toast(data.error || 'Failed to remove athlete.', 'bad');
         return;
       }
       openAdminTeamRoster(state.adminCurrentClub, state.adminCurrentTeam);
-    } catch(e){ alert('Network error. Please try again.'); }
+    } catch(e){ toast('Network error. Please try again.', 'bad'); }
   }
 
   function goToClubSettings(){
@@ -6125,7 +6354,7 @@ var usStates = ["Virginia"];
     }
 
     trackEvent('checkout_unresolved', {});
-    alert("We're still confirming your payment with Stripe. This can take a minute, check back shortly and your registration will update automatically.");
+    toast("We're still confirming your payment. This can take a minute \u2014 check back shortly and your registration will update on its own.");
     showScreen('home', true);
   }
 
@@ -6136,7 +6365,7 @@ var usStates = ["Virginia"];
   async function openStripeCheckout(paymentType){
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
     if(!athlete || !athlete.supabaseId){
-      alert('This athlete isn\'t fully registered yet. Please try re-adding them.');
+      toast('This athlete isn\'t fully registered yet. Please try re-adding them.', 'bad');
       return;
     }
     trackEvent('payment_method_selected', { payment_type: paymentType });

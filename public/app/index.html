@@ -1183,6 +1183,7 @@
       <input type="password" id="clubPasswordInput" placeholder="Password" autocomplete="current-password">
     </div>
     <p id="clubLoginError" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 2px 18px;"></p>
+    <button type="button" onclick="openForgotPassword('clubEmailInput')" style="background:none;border:none;padding:0;font-family:'Inter',sans-serif;font-size:13px;color:var(--fund-green);cursor:pointer;text-decoration:underline;">Forgot your password?</button>
 
     <div class="footer-spacer"></div>
     <button class="btn btn-primary" onclick="submitClubLogin()">Sign in</button>
@@ -1879,6 +1880,7 @@
       <input type="password" id="adminPasswordInput" placeholder="Password" autocomplete="current-password">
     </div>
     <p id="adminLoginError" style="font-size:12.5px; color:var(--unpaid); min-height:16px; margin:4px 0 18px;"></p>
+    <button type="button" onclick="openForgotPassword('adminEmailInput')" style="background:none;border:none;padding:0;font-family:'Inter',sans-serif;font-size:13px;color:var(--fund-green);cursor:pointer;text-decoration:underline;">Forgot your password?</button>
     <div class="footer-spacer"></div>
     <button class="btn btn-primary" onclick="submitAdminEmailLogin()">Sign in</button>
   </div>
@@ -2172,6 +2174,22 @@
       <div class="footer-spacer"></div>
       <button class="btn btn-primary" onclick="submitSetPassword()" style="margin-bottom:32px;">Set password & sign in</button>
     </div>
+  </div>
+
+  <!-- SCREEN: request a password reset. Shared by clubs and admins — the Worker
+       resolves the address either way and answers identically regardless, so
+       this screen never reveals whether an account exists. -->
+  <div class="screen" id="screen-forgot-password">
+    <div class="eyebrow">PlayFund</div>
+    <h1 class="title">Reset your password</h1>
+    <p class="subtitle" style="margin-bottom:20px;">Enter the email you sign in with and we'll send you a link to choose a new password.</p>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="forgotEmailInput" placeholder="you@yourclub.com" autocomplete="email">
+    </div>
+    <p id="forgotMsg" style="font-size:12.5px; min-height:16px; margin:8px 2px 12px;"></p>
+    <div class="footer-spacer"></div>
+    <button class="btn btn-primary" id="forgotSubmitBtn" onclick="submitForgotPassword()">Send reset link</button>
   </div>
 
   <!-- ══ CLUB REGISTRATION FLOW ══════════════════════════════════════════ -->
@@ -2976,6 +2994,48 @@ var usStates = ["Virginia"];
     window.scrollTo(0,0);
     trackEvent('screen_view', { screen: name });
   }
+  // Password reset request. Prefills whatever was already typed on the sign-in
+  // screen so nobody retypes an address they just entered.
+  function openForgotPassword(sourceInputId){
+    var src = document.getElementById(sourceInputId);
+    var dst = document.getElementById('forgotEmailInput');
+    if(dst) dst.value = (src && src.value) ? src.value.trim() : '';
+    var msg = document.getElementById('forgotMsg');
+    if(msg){ msg.textContent = ''; msg.style.color = 'var(--ink-soft)'; }
+    showScreen('forgot-password');
+  }
+
+  async function submitForgotPassword(){
+    var email = (document.getElementById('forgotEmailInput').value || '').trim();
+    var msg   = document.getElementById('forgotMsg');
+    var btn   = document.getElementById('forgotSubmitBtn');
+    if(!email || email.indexOf('@') === -1){
+      msg.textContent = 'Enter the email you sign in with.';
+      msg.style.color = 'var(--unpaid)';
+      return;
+    }
+    btn.disabled = true;
+    msg.textContent = 'Sending…';
+    msg.style.color = 'var(--ink-soft)';
+    try {
+      await fetch(WORKER_URL + '/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      });
+      // Deliberately the same message whether or not the address has an
+      // account. Saying "no account found" would let anyone test which clubs
+      // and parents are on the platform.
+      msg.textContent = 'If that email has a PlayFund account, a reset link is on its way. Check your inbox.';
+      msg.style.color = 'var(--paid)';
+      btn.textContent = 'Sent';
+    } catch(e){
+      msg.textContent = 'Network error. Please try again.';
+      msg.style.color = 'var(--unpaid)';
+      btn.disabled = false;
+    }
+  }
+
   function goBack(){
     var prev = screenOrder.pop();
     if(prev){

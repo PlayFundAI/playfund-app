@@ -205,6 +205,45 @@ async function suppressEmail(env, email, reason) {
   }
 }
 __name(suppressEmail, "suppressEmail");
+// Password reset email. Sent from admin@ through Resend rather than letting
+// Supabase mail it, so it matches every other email the product sends and comes
+// from an address a club already recognises.
+async function sendPasswordResetEmail(env, email, resetUrl) {
+  const RESEND_API_KEY = env.RESEND_API_KEY;
+  if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY not configured" };
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F4F7F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px;">
+  <table width="100%" style="max-width:520px;background:#FFFFFF;border-radius:14px;overflow:hidden;">
+    <tr><td style="padding:28px 28px 8px;">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5BA888;">PlayFund</p>
+      <h1 style="margin:0 0 12px;font-size:22px;color:#004643;">Reset your password</h1>
+      <p style="margin:0 0 20px;font-size:15px;color:#374151;">Use the button below to choose a new password. The link expires in 24 hours and can only be used once.</p>
+      <a href="${resetUrl}" style="display:inline-block;background:#004643;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:700;padding:12px 22px;border-radius:10px;">Reset password</a>
+      <p style="margin:20px 0 0;font-size:13px;color:#6B7280;">If you didn't ask for this, you can ignore this email — your password won't change until you use the link.</p>
+    </td></tr>
+    <tr><td style="padding:0 28px 28px;">
+      <p style="margin:18px 0 0;font-size:13px;color:#6B7280;">Questions? Reply to this email or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.</p>
+    </td></tr>
+  </table></td></tr></table></body></html>`;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "PlayFund <admin@playfundai.com>",
+        to: [email],
+        subject: "Reset your PlayFund password",
+        html
+      })
+    });
+    return { ok: true };
+  } catch (e) {
+    console.error("Password reset email failed:", e);
+    return { ok: false, error: String(e) };
+  }
+}
+__name(sendPasswordResetEmail, "sendPasswordResetEmail");
 async function sendReminderEmail(env, club, team, athlete) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY not configured" };
@@ -1018,6 +1057,71 @@ var index_default = {
         user: { id: userId, email, role: "parent" },
         access_token: accessToken
       }, 201);
+    }
+    // Password reset. Clubs are run by volunteer treasurers who sign in rarely
+    // and come back months later -- without this, a forgotten password meant
+    // emailing PlayFund and someone editing the user by hand in Supabase.
+    //
+    // Deliberately reuses the club-registration link shape rather than GoTrue's
+    // own /recover: generate_link gives us the hashed token, we build the URL
+    // and send it from admin@ through Resend, so the reset email matches every
+    // other email the product sends. The app already consumes
+    // ?club_verify=<hash>&verify_type=recovery -- proceedToSetPassword has had
+    // a 'recovery' branch all along, it just had no way to be reached.
+    if (method === "POST" && path === "/auth/forgot-password") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return err("Invalid JSON");
+      }
+      const email = (body.email || "").trim().toLowerCase();
+      // Always answer the same way, whether or not the address exists. A
+      // different response for "no such user" turns this endpoint into a way to
+      // discover which clubs and parents are on the platform.
+      const vague = () => json({ success: true });
+      if (!email || !email.includes("@")) return vague();
+
+      // Rate limit per address so this cannot be used to flood someone's inbox.
+      // The address is stored as a SHA-256 digest: enough to count attempts,
+      // without putting user emails in an analytics table.
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
+      const emailHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const since = new Date(Date.now() - 15 * 60 * 1e3).toISOString();
+      const recent = await supabase(
+        env,
+        "GET",
+        `/events?event_name=eq.password_reset_requested&created_at=gt.${since}&properties->>email_hash=eq.${emailHash}&select=id`
+      );
+      if ((recent.data?.length || 0) >= 3) {
+        console.log("Password reset rate-limited for", emailHash.slice(0, 12));
+        return vague();
+      }
+      await supabase(env, "POST", "/events", {
+        event_name: "password_reset_requested",
+        properties: { email_hash: emailHash }
+      });
+
+      const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
+      const linkRes = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/generate_link`, {
+        method: "POST",
+        headers: {
+          "apikey": env.SUPABASE_SERVICE_KEY,
+          "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ type: "recovery", email, options: { redirect_to: APP_URL } })
+      });
+      const linkData = await linkRes.json().catch(() => null);
+      if (!linkRes.ok || !linkData?.hashed_token) {
+        // Almost always "user not found", which is not an error the caller may
+        // learn about. Logged so a genuine Supabase failure is still visible.
+        console.log("No reset link generated:", linkRes.status, linkData?.msg || linkData?.error_code || "");
+        return vague();
+      }
+      const resetUrl = `${APP_URL}?club_verify=${encodeURIComponent(linkData.hashed_token)}&verify_type=${encodeURIComponent(linkData.verification_type || "recovery")}`;
+      await sendPasswordResetEmail(env, email, resetUrl);
+      return vague();
     }
     if (method === "POST" && path === "/auth/login") {
       let body;

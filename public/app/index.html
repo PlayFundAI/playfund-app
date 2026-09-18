@@ -1283,9 +1283,16 @@
     <div class="roster-section-label">Teams</div>
     <div id="teamList"></div>
 
-    <div style="display:flex; gap:10px; margin-top:8px;">
-      <button class="btn btn-secondary" onclick="switchClub()" style="flex:1; font-size:13px;">Switch club</button>
-      <button class="btn btn-secondary" onclick="showScreen('add-team')" style="flex:1; font-size:13px;">+ Add team</button>
+    <!-- One primary action, one quiet link. These used to be two identical
+         secondary buttons side by side, which gave "switch club" the same
+         weight as the club's entire next step — and, because .btn + .btn adds
+         margin-top for stacked buttons, left the second one 10px shorter
+         inside a flex row. -->
+    <button class="btn btn-primary" id="overviewAddTeamBtn" onclick="showScreen('add-team')"
+      style="margin-top:8px; font-size:14px;">+ Add team</button>
+    <div style="text-align:center; margin-top:12px;">
+      <button type="button" onclick="switchClub()"
+        style="background:none; border:none; padding:6px; font-family:'Inter',sans-serif; font-size:13px; color:var(--ink-soft); cursor:pointer; text-decoration:underline;">Switch club</button>
     </div>
   </div>
 
@@ -3559,6 +3566,27 @@ var usStates = ["Virginia"];
 
     var teamListEl = document.getElementById('teamList');
     teamListEl.innerHTML = '';
+    // A club that has just connected its bank lands here with nothing. Blank
+    // space under a "Teams" heading does not tell them the next move, and the
+    // add button sits below the fold on a phone. Say what a team is for, and
+    // put the action where the eye already is.
+    var addBtnEl = document.getElementById('overviewAddTeamBtn');
+    if(!c.teams || c.teams.length === 0){
+      teamListEl.innerHTML =
+        '<div style="border:1.5px dashed var(--line); border-radius:var(--r-md); padding:20px 18px; text-align:center;">' +
+          '<div style="font-size:15px; font-weight:700; color:var(--ink); margin-bottom:6px;">Add your first team</div>' +
+          '<p style="font-size:13px; color:var(--ink-soft); line-height:1.5; margin:0 0 14px;">' +
+            'A team is an age group or squad — 12U Boys, Varsity. You set the season dues once per team, ' +
+            'then add athletes to it. Families pay per athlete.' +
+          '</p>' +
+          '<button class="btn btn-primary" onclick="showScreen(\'add-team\')" style="font-size:14px;">+ Add a team</button>' +
+        '</div>';
+      // Only one call to action on screen — the button below would be a second
+      // identical one.
+      if(addBtnEl) addBtnEl.style.display = 'none';
+    } else if(addBtnEl){
+      addBtnEl.style.display = '';
+    }
 
     var pendingApprovals = [];
 

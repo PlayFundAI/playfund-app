@@ -673,10 +673,20 @@ charge model follows from that.
       `Content-Type` in `_headers`. Verified on production: 200, `text/plain`, 9,094 bytes,
       byte-identical to Stripe's, with the app's CSP and Permissions-Policy still intact.
 
-- [ ] **Re-verify the domain in the Stripe dashboard**, so Stripe checks `www` again now that the
-      file is served from the host we control. Until it re-checks, the Enabled status is still
-      resting on Squarespace. Confirm the per-domain **Apple Pay status** afterwards — the
-      domain-level "Enabled" badge is not the same thing.
+- [x] **Re-verified 2026-09-21, and it passed against Pages.**
+      `POST /v1/payment_method_domains/pmd_1UG8aDQ2kPXJfofJ6dh9a05p/validate` in live mode returns
+      `active` for all six: `apple_pay`, `google_pay`, `link`, `klarna`, `paypal`, `amazon_pay`.
+
+      The plain `GET` was not the test — it returns state cached from the 2026-09-15 check against
+      Squarespace, and would have read `active` either way. `validate` is what makes Stripe
+      re-fetch the file. Cloudflare Pages is now the only thing serving that path for `www`, so
+      passing means Stripe pulled *our* file from Pages and accepted it. The Squarespace
+      dependency is gone.
+
+      Note for whoever runs this next: the Stripe CLI's default authorization is **sandbox-scoped**,
+      and both calls fail with "Account ... does not have live mode access" until someone re-runs
+      `stripe login` and adds the live account on the authorize screen. `--live` is then required
+      on every command even once the context is live.
 
 - [ ] **Apple Pay and Google Pay have still never been seen rendering in our checkout.** Both
       halves are now in place, but "configured correctly" and "a wallet button appeared on a real

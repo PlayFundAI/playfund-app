@@ -21,6 +21,23 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(self "https://js.stripe.com" "https://checkout.stripe.com")
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 
+# Apple Pay domain verification.
+#
+# Stripe registers www.playfundai.com as a payment method domain, and Apple
+# re-verifies it by fetching this exact path. Pages serves extensionless files
+# as a guess, so the type is pinned here rather than left to chance.
+#
+# This file is why Apple Pay renders at all. It was registered on 2026-09-15,
+# while www still pointed at Squarespace — Squarespace happens to serve its own
+# (2019-vintage) copy of Stripe's file, so verification passed against a host we
+# no longer control. Moving www to Pages on 2026-09-17 took the file away
+# without failing anything: a registered domain stays verified until the next
+# re-check, and when that check 404s, the wallet buttons stop rendering with no
+# error in the console, nothing server-side, and cards still working.
+/.well-known/apple-developer-merchantid-domain-association
+  Content-Type: text/plain
+  Cache-Control: public, max-age=3600
+
 # The app embeds Stripe, so its CSP has to allow Stripe's scripts and frames
 # and our own Worker. Kept as a separate block from the marketing page so the
 # marketing page isn't forced to trust anything it doesn't need.

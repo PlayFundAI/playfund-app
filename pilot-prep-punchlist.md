@@ -85,11 +85,13 @@ from Cloudflare Pages (project `playfund-app`, new company-owned account
       `public/app/index.html`, `public/index.html`, `worker/index.js` *and* the CSP `connect-src` in
       `public/_headers` — if the frontend and the CSP disagree, the browser blocks every API call
       with nothing in the Worker logs.
-- [ ] **Register `www.playfundai.com` in Stripe → Payment method domains.** Checkout is *embedded*
+- [x] **`www.playfundai.com` is registered in Stripe → Payment method domains** —
+      `pmd_1UG8aDQ2kPXJfofJ6dh9a05p`, Enabled, created 2026-09-15. Checkout is *embedded*
       (`stripe.initEmbeddedCheckout` mounts an iframe into `/app/`), so our page is the top-level
       document and Apple Pay / Google Pay need the domain registered. Fixing
-      `Permissions-Policy: payment=()` was only half of it. Both halves fail silently — no console
-      error, and card payments keep working.
+      `Permissions-Policy: payment=()` was the other half, done 2026-09-15.
+      **See the entry below** — the registration was real but was verified against Squarespace,
+      and the file it checks was missing from Pages for four days.
 
 ## 3b. Where the live-payments cutover stands (2026-09-16/17)
 
@@ -642,8 +644,41 @@ charge model follows from that.
       building a second review step. Also note Radar Standard bills **$1.00 per connected
       account** on top of $0.05 per screened transaction.
 
-- [ ] **Register `www.playfundai.com` under Stripe → Payment method domains.** Checkout is
-      embedded (`stripe.initEmbeddedCheckout` mounts an iframe into `/app/`), so our page is the
-      top-level document and Apple Pay / Google Pay need the domain registered. The
-      `Permissions-Policy: payment=()` half was fixed 2026-09-15; this is the other half. Both
-      fail silently — no console error, cards keep working.
+- [x] **`www.playfundai.com` registered under Stripe → Payment method domains** — done
+      2026-09-15 (`pmd_1UG8aDQ2kPXJfofJ6dh9a05p`). The `Permissions-Policy: payment=()` half was
+      fixed the same day. See the next entry: registering it was not the end of it.
+
+- [x] **The registered host was 404ing the file Apple verifies against** — found and fixed
+      2026-09-21, by checking the URL rather than the dashboard.
+
+          www.playfundai.com/.well-known/apple-developer-merchantid-domain-association  -> 404
+          playfundai.com/.well-known/apple-developer-merchantid-domain-association      -> 200
+
+      The domain was registered on **2026-09-15, while `www` still pointed at Squarespace**.
+      Squarespace serves its own copy of Stripe's association file, so verification passed —
+      against a host we do not control, using a file we did not put there. Decoding both confirms
+      it: same Stripe `pspId`, but Squarespace's copy was issued **2019-08** and Stripe's current
+      one **2024-05**.
+
+      Moving `www` to Cloudflare Pages on 2026-09-17 took the file away and broke nothing at the
+      time, because **a registered domain stays verified until the next re-check**. The apex still
+      answers 200 only because Squarespace exempts `.well-known` from the 302 it sends everything
+      else.
+
+      Same shape as the `payment=()` bug that preceded it: nothing errors. Cards keep working, no
+      console message, nothing server-side — Apple Pay just is not offered, and the next re-check
+      is what switches it off.
+
+      Fixed by committing Stripe's current file to `public/.well-known/` and pinning its
+      `Content-Type` in `_headers`. Verified on production: 200, `text/plain`, 9,094 bytes,
+      byte-identical to Stripe's, with the app's CSP and Permissions-Policy still intact.
+
+- [ ] **Re-verify the domain in the Stripe dashboard**, so Stripe checks `www` again now that the
+      file is served from the host we control. Until it re-checks, the Enabled status is still
+      resting on Squarespace. Confirm the per-domain **Apple Pay status** afterwards — the
+      domain-level "Enabled" badge is not the same thing.
+
+- [ ] **Apple Pay and Google Pay have still never been seen rendering in our checkout.** Both
+      halves are now in place, but "configured correctly" and "a wallet button appeared on a real
+      phone" are different claims and only one of them has been tested. Needs a Safari/iOS device
+      with a card in Wallet, on `www.playfundai.com/app/`.

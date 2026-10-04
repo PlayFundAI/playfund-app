@@ -371,6 +371,44 @@ This is a research/strategy question, not something checkable in the code — fl
 - [ ] For audience (2): what's actually the sellable difference if their payment process already works fine? Most likely candidates from what's already built: real BNPL via Klarna (if they don't have that), and the reporting gaps already identified in item 7's TeamSnap/SportsEngine teardown — confirm which of those two is the real pain point before building anything else for this audience
 - [ ] Decide if this is a pilot-phase distraction or a real second track — CLAUDE.md's existing locked decision may just be right for the pilot's 5 clubs, with this saved as a post-pilot expansion question
 
+- [ ] **Ask the club, not the docs, first.** The research item above is open-ended and nobody has
+      started it. If there is a specific club on one of these platforms, three questions answer
+      more than a week of reading developer docs, and the club can answer all three today:
+      **(1)** which platform and which plan tier, **(2)** can they put an arbitrary link or HTML
+      block in their registration confirmation email, and **(3)** who at the club actually
+      administers it. None of that needs cooperation from the vendor, and it decides whether (a)
+      is even possible before any build work is scoped.
+
+### Can we take over *just* the payments? — first pass, 2026-09-21
+
+Researched against vendor docs, not a sales call. Treat as a starting point, not a finding to
+build on: two of the three are inferences from published help pages.
+
+- [x] **TeamSnap: yes, via offline payments — and it is a supported feature, not a workaround.**
+      A registration form toggles **ACH, Credit Card and Offline Payments independently**, and an
+      admin records an offline payment against a participant through SnapAction → Edit → **Apply
+      Payment**, including **against a specific installment** in a payment plan. That is exactly
+      the reconciliation step item (a) above assumed would have to be invented. It is per-family
+      manual work, but it is a real, documented path: club turns off card, sends families to
+      PlayFund, marks each one paid.
+- [ ] **Not confirmed: whether TeamSnap allows offline as the *only* method.** Each method toggles
+      separately, which implies yes, but their help page never says a form can have zero online
+      methods. **This is the whole ballgame** — if card cannot be switched off, parents will just
+      use it and never reach us. Verify inside a real TeamSnap account before pitching this.
+- [ ] **SportsEngine: contractually looks permissive, product-wise unknown.** Their Payment
+      Processing Agreement describes SE Payments as a service to "allow the Organization to accept
+      online payments" and carries **no exclusivity clause** — nothing found that forbids a club
+      collecting registration fees through a third party. But **contractual permission is not
+      product capability**: the agreement not forbidding it says nothing about whether the
+      registration form can be configured without a payment step. Their registration FAQ is silent
+      on offline payments and says monetary registrations are not available "out of the box" and
+      need an account manager. Needs a real account to answer, and a proper read of the specific
+      club's contract rather than a summary of a public one.
+- [ ] **Neither vendor was checked for an API that could automate the mark-as-paid step.** For the
+      pilot's five clubs, manual is fine and probably preferable. Worth knowing before promising
+      it at any scale.
+
+
 ## 15. Session parity — every new Claude session (cloud or local) needs to check these before doing real work
 
 Grounded in a real failure, not a hypothetical: the session that root-caused the `invite_url: null` bug (item 6) committed a real fix on branch `ajjurko/fix-invite-link-race` and then hit a dead end — "this machine has no GitHub credentials (`git push` fails, no `gh`, no SSH key), so the fix is committed locally only and could not be merged or deployed." It eventually landed as PR #10 **from that same session** — the dead end lasted about an hour, until `gh` was installed into `~/bin`, authenticated, and the branch pushed and merged from there. (Correcting this because the checklist below is right for the right reason: the session was genuinely stuck and said so, rather than accumulating unlandable work quietly.) Multiple sessions (this cloud one, at least one local one, possibly more later) are now working the same repo in parallel — worth a standard startup check so nobody's work gets stranded again, and nobody duplicates a fix another session already shipped.
@@ -549,11 +587,43 @@ charge model follows from that.
       UI had simply never been told. **If ACH is ever turned on, both of those have to be dealt
       with first.** The `payment_method==='ach'` display mapping stays in place for that day.
 
-- [ ] **Never tested: a large ticket through Klarna. There is almost certainly a cap.** Klarna
-      underwrites every purchase and applies limits that vary by market, by product (Pay in 4 vs
-      Pay in 30 vs longer financing) and, crucially, **per consumer** — an approval is a decision
-      about that shopper, not a published ceiling. Every Klarna payment we have run has been a
-      small test amount, so we do not know where ours sits.
+- [ ] **Klarna's caps are documented, and one of them contradicts a locked pilot decision.**
+      Researched 2026-09-21 against Stripe's own Klarna page, which publishes per-country,
+      per-product transaction limits. US, USD:
+
+      | Klarna option | US limits | Notes |
+      |---|---|---|
+      | Pay in full | $0 – **$4,000** | Not an installment plan; this is the leak recorded below |
+      | Pay later (30 days) | $5 – **$1,000** | |
+      | **Pay in 4** | $1 – **$2,000** | Interest-free. **This is our product.** |
+      | Financing (to 36 months) | $45 – **$10,000** | **May include interest**; subject to credit approval |
+
+      **`CLAUDE.md` locks "Any ticket size accepted ($250–$2,000+)". Pay in 4 stops at exactly
+      $2,000.** The "+" is precisely where our headline installment product disappears. Above it
+      the only Klarna option left is Financing — a longer-term credit product that *may carry
+      interest*, which is a materially different thing to offer a parent and needs its own copy
+      and its own compliance read. Either the locked decision moves, or we accept that tickets
+      over $2,000 are a different product.
+
+      **Klarna is also unavailable by state, which nobody has accounted for:**
+
+      - Pay in 4 — everywhere except **New Mexico and Hawaii**
+      - Pay later — everywhere except **Montana, New Mexico, Hawaii**
+      - Financing — everywhere except **Iowa, West Virginia, Massachusetts**
+
+      So a club in NM or HI has no interest-free installment option at all, and a club in MA, IA
+      or WV has nothing above $2,000. Massachusetts is a real youth-sports market to be blind in.
+      Worth checking against the pilot club shortlist before anyone is promised installments.
+
+      Two more from the same page worth knowing: **Klarna does not support B2B payments** (fine
+      for parent-paid dues, but it rules out invoicing a club directly), and when no shipping
+      address is sent — we send none — Klarna eligibility falls back to **geocoding the client
+      IP**, so a parent on a VPN or travelling may simply not be offered it.
+
+      **None of this replaces testing.** The table is the *merchant-side* range; on top of it
+      Klarna underwrites every purchase per consumer, so an approval is a decision about that
+      shopper, not a published ceiling. Every Klarna payment we have run has been a small test
+      amount.
 
       This is not a detail. `CLAUDE.md` locks **"Any ticket size accepted ($250-$2,000+)"** as a
       pilot decision, and the whole pitch is that a club gets funded upfront *regardless of how a
@@ -572,13 +642,16 @@ charge model follows from that.
          reaches Klarna, and Klarna makes its own call. This is the case the decline fork was
          built for and it behaves correctly.
 
-      **What to actually do:** run real Klarna payments at several amounts — roughly $500,
-      $1,000, $1,500, $2,500 — rather than one. A single approval does not establish a floor for
-      everyone (the next parent is underwritten separately) and a single decline may just be that
-      tester's own limit. Record which of the two failure points fires at each amount. Then **ask
-      Klarna or Stripe directly** for the eligible range on our account; that is the only answer
-      that generalises, and it is the same conversation as the "Pay in full inside Klarna's
-      checkout" question below, so raise both at once.
+      **What to actually do:** run real Klarna payments **either side of the $2,000 Pay in 4
+      line** — $1,800, $2,000, $2,200, $3,000 — and record which of the two failure points fires
+      at each. The documented table predicts session creation succeeds throughout (Pay in full and
+      Financing both cover those amounts) while *Pay in 4 silently stops being offered* somewhere
+      around $2,000, which is the worse outcome: the parent reaches Klarna and is quietly shown a
+      credit product instead of the interest-free plan we advertised. A single approval does not
+      establish a floor for anyone else either, since the next parent is underwritten separately.
+      Then **confirm with Klarna or Stripe** whether these published ranges are the ones applied
+      to our account — same conversation as the "Pay in full inside Klarna's checkout" question
+      below, so raise both at once.
 
       **Detection is already wired:** the app fires `trackEvent('checkout_error', { payment_type,
       stage: 'create_session' })` on that 500, so once real clubs are live, a cluster of those

@@ -1877,11 +1877,14 @@ var index_default = {
     // /contact: different consent model, different recipient, and the reply
     // goes to a family rather than a club admin.
     //
-    // NOTHING here promises the referral incentive. The 50%-of-one-registration
-    // idea is built up to but not switched on: the promise is a consumer
-    // financial offer and needs its terms reviewed before it is made. Turning
-    // it on means adding the copy on the site AND recording what was promised
-    // on this record — do not do one without the other.
+    // The referral offer IS live on /for-parents as of 2026-10-05: half of one
+    // season registration, capped at $500, one parent per club. offer_version
+    // records which wording a parent was shown, because a financial promise has
+    // to be reconstructable later. Change the copy and the version together.
+    //
+    // NOT YET REVIEWED BY A LAWYER. Clyde asked for the terms to be reviewed
+    // before the promise went live and that has not happened — tracked in the
+    // punchlist.
     if (method === "POST" && path === "/parent-request") {
       let body;
       try {
@@ -1898,13 +1901,15 @@ var index_default = {
       const sport = (body.sport || "").trim().slice(0, 60);
       const timing = (body.registration_timing || "").trim().slice(0, 120);
       const clubContact = (body.club_contact || "").trim().slice(0, 200);
-      // Explicit, opt-in, and never defaulted true. An unchecked box means we
-      // may still approach the club — we just do not name the family.
-      const mayShare = body.may_share === true;
+      // Which wording of the referral offer this parent was shown. A financial
+      // promise has to be reconstructable later, so the record carries the
+      // version rather than us guessing from the submission date.
+      const offerVersion = (body.offer_version || "").trim().slice(0, 40);
 
       if (!parentName) return err("Please add your name");
       if (!email || !email.includes("@")) return err("A valid email is required");
       if (!club) return err("Please add the club name");
+      if (!clubContact) return err("Please add someone at the club we can contact");
 
       const RESEND_API_KEY = env.RESEND_API_KEY;
       if (!RESEND_API_KEY) return err("This form is not configured yet", 500);
@@ -1913,20 +1918,16 @@ var index_default = {
         ? `<tr><td style="padding:4px 14px 4px 0;font-size:13px;color:#9CA3AF;">${esc(k)}</td><td style="padding:4px 0;font-size:14px;color:#374151;">${esc(v)}</td></tr>`
         : "";
 
-      // The consent answer decides what a human is allowed to do next, so it
-      // is the loudest thing in the email rather than a field in the table.
-      const consentBanner = mayShare
-        ? `<p style="margin:0 0 16px;padding:11px 14px;border-radius:8px;background:#E6F1E8;color:#2F6B45;font-size:14px;">
-             <strong>Consent given.</strong> ${esc(parentName)} agreed we may tell ${esc(club)} that they asked.</p>`
-        : `<p style="margin:0 0 16px;padding:11px 14px;border-radius:8px;background:#FBF0DC;color:#7A5C00;font-size:14px;">
-             <strong>No consent to be named.</strong> You may approach ${esc(club)}, but do not identify
-             ${esc(parentName)} or pass on their email.</p>`;
+      // The parent was shown a referral offer before submitting, so whoever
+      // picks this up needs to know a promise is attached and which one.
+      const offerBanner = `<p style="margin:0 0 16px;padding:11px 14px;border-radius:8px;background:#E6F1E8;color:#2F6B45;font-size:14px;">
+           <strong>Referral offer attached.</strong> ${esc(parentName)} was shown the half-a-season offer
+           (version ${esc(offerVersion || "unknown")}) before sending this. If ${esc(club)} launches, check
+           whether an earlier request already named them — only the first one qualifies.</p>`;
 
-      const contactWarning = clubContact
-        ? `<p style="margin:14px 0 0;font-size:12.5px;color:#9CA3AF;">The club contact below was supplied by the
-             parent, not by that person. They have not opted in to hearing from us — treat a first approach
-             accordingly.</p>`
-        : "";
+      const contactWarning = `<p style="margin:14px 0 0;font-size:12.5px;color:#9CA3AF;">The club contact below was
+           supplied by the parent, not by that person. They have not opted in to hearing from us — treat a first
+           approach accordingly.</p>`;
 
       try {
         await fetch("https://api.resend.com/emails", {
@@ -1939,7 +1940,7 @@ var index_default = {
             subject: `Parent request: ${club}`,
             html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:560px;">
   <p style="margin:0 0 14px;font-size:15px;color:#004643;">A parent asked us to bring PlayFund to <strong>${esc(club)}</strong>.</p>
-  ${consentBanner}
+  ${offerBanner}
   <table style="border-collapse:collapse;">
     ${row("Parent", parentName)}
     ${row("Email", email)}
@@ -1948,6 +1949,7 @@ var index_default = {
     ${row("Sport", sport)}
     ${row("Next registration", timing)}
     ${row("Club contact", clubContact)}
+    ${row("Offer version", offerVersion)}
   </table>
   ${contactWarning}
   <p style="margin:18px 0 0;font-size:12px;color:#9CA3AF;">Reply directly to this email to reach the parent.</p>
@@ -1959,11 +1961,11 @@ var index_default = {
         return err("Could not send just now. Please email admin@playfundai.com.", 502);
       }
 
-      // No parent name or email in analytics — the club and consent answer are
-      // what we need to measure, and this table is not the place for either.
+      // No parent name or email in analytics — the club and the offer version
+      // are what we need to measure, and this table is not the place for either.
       await supabase(env, "POST", "/events", {
         event_name: "parent_request_submitted",
-        properties: { club, sport, may_share: mayShare }
+        properties: { club, sport, offer_version: offerVersion }
       });
       return json({ success: true }, 201);
     }

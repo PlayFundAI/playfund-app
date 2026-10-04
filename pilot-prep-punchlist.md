@@ -765,3 +765,68 @@ charge model follows from that.
       halves are now in place, but "configured correctly" and "a wallet button appeared on a real
       phone" are different claims and only one of them has been tested. Needs a Safari/iOS device
       with a card in Wallet, on `www.playfundai.com/app/`.
+
+## 17. Legal exposure that went live without review (2026-10-05)
+
+All three shipped to production in PR #55. None of them is an accident — each was a
+deliberate call made with the risk stated. They are here so the risk is written down
+somewhere other than a chat log.
+
+- [ ] **The referral offer is a live, uncapped financial promise to consumers, and no lawyer
+      has read it.** `/for-parents` tells a parent: *"If your club starts using PlayFund,
+      we'll cover half your first season's registration fee."* Clyde's original spec was
+      **"50% of one eligible registration for that family, up to $500"** and asked explicitly
+      to *"have the incentive language and terms reviewed before putting the promise live."*
+      Neither happened: the cap was removed on 2026-10-05 and the offer went live the same
+      day.
+
+      The exposure is smaller than it first looks, because cost and revenue scale with the
+      same number. At the 8% default rate a referral pays for itself once a club has about
+      seven athletes, whatever the dues are (0.5 / 0.08 = 6.25). The real risk is a club that
+      joins, triggers a referral, then turns out to be small or does not return for a second
+      season.
+
+      What a review actually needs to cover: whether an uncapped offer needs different
+      disclosure from a capped one, whether "we may change or withdraw this offer at any
+      time" survives contact with consumer-protection rules in the states we operate in, and
+      whether paying a parent to introduce their club creates any obligation we have not
+      thought about. `offer_version` on each record is what makes the promise reconstructable
+      — it is `2026-10-05b` for the uncapped wording and `2026-10-05` for the capped one.
+
+- [ ] **"One parent per club" is enforced by a human reading alert emails.** Nothing in the
+      code checks it. The alert tells whoever picks it up to search prior alerts for the club
+      name before promising anything, which works at pilot volume and will not work later.
+      Two parents naming the same club is not an edge case; it is what happens when the offer
+      works. **Before the offer is promoted anywhere beyond the page itself**, this needs to
+      be a lookup against submitted requests rather than a person's memory.
+
+- [ ] **The Terms of Service has never been reviewed by counsel, and the clawback clause is
+      the wrong instrument.** The draft banner came off on 2026-10-05 because the content was
+      finished, not because a lawyer approved it. The specific problem is section 2:
+
+      > Your club remains responsible for amounts that are refunded, charged back by a
+      > family's bank or card issuer, or otherwise not collected.
+
+      That is the most consequential term we have, it runs against clubs rather than parents,
+      and it currently binds by click-wrap on a website. A volunteer treasurer who never
+      opened the page is exactly the person it will be enforced against, and exactly the
+      person most likely to challenge it. **It belongs in a signed club agreement**, with the
+      mechanism in front of them before they onboard. Click-wrap is fine for the parent-facing
+      half of the terms; it is weak for this.
+
+      Ties to the existing "club-agreement clawback term" item. DYS Volleyball walked partly
+      over this question and said any recourse makes "paid upfront" significantly less
+      meaningful, so expect it to come up in every careful club's diligence.
+
+- [ ] **COPPA has not been confirmed with counsel.** Moved out of the public privacy policy on
+      2026-10-05, because a "we haven't checked this" box on a page about children's data
+      reads as an admission and tells a parent nothing. The policy now describes actual
+      practice: nothing collected directly from children, minimum fields, no way for a child
+      to register. Whether that practice satisfies COPPA is still an open question and this is
+      now the only place it is recorded.
+
+- [ ] **No automatic deletion exists.** The privacy policy says so in terms, which is honest,
+      but it is honest about a gap. The only deletion in the codebase is
+      `DELETE /athlete/:id`, one record at a time. There is no scheduled purge and no
+      retention job. The policy commits us to actioning deletion requests within 30 days,
+      which is a manual promise nobody has been assigned.

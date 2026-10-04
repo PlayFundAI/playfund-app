@@ -1877,10 +1877,16 @@ var index_default = {
     // /contact: different consent model, different recipient, and the reply
     // goes to a family rather than a club admin.
     //
-    // The referral offer IS live on /for-parents as of 2026-10-05: half of one
-    // season registration, capped at $500, one parent per club. offer_version
-    // records which wording a parent was shown, because a financial promise has
-    // to be reconstructable later. Change the copy and the version together.
+    // The referral offer IS live on /for-parents: half of one athlete's first
+    // season dues, UNCAPPED as of 2026-10-05b, and only for the first person to
+    // name a given club. offer_version records which wording a parent was shown,
+    // because a financial promise has to be reconstructable later — the cap was
+    // removed in 10-05b, so the version is what distinguishes the two promises.
+    // Change the copy and the version together.
+    //
+    // Nothing enforces "first to name a club" automatically. It is checked by a
+    // human against the alert emails, which is fine at pilot volume and will not
+    // be later.
     //
     // NOT YET REVIEWED BY A LAWYER. Clyde asked for the terms to be reviewed
     // before the promise went live and that has not happened — tracked in the
@@ -1921,9 +1927,10 @@ var index_default = {
       // The parent was shown a referral offer before submitting, so whoever
       // picks this up needs to know a promise is attached and which one.
       const offerBanner = `<p style="margin:0 0 16px;padding:11px 14px;border-radius:8px;background:#E6F1E8;color:#2F6B45;font-size:14px;">
-           <strong>Referral offer attached.</strong> ${esc(parentName)} was shown the half-a-season offer
-           (version ${esc(offerVersion || "unknown")}) before sending this. If ${esc(club)} launches, check
-           whether an earlier request already named them — only the first one qualifies.</p>`;
+           <strong>Referral offer attached.</strong> ${esc(parentName)} was shown the referral offer
+           (version ${esc(offerVersion || "unknown")}) before sending this. <strong>Before promising anything,
+           search these alerts for "${esc(club)}"</strong> — only the first person to name a club qualifies, and
+           nothing checks that automatically.</p>`;
 
       const contactWarning = `<p style="margin:14px 0 0;font-size:12.5px;color:#9CA3AF;">The club contact below was
            supplied by the parent, not by that person. They have not opted in to hearing from us — treat a first

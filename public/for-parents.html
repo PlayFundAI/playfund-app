@@ -272,7 +272,7 @@
 
     <div class="offer">
       <b>If your club starts using PlayFund, we&rsquo;ll cover half your first season&rsquo;s registration fee.</b>
-      <p>Up to $500. Terms below.</p>
+      <p>One parent per club &mdash; whoever asks first. Terms below.</p>
     </div>
 
     <div class="p-card">
@@ -322,12 +322,14 @@
 
     <div class="terms">
       <b>About the offer.</b> If the club you name completes setup and runs a registration through PlayFund,
-      we&rsquo;ll credit you half of that family&rsquo;s first season registration, up to <b>$500</b>. One parent per
-      club, one per family, limited to the first clubs in our pilot. We pay after your club&rsquo;s registration has
-      been collected and the refund window has passed. If two parents name the same club, the first request
-      qualifies. We may change or withdraw this offer at any time; that won&rsquo;t affect a request you&rsquo;ve
-      already sent. This is an offer from PlayFund, not from your club, and your club isn&rsquo;t obliged to do
-      anything.
+      we&rsquo;ll credit you half of one athlete&rsquo;s first season dues at that club.
+      <b>Only the first person to tell us about a club qualifies.</b> If someone has already named your club, the
+      offer isn&rsquo;t available to you, even if the club joins later and even if you asked independently. One per
+      family, and limited to the first clubs in our pilot. If you register more than one athlete, the credit applies
+      to one of them, not to a combined plan. We pay after your club&rsquo;s registration has been collected and the
+      refund window has passed. We may change or withdraw this offer at any time; that won&rsquo;t affect a request
+      you&rsquo;ve already sent. This is an offer from PlayFund, not from your club, and your club isn&rsquo;t obliged
+      to do anything.
     </div>
 
     <div style="text-align:center;">
@@ -351,7 +353,7 @@
   var WORKER_URL = 'https://playfund-worker.playfund.workers.dev';
   // Bumped whenever the offer wording changes, and sent with the request, so a
   // record always says which version of the promise the parent was shown.
-  var OFFER_VERSION = '2026-10-05';
+  var OFFER_VERSION = '2026-10-05b';
 
   document.getElementById('parentForm').addEventListener('submit', async function(e){
     e.preventDefault();

@@ -59,6 +59,19 @@
   .btn-ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
   .btn-ghost:hover{border-color:var(--green)}
   .btn-sm{padding:10px 18px;font-size:14px}
+  /* The nav CTA is the longest label on the page and the nav is the narrowest
+     place it appears. Below 560px the logo, "Sign in" and a 20-character
+     button do not fit on one line, and the button wrapped to two — which made
+     the header taller than the content it sat above. Same destination, shorter
+     label. */
+  .nav-cta{white-space:nowrap}
+  .cta-short{display:none}
+  @media (max-width:560px){
+    .cta-long{display:none}
+    .cta-short{display:inline}
+    .nav-cta{padding:10px 14px}
+    .nav-right{gap:12px}
+  }
 
   /* hero */
   .hero{padding:84px 0 64px;text-align:center}
@@ -112,6 +125,60 @@
   .step-num{font-family:'Anton',sans-serif;font-size:19px;color:var(--green);margin-bottom:9px}
   .step p{margin-top:7px;font-size:14.5px;color:var(--ink-soft)}
 
+  /* setup walkthrough — the club's actual first 15 minutes.
+     "From signup to funded in three steps" answers what the product does;
+     this answers the question a volunteer treasurer actually asks, which is
+     how much work this is going to be for them. Deliberately concrete: real
+     screen names, real order, and the one step that is ours rather than
+     theirs. */
+  .setup { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 8px; }
+  .setup-step { position: relative; padding: 0 18px 0 0; }
+  /* The connector sits behind the numbered node and stops short of the next
+     one, so the row reads as a sequence rather than four loose cards. */
+  .setup-step::after {
+    content: ''; position: absolute; top: 17px; left: 36px; right: 14px;
+    height: 2px; background: var(--line);
+  }
+  .setup-step:last-child::after { display: none; }
+  .setup-num {
+    position: relative; z-index: 1;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--ink); color: #fff;
+    font-family: 'Anton', sans-serif; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 14px;
+  }
+  /* The step PlayFund does, not the club. Calling it out rather than hiding it
+     is the point — a club that discovers a manual approval step after signing
+     up trusts the next claim less. */
+  .setup-step.is-ours .setup-num { background: var(--green); }
+  .setup-step h3 { margin-bottom: 6px; }
+  .setup-step p { font-size: 14px; color: var(--ink-soft); margin: 0; }
+  .setup-meta {
+    display: inline-block; margin-top: 10px;
+    font-size: 12px; font-weight: 700; color: var(--ink-faint);
+  }
+  .setup-outcome {
+    margin-top: 30px; background: var(--ink); color: #fff;
+    border-radius: 13px; padding: 24px 28px;
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  }
+  .setup-outcome-big { font-family: 'Anton', sans-serif; font-size: 30px; line-height: 1; }
+  .setup-outcome p { color: rgba(255,255,255,0.72); font-size: 14.5px; margin: 0; flex: 1; min-width: 240px; }
+  .setup-legend { margin-top: 16px; font-size: 12.5px; color: var(--ink-faint); display: flex; align-items: center; gap: 7px; }
+  .setup-legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--green); display: inline-block; }
+
+  @media (max-width: 860px) {
+    .setup { grid-template-columns: 1fr; gap: 22px; }
+    .setup-step { padding: 0 0 0 48px; }
+    /* Vertical on mobile: the connector runs down the left gutter instead. */
+    .setup-step::after {
+      top: 38px; bottom: -22px; left: 16px; right: auto;
+      width: 2px; height: auto;
+    }
+    .setup-num { position: absolute; left: 0; top: 0; margin-bottom: 0; }
+  }
+
   /* pricing */
   .price-card{max-width:520px;margin:0 auto;background:#fff;border:1px solid var(--line);
               border-radius:15px;padding:44px 32px;text-align:center}
@@ -136,6 +203,18 @@
   .field textarea{min-height:104px;resize:vertical}
   .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
   .form-msg{min-height:20px;font-size:13.5px;margin:4px 0 12px}
+
+  /* Point-of-collection notice. Sits with the form rather than only in the
+     policy, because a link to a document nobody opens is not a notice. */
+  .form-notice { font-size: 12.5px; line-height: 1.5; color: var(--ink-faint); margin: 2px 0 14px; }
+  .form-notice a { color: var(--ink-soft); }
+  .consent {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13.5px; line-height: 1.5; color: var(--ink);
+    background: var(--paper-dim); border-radius: 10px;
+    padding: 13px 15px; margin: 4px 0 14px; cursor: pointer;
+  }
+  .consent input { margin: 2px 0 0; flex-shrink: 0; width: 16px; height: 16px; accent-color: var(--green-dk); }
 
   /* footer */
   footer{border-top:1px solid var(--line);padding:46px 0 30px}
@@ -175,7 +254,7 @@
     </div>
     <div class="nav-right">
       <a class="nav-signin" href="/app/">Sign in</a>
-      <a class="btn btn-primary btn-sm" href="#contact">Get started</a>
+      <a class="btn btn-primary btn-sm nav-cta" href="#contact"><span class="cta-long">Explore a Club Pilot</span><span class="cta-short">Club Pilot</span></a>
     </div>
   </div>
 </nav>
@@ -189,8 +268,8 @@
     <p class="lede">PlayFund handles registration, checkout and flexible payment options for youth
       sports clubs, so your season is funded upfront regardless of how each family chooses to pay.</p>
     <div class="hero-cta">
-      <a class="btn btn-primary" href="#contact">Get started</a>
-      <a class="btn btn-ghost" href="#how">See how it works</a>
+      <a class="btn btn-primary" href="#contact">Explore a Club Pilot</a>
+      <a class="btn btn-ghost" href="#parent-request">Request PlayFund at My Club</a>
     </div>
 
     <div class="shot">
@@ -313,7 +392,56 @@
   </div>
 </section>
 
-<section id="pricing">
+<section id="setup">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Setup takes about fifteen minutes.</h2>
+      <p>Most of it is things you already know off the top of your head. You do not need your
+        EIN to start, and you can stop and come back.</p>
+    </div>
+
+    <div class="setup">
+      <div class="setup-step">
+        <div class="setup-num">1</div>
+        <h3>Tell us about your club</h3>
+        <p>Name, sport, city, season dates, and what a season costs a family. One page.</p>
+        <span class="setup-meta">About 3 minutes</span>
+      </div>
+      <div class="setup-step is-ours">
+        <div class="setup-num">2</div>
+        <h3>We confirm your rate</h3>
+        <p>A real person agrees your rate with you in writing. Nothing can be charged to a
+          family until that is done.</p>
+        <span class="setup-meta">Usually same day</span>
+      </div>
+      <div class="setup-step">
+        <div class="setup-num">3</div>
+        <h3>Connect your bank</h3>
+        <p>Stripe verifies your club and takes the account details. We never see or store
+          them.</p>
+        <span class="setup-meta">About 5 minutes</span>
+      </div>
+      <div class="setup-step">
+        <div class="setup-num">4</div>
+        <h3>Add teams and send the link</h3>
+        <p>Add a team, add your roster, and send one link. Families need no account and no
+          app.</p>
+        <span class="setup-meta">About 5 minutes</span>
+      </div>
+    </div>
+
+    <div class="setup-legend"><i></i> Step 2 is ours, not yours — it is the only part you wait on.</div>
+
+    <div class="setup-outcome">
+      <div class="setup-outcome-big">Then you&rsquo;re done.</div>
+      <p>Families register and pay on their own. Money lands in your account as they do, whether
+        they paid in full or split it. You add a team when you have one; there is nothing to
+        maintain in between.</p>
+    </div>
+  </div>
+</section>
+
+<section class="tint" id="pricing">
   <div class="wrap">
     <div class="sec-head">
       <h2>One fee, taken from the season total. Nothing else.</h2>
@@ -322,7 +450,7 @@
       <div class="headline">Contact us for pricing</div>
       <p>We agree your rate with you during onboarding, before your season goes live.
         One fee from the season total, nothing hidden.</p>
-      <a class="btn btn-primary" href="#contact">Get started</a>
+      <a class="btn btn-primary" href="#contact">Explore a Club Pilot</a>
     </div>
   </div>
 </section>
@@ -331,15 +459,76 @@
   <div class="wrap">
     <h2>Ready to stop chasing dues all season?</h2>
     <p>No cost to talk to us.</p>
-    <a class="btn btn-light" href="#contact">Get started</a>
+    <a class="btn btn-light" href="#contact">Explore a Club Pilot</a>
+  </div>
+</section>
+
+<section id="parent-request">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Want PlayFund at your club?</h2>
+      <p>If paying a season up front is hard, your club is the one who decides. Tell us who they
+        are and we&rsquo;ll reach out. We won&rsquo;t say it came from you unless you say we can.</p>
+    </div>
+    <div class="contact-card">
+      <form id="parentForm" novalidate>
+        <div class="field">
+          <label for="pName">Your name</label>
+          <input id="pName" name="parent_name" type="text" autocomplete="name" placeholder="First and last name">
+        </div>
+        <div class="field">
+          <label for="pEmail">Your email</label>
+          <input id="pEmail" name="email" type="email" autocomplete="email" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label for="pClub">Club name</label>
+          <input id="pClub" name="club" type="text" placeholder="e.g. Northside Select">
+        </div>
+        <div class="field-row" style="display:flex;gap:12px;">
+          <div class="field" style="flex:1;">
+            <label for="pCity">City</label>
+            <input id="pCity" name="city" type="text" placeholder="e.g. Sacramento, CA">
+          </div>
+          <div class="field" style="flex:1;">
+            <label for="pSport">Sport</label>
+            <input id="pSport" name="sport" type="text" placeholder="e.g. Volleyball">
+          </div>
+        </div>
+        <div class="field">
+          <label for="pTiming">When does registration open? <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
+          <input id="pTiming" name="registration_timing" type="text" placeholder="e.g. next month, or already open">
+        </div>
+        <div class="field">
+          <label for="pContact">Someone at the club we could contact <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
+          <input id="pContact" name="club_contact" type="text" placeholder="Name and email, if you have one">
+        </div>
+
+        <!-- Unchecked by default and never pre-ticked. Without it we may still
+             approach the club; we just do not name the family. -->
+        <label class="consent" for="pShare">
+          <input id="pShare" name="may_share" type="checkbox">
+          <span>You can tell <b>my club</b> that I asked about PlayFund, and share my name and email
+            with them.</span>
+        </label>
+
+        <div class="hp"><label for="pCompany">Company</label><input id="pCompany" name="company" type="text" tabindex="-1" autocomplete="off"></div>
+
+        <p class="form-notice">We use this to contact your club and to reply to you. <b>Please don&rsquo;t
+          include any details about your child, or any payment information</b> &mdash; we don&rsquo;t need
+          them and won&rsquo;t store them. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
+        <p class="form-msg" id="parentMsg"></p>
+        <button class="btn btn-primary" type="submit" id="parentBtn" style="width:100%">Send request</button>
+      </form>
+    </div>
   </div>
 </section>
 
 <section class="tint" id="contact">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Tell us about your club.</h2>
-      <p>Send this and we'll get back to you. No cost, no commitment.</p>
+      <h2>Explore a club pilot.</h2>
+      <p>For club admins, board members and treasurers. Send this and we&rsquo;ll get back to you
+        with your rate and what a pilot would look like. No cost, no commitment.</p>
     </div>
     <div class="contact-card">
       <form id="contactForm" novalidate>
@@ -356,11 +545,17 @@
           <input id="cEmail" name="email" type="email" autocomplete="email" placeholder="you@yourclub.com">
         </div>
         <div class="field">
-          <label for="cMsg">Anything we should know? <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
+          <label for="cOpens">When does your next registration open? <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
+        <input id="cOpens" name="opens" type="text" placeholder="e.g. early March, or already open">
+      </div>
+      <div class="field">
+        <label for="cMsg">Anything we should know? <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
           <textarea id="cMsg" name="message" placeholder="Sport, roughly how many athletes, when your season starts."></textarea>
         </div>
         <!-- Bot trap: a real person never fills a hidden field. -->
         <div class="hp"><label for="cCompany">Company</label><input id="cCompany" name="company" type="text" tabindex="-1" autocomplete="off"></div>
+        <p class="form-notice">We use this to reply to you about a pilot, and nothing else. See our
+          <a href="privacy-policy.html">Privacy Policy</a>.</p>
         <p class="form-msg" id="contactMsg"></p>
         <button class="btn btn-primary" type="submit" id="contactBtn" style="width:100%">Send</button>
       </form>
@@ -408,6 +603,53 @@
 
   var WORKER_URL = 'https://playfund-worker.playfund.workers.dev';
 
+  document.getElementById('parentForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var msgEl = document.getElementById('parentMsg');
+    var btn   = document.getElementById('parentBtn');
+    var val   = function(id){ return document.getElementById(id).value.trim(); };
+    var name  = val('pName'), email = val('pEmail'), club = val('pClub');
+
+    function fail(t){ msgEl.textContent = t; msgEl.style.color = 'var(--red)'; }
+    if(!name){ return fail('Please add your name.'); }
+    if(!email || email.indexOf('@') === -1){ return fail('Please add an email we can reply to.'); }
+    if(!club){ return fail("Please add your club's name."); }
+
+    msgEl.textContent = 'Sending…'; msgEl.style.color = 'var(--ink-soft)';
+    btn.disabled = true;
+    try {
+      var res = await fetch(WORKER_URL + '/parent-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parent_name: name, email: email, club: club,
+          city: val('pCity'), sport: val('pSport'),
+          registration_timing: val('pTiming'), club_contact: val('pContact'),
+          may_share: document.getElementById('pShare').checked,
+          company: val('pCompany')
+        })
+      });
+      var data = await res.json();
+      if(!res.ok){ btn.disabled = false; return fail(data.error || 'Something went wrong. Please email admin@playfundai.com.'); }
+      // Reflect back what they actually consented to, so the promise they just
+      // made us is the last thing they read rather than a generic thank-you.
+      var shared = document.getElementById('pShare').checked;
+      document.getElementById('parentForm').innerHTML =
+        '<div style="text-align:center;padding:18px 0;">' +
+          '<div style="font-family:\'Anton\',sans-serif;font-size:24px;margin-bottom:8px;">Thanks, ' +
+            name.split(' ')[0].replace(/[<>&]/g,'') + '.</div>' +
+          '<p style="color:var(--ink-soft);font-size:15px;">We\'ll reach out to ' +
+            club.replace(/[<>&]/g,'') + '. ' +
+            (shared ? 'We&rsquo;ll let them know you asked.'
+                    : 'We won&rsquo;t mention that you were the one who asked.') +
+          '</p>' +
+        '</div>';
+    } catch(err){
+      btn.disabled = false;
+      fail('Network problem. Please email admin@playfundai.com.');
+    }
+  });
+
   document.getElementById('contactForm').addEventListener('submit', async function(e){
     e.preventDefault();
     var msgEl = document.getElementById('contactMsg');
@@ -415,6 +657,7 @@
     var name  = document.getElementById('cName').value.trim();
     var club  = document.getElementById('cClub').value.trim();
     var email = document.getElementById('cEmail').value.trim();
+    var opens = document.getElementById('cOpens').value.trim();
     var body  = document.getElementById('cMsg').value.trim();
     var trap  = document.getElementById('cCompany').value;
 
@@ -430,7 +673,9 @@
       var res = await fetch(WORKER_URL + '/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, club: club, email: email, message: body, company: trap })
+        body: JSON.stringify({ name: name, club: club, email: email,
+          message: opens ? ('Next registration opens: ' + opens + (body ? '\n\n' + body : '')) : body,
+          company: trap })
       });
       var data = await res.json();
       if(!res.ok){ btn.disabled = false; return fail(data.error || 'Something went wrong. Please email admin@playfundai.com.'); }

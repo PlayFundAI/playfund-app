@@ -1873,6 +1873,100 @@ var index_default = {
       });
       return json({ success: true }, 201);
     }
+    // A parent asking us to approach their club. Deliberately separate from
+    // /contact: different consent model, different recipient, and the reply
+    // goes to a family rather than a club admin.
+    //
+    // NOTHING here promises the referral incentive. The 50%-of-one-registration
+    // idea is built up to but not switched on: the promise is a consumer
+    // financial offer and needs its terms reviewed before it is made. Turning
+    // it on means adding the copy on the site AND recording what was promised
+    // on this record — do not do one without the other.
+    if (method === "POST" && path === "/parent-request") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return err("Invalid JSON");
+      }
+      if (body.company) return json({ success: true });
+
+      const parentName = (body.parent_name || "").trim().slice(0, 120);
+      const email = (body.email || "").trim().slice(0, 200);
+      const club = (body.club || "").trim().slice(0, 160);
+      const city = (body.city || "").trim().slice(0, 120);
+      const sport = (body.sport || "").trim().slice(0, 60);
+      const timing = (body.registration_timing || "").trim().slice(0, 120);
+      const clubContact = (body.club_contact || "").trim().slice(0, 200);
+      // Explicit, opt-in, and never defaulted true. An unchecked box means we
+      // may still approach the club — we just do not name the family.
+      const mayShare = body.may_share === true;
+
+      if (!parentName) return err("Please add your name");
+      if (!email || !email.includes("@")) return err("A valid email is required");
+      if (!club) return err("Please add the club name");
+
+      const RESEND_API_KEY = env.RESEND_API_KEY;
+      if (!RESEND_API_KEY) return err("This form is not configured yet", 500);
+      const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const row = (k, v) => v
+        ? `<tr><td style="padding:4px 14px 4px 0;font-size:13px;color:#9CA3AF;">${esc(k)}</td><td style="padding:4px 0;font-size:14px;color:#374151;">${esc(v)}</td></tr>`
+        : "";
+
+      // The consent answer decides what a human is allowed to do next, so it
+      // is the loudest thing in the email rather than a field in the table.
+      const consentBanner = mayShare
+        ? `<p style="margin:0 0 16px;padding:11px 14px;border-radius:8px;background:#E6F1E8;color:#2F6B45;font-size:14px;">
+             <strong>Consent given.</strong> ${esc(parentName)} agreed we may tell ${esc(club)} that they asked.</p>`
+        : `<p style="margin:0 0 16px;padding:11px 14px;border-radius:8px;background:#FBF0DC;color:#7A5C00;font-size:14px;">
+             <strong>No consent to be named.</strong> You may approach ${esc(club)}, but do not identify
+             ${esc(parentName)} or pass on their email.</p>`;
+
+      const contactWarning = clubContact
+        ? `<p style="margin:14px 0 0;font-size:12.5px;color:#9CA3AF;">The club contact below was supplied by the
+             parent, not by that person. They have not opted in to hearing from us — treat a first approach
+             accordingly.</p>`
+        : "";
+
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "PlayFund Site <alerts@playfundai.com>",
+            to: ["alerts@playfundai.com"],
+            reply_to: email,
+            subject: `Parent request: ${club}`,
+            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:560px;">
+  <p style="margin:0 0 14px;font-size:15px;color:#004643;">A parent asked us to bring PlayFund to <strong>${esc(club)}</strong>.</p>
+  ${consentBanner}
+  <table style="border-collapse:collapse;">
+    ${row("Parent", parentName)}
+    ${row("Email", email)}
+    ${row("Club", club)}
+    ${row("City", city)}
+    ${row("Sport", sport)}
+    ${row("Next registration", timing)}
+    ${row("Club contact", clubContact)}
+  </table>
+  ${contactWarning}
+  <p style="margin:18px 0 0;font-size:12px;color:#9CA3AF;">Reply directly to this email to reach the parent.</p>
+</div>`
+          })
+        });
+      } catch (e) {
+        console.error("Parent request email failed:", e);
+        return err("Could not send just now. Please email admin@playfundai.com.", 502);
+      }
+
+      // No parent name or email in analytics — the club and consent answer are
+      // what we need to measure, and this table is not the place for either.
+      await supabase(env, "POST", "/events", {
+        event_name: "parent_request_submitted",
+        properties: { club, sport, may_share: mayShare }
+      });
+      return json({ success: true }, 201);
+    }
     if (method === "POST" && path === "/club/register") {
       let body;
       try {

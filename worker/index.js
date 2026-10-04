@@ -1873,6 +1873,109 @@ var index_default = {
       });
       return json({ success: true }, 201);
     }
+    // A parent asking us to approach their club. Deliberately separate from
+    // /contact: different consent model, different recipient, and the reply
+    // goes to a family rather than a club admin.
+    //
+    // The referral offer IS live on /for-parents: half of one athlete's first
+    // season dues, UNCAPPED as of 2026-10-05b, and only for the first person to
+    // name a given club. offer_version records which wording a parent was shown,
+    // because a financial promise has to be reconstructable later — the cap was
+    // removed in 10-05b, so the version is what distinguishes the two promises.
+    // Change the copy and the version together.
+    //
+    // Nothing enforces "first to name a club" automatically. It is checked by a
+    // human against the alert emails, which is fine at pilot volume and will not
+    // be later.
+    //
+    // NOT YET REVIEWED BY A LAWYER. Clyde asked for the terms to be reviewed
+    // before the promise went live and that has not happened — tracked in the
+    // punchlist.
+    if (method === "POST" && path === "/parent-request") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return err("Invalid JSON");
+      }
+      if (body.company) return json({ success: true });
+
+      const parentName = (body.parent_name || "").trim().slice(0, 120);
+      const email = (body.email || "").trim().slice(0, 200);
+      const club = (body.club || "").trim().slice(0, 160);
+      const city = (body.city || "").trim().slice(0, 120);
+      const sport = (body.sport || "").trim().slice(0, 60);
+      const timing = (body.registration_timing || "").trim().slice(0, 120);
+      const clubContact = (body.club_contact || "").trim().slice(0, 200);
+      // Which wording of the referral offer this parent was shown. A financial
+      // promise has to be reconstructable later, so the record carries the
+      // version rather than us guessing from the submission date.
+      const offerVersion = (body.offer_version || "").trim().slice(0, 40);
+
+      if (!parentName) return err("Please add your name");
+      if (!email || !email.includes("@")) return err("A valid email is required");
+      if (!club) return err("Please add the club name");
+      if (!clubContact) return err("Please add someone at the club we can contact");
+
+      const RESEND_API_KEY = env.RESEND_API_KEY;
+      if (!RESEND_API_KEY) return err("This form is not configured yet", 500);
+      const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const row = (k, v) => v
+        ? `<tr><td style="padding:4px 14px 4px 0;font-size:13px;color:#9CA3AF;">${esc(k)}</td><td style="padding:4px 0;font-size:14px;color:#374151;">${esc(v)}</td></tr>`
+        : "";
+
+      // The parent was shown a referral offer before submitting, so whoever
+      // picks this up needs to know a promise is attached and which one.
+      const offerBanner = `<p style="margin:0 0 16px;padding:11px 14px;border-radius:8px;background:#E6F1E8;color:#2F6B45;font-size:14px;">
+           <strong>Referral offer attached.</strong> ${esc(parentName)} was shown the referral offer
+           (version ${esc(offerVersion || "unknown")}) before sending this. <strong>Before promising anything,
+           search these alerts for "${esc(club)}"</strong> — only the first person to name a club qualifies, and
+           nothing checks that automatically.</p>`;
+
+      const contactWarning = `<p style="margin:14px 0 0;font-size:12.5px;color:#9CA3AF;">The club contact below was
+           supplied by the parent, not by that person. They have not opted in to hearing from us — treat a first
+           approach accordingly.</p>`;
+
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "PlayFund Site <alerts@playfundai.com>",
+            to: ["alerts@playfundai.com"],
+            reply_to: email,
+            subject: `Parent request: ${club}`,
+            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:560px;">
+  <p style="margin:0 0 14px;font-size:15px;color:#004643;">A parent asked us to bring PlayFund to <strong>${esc(club)}</strong>.</p>
+  ${offerBanner}
+  <table style="border-collapse:collapse;">
+    ${row("Parent", parentName)}
+    ${row("Email", email)}
+    ${row("Club", club)}
+    ${row("City", city)}
+    ${row("Sport", sport)}
+    ${row("Next registration", timing)}
+    ${row("Club contact", clubContact)}
+    ${row("Offer version", offerVersion)}
+  </table>
+  ${contactWarning}
+  <p style="margin:18px 0 0;font-size:12px;color:#9CA3AF;">Reply directly to this email to reach the parent.</p>
+</div>`
+          })
+        });
+      } catch (e) {
+        console.error("Parent request email failed:", e);
+        return err("Could not send just now. Please email admin@playfundai.com.", 502);
+      }
+
+      // No parent name or email in analytics — the club and the offer version
+      // are what we need to measure, and this table is not the place for either.
+      await supabase(env, "POST", "/events", {
+        event_name: "parent_request_submitted",
+        properties: { club, sport, offer_version: offerVersion }
+      });
+      return json({ success: true }, 201);
+    }
     if (method === "POST" && path === "/club/register") {
       let body;
       try {

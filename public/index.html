@@ -120,17 +120,13 @@
   .trow .told{font-size:14.5px}
   .footnote{text-align:center;margin-top:18px;font-size:12.5px;color:var(--ink-faint);max-width:760px;margin-left:auto;margin-right:auto}
 
-  /* steps */
-  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:34px}
-  .step-num{font-family:'Anton',sans-serif;font-size:19px;color:var(--green);margin-bottom:9px}
-  .step p{margin-top:7px;font-size:14.5px;color:var(--ink-soft)}
 
-  /* setup walkthrough — the club's actual first 15 minutes.
-     "From signup to funded in three steps" answers what the product does;
-     this answers the question a volunteer treasurer actually asks, which is
-     how much work this is going to be for them. Deliberately concrete: real
-     screen names, real order, and the one step that is ours rather than
-     theirs. */
+  /* How it works — the club's actual first 15 minutes.
+     This replaced a "From signup to funded, in three steps" section that said
+     what the product does in the abstract. The question a volunteer treasurer
+     actually asks is how much work this is going to be for them, so: real
+     order, real times, and the one step that is ours rather than theirs. It
+     keeps the #how anchor the old section had, so existing links still land. */
   .setup { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 8px; }
   .setup-step { position: relative; padding: 0 18px 0 0; }
   /* The connector sits behind the numbered node and stops short of the next
@@ -230,7 +226,6 @@
 
   @media (max-width:900px){
     .grid-4{grid-template-columns:repeat(2,1fr)}
-    .grid-3{grid-template-columns:1fr;gap:28px}
     .shot-body{grid-template-columns:1fr}
     .nav-links{display:none}
     .trow{grid-template-columns:1fr;gap:6px}
@@ -367,37 +362,10 @@
 <section class="tint" id="how">
   <div class="wrap">
     <div class="sec-head">
-      <h2>From signup to funded, in three steps.</h2>
-    </div>
-    <div class="grid-3">
-      <div class="step">
-        <div class="step-num">01</div>
-        <h3>Your club onboards</h3>
-        <p>Tell us what a season costs a family and connect the bank account where
-          your payouts should land. We agree your rate with you before anything goes live.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">02</div>
-        <h3>Families register and pay</h3>
-        <p>One link, no account required. Parents pick a payment method that fits their family
-          and see the total cost before they commit.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">03</div>
-        <h3>Your club gets paid upfront</h3>
-        <p>Funds land in your account as families register, whether they paid in full
-          or chose to split it.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="setup">
-  <div class="wrap">
-    <div class="sec-head">
       <h2>Setup takes about fifteen minutes.</h2>
-      <p>Most of it is things you already know off the top of your head. You do not need your
-        EIN to start, and you can stop and come back.</p>
+      <p>Most of it is things you already know off the top of your head. You don&rsquo;t need your
+        EIN to start, and you can stop and come back. After that your season is funded as
+        families register &mdash; however each of them chooses to pay.</p>
     </div>
 
     <div class="setup">
@@ -441,7 +409,7 @@
   </div>
 </section>
 
-<section class="tint" id="pricing">
+<section id="pricing">
   <div class="wrap">
     <div class="sec-head">
       <h2>One fee, taken from the season total. Nothing else.</h2>

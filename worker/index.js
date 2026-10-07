@@ -172,6 +172,41 @@ async function signUnsubscribe(email, secret) {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 __name(signUnsubscribe, "signUnsubscribe");
+// Every send goes through here. Resend answers 200 on success and 4xx with a
+// JSON body explaining the refusal (unverified sender, invalid recipient,
+// suppressed address). Ten call sites used bare `await fetch(...)` and threw the
+// response away, so a refusal resolved normally and the caller carried on as
+// though the mail had gone. Combined with RESEND_WEBHOOK_SECRET being unset,
+// which makes us reject Resend's bounce callbacks too, a dead recipient failed
+// silently in both directions. That is how a parent request reached the
+// database on 2026-10-07 with nobody receiving the alert.
+//
+// Takes the fetch options unchanged so the call sites convert by swapping the
+// call prefix, and reads the recipient and subject back out of the body for the
+// log line rather than taking another argument.
+async function resendSend(env, opts) {
+  let meta = {};
+  try { meta = JSON.parse(opts && opts.body || "{}"); } catch {}
+  const who = `${JSON.stringify(meta.to)} "${meta.subject || ""}"`;
+  let res;
+  try {
+    res = await fetch("https://api.resend.com/emails", opts);
+  } catch (e) {
+    console.error(`Email FAILED to ${who}: ${String(e)}`);
+    return { ok: false, error: String(e) };
+  }
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try { detail = JSON.stringify(await res.json()); } catch {}
+    // Loud, with the recipient, because the usual cause is an address that does
+    // not exist and this line is the only way anyone finds out.
+    console.error(`Email REJECTED to ${who}: ${res.status} ${detail}`);
+    return { ok: false, error: detail, status: res.status };
+  }
+  return { ok: true };
+}
+__name(resendSend, "resendSend");
+
 function unsubscribeLink(env, email) {
   const workerUrl = env.WORKER_URL || "https://playfund-worker.playfund.workers.dev";
   return signUnsubscribe(email, env.UNSUBSCRIBE_SECRET || "").then(
@@ -227,7 +262,7 @@ async function sendPasswordResetEmail(env, email, resetUrl) {
     </td></tr>
   </table></td></tr></table></body></html>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    await resendSend(env, {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -365,7 +400,7 @@ async function sendParentRegistrationEmail(env, club, team, athlete) {
     </td></tr>
   </table></td></tr></table></body></html>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    await resendSend(env, {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -440,7 +475,7 @@ async function sendApprovalEmail(env, club, team, athlete) {
   </td></tr></table>
   </body></html>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    await resendSend(env, {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -522,7 +557,7 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
   </td></tr></table>
   </body></html>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    await resendSend(env, {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -584,7 +619,7 @@ async function sendPendingApprovalEmail(env, club, team, athlete) {
   </td></tr></table>
   </body></html>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    await resendSend(env, {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -656,12 +691,12 @@ async function alertIfClubAwaitingFee(env, club) {
     const RESEND_API_KEY = env.RESEND_API_KEY;
     if (!RESEND_API_KEY) return;
     const where = [club.city, club.state].filter(Boolean).join(", ");
-    await fetch("https://api.resend.com/emails", {
+    await resendSend(env, {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "PlayFund Alerts <alerts@playfundai.com>",
-        to: ["alerts@playfundai.com"],
+        from: "PlayFund Alerts <admin@playfundai.com>",
+        to: ["admin@playfundai.com"],
         subject: `ACTION NEEDED \u2014 set a rate for ${club.name}, families can't pay yet`,
         html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
   <p style="margin:0 0 16px;font-size:15px;color:#B42318;"><strong>${club.name}</strong> has finished Stripe onboarding and can accept charges, but no PlayFund rate has been set \u2014 so every family is being turned away at checkout.</p>
@@ -778,7 +813,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   </td></tr></table>
   </body></html>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    await resendSend(env, {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -845,12 +880,12 @@ async function sendInternalClubAlert(env, club, inviteError) {
   </div>
   </body></html>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    await resendSend(env, {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "PlayFund Alerts <alerts@playfundai.com>",
-        to: ["alerts@playfundai.com"],
+        from: "PlayFund Alerts <admin@playfundai.com>",
+        to: ["admin@playfundai.com"],
         subject: inviteError
           ? `ACTION NEEDED — setup link failed for ${club.name} (${location})`
           : `New club: ${club.name} (${location}), est. $${payout > 0 ? payout.toLocaleString() : "TBD"} payout`,
@@ -1846,13 +1881,12 @@ var index_default = {
       const RESEND_API_KEY = env.RESEND_API_KEY;
       if (!RESEND_API_KEY) return err("Contact is not configured yet", 500);
       const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      try {
-        await fetch("https://api.resend.com/emails", {
+      const sent = await resendSend(env, {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: "PlayFund Site <alerts@playfundai.com>",
-            to: ["alerts@playfundai.com"],
+            from: "PlayFund Site <admin@playfundai.com>",
+            to: ["admin@playfundai.com"],
             reply_to: email,
             subject: `New enquiry: ${club}`,
             html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
@@ -1863,8 +1897,7 @@ var index_default = {
 </div>`
           })
         });
-      } catch (e) {
-        console.error("Contact email failed:", e);
+      if (!sent.ok) {
         return err("Could not send just now. Please email admin@playfundai.com.", 502);
       }
       await supabase(env, "POST", "/events", {
@@ -1936,13 +1969,12 @@ var index_default = {
            supplied by the parent, not by that person. They have not opted in to hearing from us — treat a first
            approach accordingly.</p>`;
 
-      try {
-        await fetch("https://api.resend.com/emails", {
+      const sent = await resendSend(env, {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: "PlayFund Site <alerts@playfundai.com>",
-            to: ["alerts@playfundai.com"],
+            from: "PlayFund Site <admin@playfundai.com>",
+            to: ["admin@playfundai.com"],
             reply_to: email,
             subject: `Parent request: ${club}`,
             html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:560px;">
@@ -1963,9 +1995,8 @@ var index_default = {
 </div>`
           })
         });
-      } catch (e) {
-        console.error("Parent request email failed:", e);
-        return err("Could not send just now. Please email admin@playfundai.com.", 502);
+      if (!sent.ok) {
+        return err("We couldn't record that just now. Please email admin@playfundai.com and we'll pick it up.", 502);
       }
 
       // No parent name or email in analytics — the club and the offer version

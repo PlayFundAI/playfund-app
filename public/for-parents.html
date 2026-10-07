@@ -318,8 +318,9 @@
       <b>Only the first person to tell us about a club qualifies.</b> If someone has already named your club, the
       offer isn&rsquo;t available to you, even if the club joins later and even if you asked independently. One per
       family, and limited to the first clubs in our pilot. If you register more than one athlete, the credit applies
-      to one of them, not to a combined plan. We pay after your club&rsquo;s registration has been collected and the
-      refund window has passed. We may change or withdraw this offer at any time; that won&rsquo;t affect a request
+      to one of them, not to a combined plan. We pay within 30 days of your club&rsquo;s first completed
+      registration. We&rsquo;ll either apply it to your own registration or pay you directly, and we&rsquo;ll
+      tell you which when we confirm you qualify. We may change or withdraw this offer at any time; that won&rsquo;t affect a request
       you&rsquo;ve already sent. This is an offer from PlayFund, not from your club, and your club isn&rsquo;t obliged
       to do anything.
     </div>
@@ -345,7 +346,7 @@
   var WORKER_URL = 'https://playfund-worker.playfund.workers.dev';
   // Bumped whenever the offer wording changes, and sent with the request, so a
   // record always says which version of the promise the parent was shown.
-  var OFFER_VERSION = '2026-10-07';
+  var OFFER_VERSION = '2026-10-07b';
 
   document.getElementById('parentForm').addEventListener('submit', async function(e){
     e.preventDefault();

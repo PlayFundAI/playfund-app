@@ -818,6 +818,79 @@ somewhere other than a chat log.
       over this question and said any recourse makes "paid upfront" significantly less
       meaningful, so expect it to come up in every careful club's diligence.
 
+### Referral offer: what still has no mechanism (2026-10-07)
+
+Raised when the offer was about to be shared with parents from the survey list. The
+website now carries a 30-day payment deadline; none of the below is built.
+
+- [ ] **No postal address, so commercial email to a club contact is not compliant.** The
+      parent form now *requires* a club contact, and a human cold-emails that person. That
+      is a commercial message under CAN-SPAM and needs a working opt-out and a **valid
+      physical postal address**. Checked the codebase: `unsubscribeLink()` is called in
+      exactly one place, the payment reminder, and **no email template contains a postal
+      address at all**.
+
+      Receipts, setup links and payment reminders are relationship messages and largely
+      exempt. The club outreach is not, and it is the one that has neither, because it is
+      not a template.
+
+      **A home address is the wrong answer** (it goes on every commercial email you ever
+      send), and the Delaware registered agent will not work either, since those are for
+      service of process and most agents forbid use as a business address. Two realistic
+      routes: a **USPS PO Box** (~$20-40 per six months, explicitly acceptable), or a
+      **virtual mailbox** (Stable, iPostal1, PostScan; ~$10-30/month) which gives a
+      street-format address that reads better on a cold email to a treasurer.
+
+      Once there is an address, wire it as an env var and have the outreach block refuse to
+      render without it, the way `PAY_IN_FULL_PMC_ID` already fails loudly rather than
+      falling back.
+
+- [ ] **"First parent to ask" has no durable record.** The rule is disclosed on the page and
+      nothing enforces it. The only evidence of who asked first is a pile of alert emails in
+      a shared inbox. If the offer works, several parents name the same club; pay the wrong
+      one or refuse someone who genuinely was first, and that is a money dispute with a
+      consumer where the records are a mailbox.
+
+      `offer_version` records what a parent was *shown*. Nothing records who was *first*.
+
+      Needs a `referral_requests` table: timestamp, club name as typed, a normalised club
+      key, parent name and email, club contact, city, sport, `offer_version`, status.
+      Deliberately **not** the `events` table, which holds no personal information on
+      purpose.
+
+      **It must not auto-reject the parent.** Normalisation cannot reliably tell that
+      "Northside Select" and "Northside Select Volleyball Club" are the same club, and a
+      wrong automated rejection is worse than no claim. Flag likely duplicates in the alert
+      email for a human; the durable record is the point.
+
+- [ ] **Decide how the money actually reaches the parent.** The terms now say we will either
+      apply it to their own registration or pay them directly, which is honest but is a
+      decision deferred, not made.
+
+      **Discount their own registration** is a price reduction on their own purchase, so it
+      is not income and raises no reporting question. Requires them to register through us
+      and the club to be live before their season.
+
+      **Cash** works even if they never register, but it is a payment to an individual in
+      the course of business, and half a season on a $1,500 registration is $750 against a
+      general **$600** reporting threshold. A rebate on your own purchase is normally not
+      income; a cash referral payment is a different thing.
+
+      Recommendation on file: discount where possible, cash as fallback, and say which in
+      the terms once decided.
+
+- [ ] **The headline makes an unconditional claim.** "Get 50% of your upcoming season
+      covered." The conditions sit directly underneath, which is the right place, but FTC
+      expectations around clear and conspicuous disclosure generally want material
+      conditions roughly as prominent as the claim that triggers them. The foreseeable harm
+      is specific: a parent reads the headline, fills the form, and later learns another
+      parent named their club first. Worth a lawyer's view on whether the adjacent sentence
+      is enough.
+
+- [ ] **Ask counsel whether paying a parent to introduce their club creates an
+      endorsement-disclosure obligation** when that parent then recommends us to their
+      board. They have a material connection at that point.
+
 - [ ] **COPPA has not been confirmed with counsel.** Moved out of the public privacy policy on
       2026-10-05, because a "we haven't checked this" box on a page about children's data
       reads as an admission and tells a parent nothing. The policy now describes actual

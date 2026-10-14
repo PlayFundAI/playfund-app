@@ -409,6 +409,62 @@ build on: two of the three are inferences from published help pages.
       it at any scale.
 
 
+## 18. Jackson offboarding (started 2026-10-13)
+
+Jackson is leaving to start a new job. AJ is working through the account removals; this
+records what else the offboarding touches, because most of it is not an account.
+
+- [x] **Removed `jackson@playfundai.com` from customer-facing app copy** (2026-10-13). It was
+      in two places: the post-payment screen ("Questions? Reach us at...") and the FAQ ("For
+      club partnerships, reach Jackson directly at..."). Both now point at `admin@`.
+
+- [ ] **Decide what happens to mail sent to `jackson@playfundai.com` before deleting the
+      Workspace seat.** That address was printed in the app for months, so parents and clubs
+      have it saved. Deleting the seat outright means they get a bounce. Forward to `admin@`
+      for a period, or set an autoresponder.
+
+- [ ] **Rotate the Worker secrets. Removing his logins does not remove this access.** Anything
+      he could have seen he still has:
+
+      | Secret | Exposure if kept |
+      |---|---|
+      | `SUPABASE_SERVICE_KEY` | **Worst case.** Full read/write on minors' data and payment records, bypasses RLS |
+      | `STRIPE_SECRET_KEY` | Live mode. Can move money |
+      | `STRIPE_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET_CONNECT` | Forge events, mark athletes paid |
+      | `RESEND_API_KEY` | Send mail as `admin@playfundai.com` |
+      | `UNSUBSCRIBE_SECRET` | Rotating this **breaks every unsubscribe link already sent**. Probably leave it |
+
+      Do this as one deliberate pass, not mixed into the account removals. A half-landed
+      rotation takes payments down.
+
+- [ ] **Confirm `aj@playfundai.com` holds full owner rights everywhere before removing him.**
+      Item 6 of this punchlist already flags admin access as a single point of failure: the
+      only app admins were `jacksonwwatkins@gmail.com` and an undocumented
+      `pf-test-playfundadmin@example.com`. On Supabase and Cloudflare, removing the wrong
+      owner first is recoverable only through support.
+
+- [ ] **Check nothing still runs in his personal Cloudflare account** (`921521fb…`) before
+      losing access to it. It hosted the original Worker, which was deliberately kept for
+      about 30 days so old unsubscribe links kept working.
+
+- [ ] **Beneficial ownership is separate from access, and is not cleaned up by deleting an
+      account.** Jackson holds over 25% of the company, which is why Stripe asked for his SSN
+      and date of birth during Connect onboarding. Leaving the company is not the same as
+      giving up equity. If his stake is unchanged he correctly remains a beneficial owner on
+      the Stripe platform account with no dashboard access; if the cap table changes, Stripe's
+      record has to be updated through their process. Delaware filings apply too if he was
+      named an officer or director. Lawyer question, same conversation as the outstanding
+      Terms of Service review in section 17.
+
+- [ ] **Billing.** Check which services are on paid plans and move them to the company card:
+      Cloudflare (Workers Paid), Supabase (Pro), Resend, Google Workspace (per seat, and
+      removing his seat lowers it), the Squarespace domain renewal, and the GitHub org. Stripe
+      has no subscription, but **confirm the payout bank account on the platform account is
+      the company's and not tied to him**.
+
+- [ ] **Section 7 of this punchlist is "Club reporting (Jackson's track)".** That workstream
+      now has no owner. Either reassign it or close it.
+
 ## 15. Session parity — every new Claude session (cloud or local) needs to check these before doing real work
 
 Grounded in a real failure, not a hypothetical: the session that root-caused the `invite_url: null` bug (item 6) committed a real fix on branch `ajjurko/fix-invite-link-race` and then hit a dead end — "this machine has no GitHub credentials (`git push` fails, no `gh`, no SSH key), so the fix is committed locally only and could not be merged or deployed." It eventually landed as PR #10 **from that same session** — the dead end lasted about an hour, until `gh` was installed into `~/bin`, authenticated, and the branch pushed and merged from there. (Correcting this because the checklist below is right for the right reason: the session was genuinely stuck and said so, rather than accumulating unlandable work quietly.) Multiple sessions (this cloud one, at least one local one, possibly more later) are now working the same repo in parallel — worth a standard startup check so nobody's work gets stranded again, and nobody duplicates a fix another session already shipped.

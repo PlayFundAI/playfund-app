@@ -102,32 +102,54 @@
   .eyebrow{display:inline-block;background:var(--paper-dim);border-radius:999px;
            padding:7px 16px;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:22px}
 
-  /* Hero: two audiences side by side, divided by a hairline, each column a
+  /* Hero: two audiences as two cards, one tinted and one ink, each a
      self-contained unit of icon, heading and that audience's own button. The
      subject word is larger than the statement under it, so the two audiences
      are what you see first.
-     Keeping the heading as one <h1> spanning both and putting the buttons in a
-     second grid was the first attempt. It looked right on desktop and stacked
-     both buttons at the bottom on mobile, which put the parent CTA directly
-     under the club statement. Self-contained columns stack correctly with no
-     ordering rules at all. The left column is the <h1> and the right an <h2>,
-     which keeps exactly one top-level heading in document order. */
-  .split{display:grid;grid-template-columns:1fr 1fr;max-width:900px;margin:0 auto}
-  .split-col{padding:0 38px;display:block}
-  .split-head{margin:0}
-  .split-btn{margin-top:26px}
-  .split-col + .split-col{border-left:1px solid var(--line)}
-  .split-icon{width:40px;height:40px;stroke:var(--green);fill:none;stroke-width:1.8;
-              stroke-linecap:round;stroke-linejoin:round;margin-bottom:10px}
-  .split-who{display:block;font-size:clamp(34px,4.4vw,50px);color:var(--green-dk);margin-bottom:5px}
-  .split-say{display:block;font-size:clamp(24px,2.9vw,32px);color:var(--ink)}
+     The cards replaced a hairline divider, which read clearly on desktop and
+     not at all on a phone: stacked, the tagline and both statements were Anton
+     at 27, 34 and 24px with only a 1px line between them, so there was nothing
+     to tell you where one idea ended.
+     The left column is the <h1> and the right an <h2>, which keeps exactly one
+     top-level heading in document order. */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:960px;margin:0 auto}
+  .split-col{border-radius:13px;padding:34px 30px 30px;text-align:center;
+             display:flex;flex-direction:column}
+  .split-head{margin:0 0 26px}
+  /* Grid stretches both cards to the same height, so pinning the button to the
+     bottom of each lines the two up whatever the statements do. Sizing the type
+     to force one line each would have worked today and broken on the first copy
+     change. On mobile the cards are their own height, there is no free space to
+     absorb, and the heading's own margin provides the gap. */
+  .split-btn{margin-top:auto}
+  /* Centred with auto margins, not text-align: the column is a flex container
+     now, so the svg is a flex item and text-align no longer reaches it. */
+  .split-icon{width:40px;height:40px;fill:none;stroke-width:1.8;
+              stroke-linecap:round;stroke-linejoin:round;margin:0 auto 12px}
+  .split-who{display:block;font-size:clamp(34px,4.4vw,50px);line-height:1.05;margin-bottom:5px}
+  .split-say{display:block;font-size:clamp(24px,2.9vw,32px);line-height:1.12}
+
+  .split-col.fam{background:var(--paper-dim)}
+  .fam .split-icon{stroke:var(--green)}
+  .fam .split-who{color:var(--green-dk)}
+  .fam .split-say{color:var(--ink)}
+  .fam .split-btn{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+
+  .split-col.clb{background:var(--ink)}
+  /* --green rather than --green-dk on ink: the darker green fails for contrast
+     against #004643, so the two cards use different greens on purpose. */
+  .clb .split-icon{stroke:var(--green)}
+  .clb .split-who{color:var(--green)}
+  .clb .split-say{color:#fff}
+  /* A white border, not no border: the Families button carries a 1.5px line
+     and without a matching one here the two buttons differ by 3px in height
+     and sit 3px apart, which bottom-alignment cannot fix. */
+  .clb .split-btn{background:#fff;color:var(--ink);border:1.5px solid #fff}
+
   /* Forces the break only where the columns are narrow enough to need it. */
   @media (min-width:821px){ .split-brk{display:block} }
   @media (max-width:820px){
-    .split{grid-template-columns:1fr;max-width:460px}
-    /* Stacked, the divider has to run across rather than down. */
-    .split-col{padding:0}
-    .split-col + .split-col{border-left:none;border-top:1px solid var(--line);margin-top:26px;padding-top:26px}
+    .split{grid-template-columns:1fr;max-width:460px;gap:14px}
   }
 
   /* dashboard illustration */
@@ -295,12 +317,12 @@
   <div class="wrap">
     <p class="tagline">Changing how families pay for youth sports.</p>
     <div class="split">
-      <div class="split-col">
+      <div class="split-col fam">
         <svg class="split-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 20.5v-.5a6 6 0 0 1 12 0v.5"/><circle cx="17.6" cy="11.2" r="2.1"/><path d="M14.4 20.5v-.3a3.4 3.4 0 0 1 6.8 0v.3"/></svg>
         <h1 class="split-head"><span class="split-who">Families</span><span class="split-say">Get flexible payment options.</span></h1>
         <a class="btn btn-primary split-btn" href="/for-parents">Request PlayFund at My Club</a>
       </div>
-      <div class="split-col">
+      <div class="split-col clb">
         <svg class="split-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 4H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2.2"/><rect x="9.2" y="2.6" width="5.6" height="3" rx="1.1"/><path d="M8.6 11.4h6.8M8.6 15.2h4.4"/></svg>
         <h2 class="split-head"><span class="split-who">Clubs</span><span class="split-say">Get paid up front <span class="split-brk">no matter what.</span></span></h2>
         <a class="btn btn-primary split-btn" href="#contact">Explore a Club Pilot</a>

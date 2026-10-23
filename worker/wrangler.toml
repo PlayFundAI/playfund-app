@@ -20,8 +20,17 @@ MIN_FEE_BPS = "605"
 APP_URL = "https://www.playfundai.com/app/"
 WORKER_URL = "https://playfund-worker.playfund.workers.dev"
 
-# Daily reminder-email sweep (runScheduledReminders). Was previously only
-# configured through the Cloudflare dashboard, not declared here — matched
-# against the live schedule via the Cloudflare API before adding this.
+# Two schedules, dispatched in the worker's scheduled() handler on event.cron:
+#   0 13 * * *  daily reminder-email sweep  (runScheduledReminders)
+#   0 14 * * 1  Monday metrics digest       (runWeeklyMetrics)
+#
+# Different hours on purpose. Overlapping expressions fire the handler once per
+# expression, which is correct but reads as a duplicate run in the logs.
+#
+# The daily sweep was previously configured only through the Cloudflare
+# dashboard and not declared here; it was matched against the live schedule via
+# the Cloudflare API before being added. The weekly expression also appears in
+# worker/index.js as WEEKLY_METRICS_CRON, and the two have to match or the
+# digest silently never sends.
 [triggers]
-crons = ["0 13 * * *"]
+crons = ["0 13 * * *", "0 14 * * 1"]

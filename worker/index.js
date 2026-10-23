@@ -184,6 +184,33 @@ __name(signUnsubscribe, "signUnsubscribe");
 // Takes the fetch options unchanged so the call sites convert by swapping the
 // call prefix, and reads the recipient and subject back out of the body for the
 // log line rather than taking another argument.
+// One place that turns an email subject into a stable bucket, so the weekly
+// metrics digest can group mail by type instead of by subject line, which
+// carries an athlete or club name and is therefore unique per send.
+//
+// It sits next to the code that writes those subjects deliberately: when a
+// subject changes, this is in the same file and the same diff. Anything not
+// listed falls to "Other", which is how a new mail type announces itself.
+function emailKind(subject) {
+  const s = String(subject == null ? "" : subject);
+  if (!s) return "Unknown";
+  if (/^Reset your PlayFund password/i.test(s)) return "Password reset";
+  if (/^Reminder:/i.test(s)) return "Payment reminder";
+  if (/^Receipt:/i.test(s)) return "Receipt";
+  if (/is registered with/i.test(s)) return "Registration confirmed";
+  if (/is confirmed/i.test(s)) return "Payment confirmed";
+  if (/needs your approval/i.test(s)) return "Approval needed";
+  if (/^Welcome to PlayFund/i.test(s)) return "Club welcome";
+  if (/^ACTION NEEDED/i.test(s)) return "Action needed (internal)";
+  if (/New club:/i.test(s)) return "New club (internal)";
+  if (/^New enquiry:/i.test(s)) return "Site enquiry (internal)";
+  if (/^Parent request:/i.test(s)) return "Parent request (internal)";
+  if (/wants to arrange payment directly/i.test(s)) return "Direct payment request (internal)";
+  if (/^PlayFund weekly metrics/i.test(s)) return "Weekly digest (internal)";
+  return "Other";
+}
+__name(emailKind, "emailKind");
+
 async function resendSend(env, opts) {
   let meta = {};
   try { meta = JSON.parse(opts && opts.body || "{}"); } catch {}
@@ -203,7 +230,27 @@ async function resendSend(env, opts) {
     console.error(`Email REJECTED to ${who}: ${res.status} ${detail}`);
     return { ok: false, error: detail, status: res.status };
   }
-  return { ok: true };
+  // Resend has no endpoint that returns how much mail we sent, so the opens
+  // and clicks its webhook delivers would have no denominator unless we count
+  // sends ourselves. The recipient is deliberately left out: the subject and
+  // kind are all the weekly digest needs, and parent addresses are already in
+  // athletes, so there is no reason to copy them into an analytics table.
+  let sentId = null;
+  try { sentId = ((await res.json()) || {}).id || null; } catch {}
+  const logged = await supabase(env, "POST", "/events", {
+    event_name: "email_sent",
+    session_id: null,
+    athlete_id: null,
+    club_id: null,
+    properties: { resend_email_id: sentId, subject: meta.subject || null, kind: emailKind(meta.subject) }
+  }).catch((e) => ({ ok: false, status: 0, data: String(e) }));
+  // A send that happened matters more than a metric that did not, so this
+  // never changes the return value. It does get said out loud, because a
+  // silently broken denominator makes every open rate in the digest a lie.
+  if (!logged.ok) {
+    console.error(`Could not record email_sent for ${who}: ${logged.status} ${JSON.stringify(logged.data)}`);
+  }
+  return { ok: true, id: sentId };
 }
 __name(resendSend, "resendSend");
 
@@ -951,8 +998,194 @@ async function runScheduledReminders(env) {
   return { sent: totalSent, errors };
 }
 __name(runScheduledReminders, "runScheduledReminders");
+// ---------------------------------------------------------------------------
+// Weekly metrics digest. Sent to admin@playfundai.com on Mondays, and on
+// demand through POST /admin/send-weekly-metrics.
+//
+// The counting happens in Postgres (weekly_metrics, see
+// migrations/2026-10-23-weekly-metrics.sql) because the worker reaches
+// Supabase through PostgREST, which cannot GROUP BY. This file only formats
+// what comes back.
+// ---------------------------------------------------------------------------
+
+// Must match the weekly entry in worker/wrangler.toml. Mondays, 14:00 UTC,
+// which is 10am New York in summer and 9am in winter.
+var WEEKLY_METRICS_CRON = "0 14 * * 1";
+
+var METRIC_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function metricDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "?";
+  return `${METRIC_MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+__name(metricDate, "metricDate");
+
+// Workers ship ICU, but a digest that renders identically wherever it is built
+// is worth more than locale awareness in an internal email.
+function metricNum(n) {
+  return String(Number(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+__name(metricNum, "metricNum");
+
+function buildWeeklyMetricsHtml(data) {
+  const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const n = (v) => Number(v || 0);
+
+  const period = data.period || {};
+  const site = data.site || {};
+  const email = data.email || {};
+  const app = Array.isArray(data.app) ? data.app : [];
+  const sNow = site.now || {}, sPrev = site.prev || {};
+  const eNow = email.now || {}, ePrev = email.prev || {};
+
+  const tile = (label, value, prev) => ({ label, value, prev });
+
+  // Equal thirds, stated three ways because email clients disagree about which
+  // one they honour. Left to size themselves, the cells take their content's
+  // width and "Unique opens" comes out half again as wide as "Sent".
+  const tiles = (cells) => `<table style="width:100%;border-collapse:separate;border-spacing:0;margin:0 0 6px;table-layout:fixed;"><tr>${cells.map((c, i) => `<td width="33%" style="width:33.33%;padding:0 ${i === cells.length - 1 ? "0" : "10px"} 10px 0;vertical-align:top;">
+      <div style="border:1px solid #E5E7EB;border-radius:10px;padding:13px 14px;">
+        <div style="font-size:12px;color:#6B7280;line-height:1.3;">${esc(c.label)}</div>
+        <div style="font-size:25px;color:#004643;font-weight:600;line-height:1.15;margin:3px 0 2px;">${metricNum(c.value)}</div>
+        <div style="font-size:12px;color:#9CA3AF;">was ${metricNum(c.prev)}</div>
+      </div></td>`).join("")}</tr></table>`;
+
+  // Cells arrive escaped by the caller, because some of them carry markup.
+  const table = (headers, rows, empty) => {
+    if (!rows.length) return `<p style="margin:0 0 20px;font-size:13px;color:#9CA3AF;">${esc(empty)}</p>`;
+    const th = headers.map((h, i) => `<th style="text-align:${i === 0 ? "left" : "right"};padding:6px 0 6px ${i === 0 ? "0" : "14px"};font-size:12px;color:#9CA3AF;font-weight:500;border-bottom:1px solid #E5E7EB;">${esc(h)}</th>`).join("");
+    const tr = rows.map((cells) => `<tr>${cells.map((c, i) => `<td style="text-align:${i === 0 ? "left" : "right"};padding:7px 0 7px ${i === 0 ? "0" : "14px"};font-size:13px;color:#374151;border-bottom:1px solid #F3F4F6;">${c}</td>`).join("")}</tr>`).join("");
+    return `<table style="width:100%;border-collapse:collapse;margin:0 0 22px;"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+  };
+
+  const heading = (t) => `<h2 style="margin:26px 0 12px;font-size:15px;color:#004643;">${esc(t)}</h2>`;
+
+  // Unique opens over sends, both inside the window. Opens can belong to mail
+  // sent before the window opened, so this is not a cohort rate and can pass
+  // 100% in a quiet week. Said plainly in the footnote rather than clamped.
+  const openRate = n(eNow.sent) > 0
+    ? Math.round(100 * n(eNow.unique_opened) / n(eNow.sent)) + "%"
+    : null;
+
+  const notes = [];
+  if (n(eNow.sent) === 0 && (n(eNow.opened) > 0 || n(eNow.clicked) > 0)) {
+    notes.push("Opens or clicks arrived with no sends counted. Sends are recorded at the point we call Resend, which started recently, so email rates are not meaningful until a full week has passed.");
+  }
+  if (n(eNow.delivered) === 0 && n(eNow.sent) > 0) {
+    notes.push("No delivery events. Resend accepted the mail, but its email.delivered webhook does not appear to be subscribed, so accepted and delivered cannot be told apart here.");
+  }
+  if (openRate) {
+    notes.push("Open rate is unique opens in this window over sends in this window. An open can belong to mail sent earlier, so a quiet week can read above 100%.");
+  }
+  notes.push("Opens depend on the reader loading images, so they undercount. Clicks do not.");
+
+  const siteRows = (site.pages || []).map((r) => [esc(r.path || "(none)"), metricNum(r.views), metricNum(r.visitors)]);
+  const clickRows = (site.clicks || []).map((r) => [esc(r.label || "(no label)"), esc(r.path || ""), metricNum(r.clicks)]);
+  const refRows = (site.referrers || []).map((r) => [esc(r.source), metricNum(r.visitors)]);
+  const kindRows = (email.by_kind || []).map((r) => [
+    esc(r.kind),
+    metricNum(r.sent),
+    metricNum(r.unique_opened),
+    metricNum(r.clicked),
+    n(r.bounced) > 0 ? `<span style="color:#B42318;">${metricNum(r.bounced)}</span>` : "0"
+  ]);
+  const appRows = app.map((r) => [esc(r.event_name), metricNum(r.n), metricNum(r.prev_n)]);
+
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:600px;color:#374151;">
+  <p style="margin:0 0 2px;font-size:19px;color:#004643;font-weight:600;">PlayFund weekly metrics</p>
+  <p style="margin:0 0 4px;font-size:13px;color:#6B7280;">${esc(metricDate(period.start))} to ${esc(metricDate(period.end))}, against the ${n(period.days)} days before it.</p>
+
+  ${heading("Website")}
+  ${tiles([
+    tile("Visitors", sNow.visitors, sPrev.visitors),
+    tile("Page views", sNow.page_views, sPrev.page_views),
+    tile("Clicks", sNow.clicks, sPrev.clicks)
+  ])}
+  <p style="margin:14px 0 6px;font-size:13px;color:#6B7280;">Pages</p>
+  ${table(["Page", "Views", "Visitors"], siteRows, "No page views this week.")}
+  <p style="margin:0 0 6px;font-size:13px;color:#6B7280;">Clicks</p>
+  ${table(["Label", "Page", "Clicks"], clickRows, "No clicks this week.")}
+  <p style="margin:0 0 6px;font-size:13px;color:#6B7280;">Where visitors came from</p>
+  ${table(["Source", "Visitors"], refRows, "No referrers this week.")}
+
+  ${heading("Email")}
+  ${tiles([
+    tile("Sent", eNow.sent, ePrev.sent),
+    tile("Unique opens", eNow.unique_opened, ePrev.unique_opened),
+    tile("Clicked", eNow.clicked, ePrev.clicked)
+  ])}
+  ${tiles([
+    tile("Delivered", eNow.delivered, ePrev.delivered),
+    tile("Bounced", eNow.bounced, ePrev.bounced),
+    tile("Spam reports", eNow.complained, ePrev.complained)
+  ])}
+  ${openRate ? `<p style="margin:10px 0 0;font-size:14px;color:#004643;">Open rate <strong>${esc(openRate)}</strong>, from ${metricNum(eNow.unique_opened)} of ${metricNum(eNow.sent)} sends.</p>` : ""}
+  <p style="margin:18px 0 6px;font-size:13px;color:#6B7280;">By type of mail</p>
+  ${table(["Type", "Sent", "Unique opens", "Clicked", "Bounced"], kindRows, "No email activity this week.")}
+
+  ${heading("Product")}
+  ${table(["Event", "This week", "Week before"], appRows, "No product events this week.")}
+
+  <div style="margin:26px 0 0;padding:14px;border-radius:8px;background:#F9FAFB;">
+    ${notes.map((t) => `<p style="margin:0 0 8px;font-size:12px;color:#6B7280;line-height:1.5;">${esc(t)}</p>`).join("")}
+    <p style="margin:0;font-size:12px;color:#9CA3AF;line-height:1.5;">Counted from the events table. Run <span style="font-family:ui-monospace,Menlo,monospace;">tools/pf-analytics</span> for the same site numbers on demand.</p>
+  </div>
+</div>`;
+}
+__name(buildWeeklyMetricsHtml, "buildWeeklyMetricsHtml");
+
+async function runWeeklyMetrics(env, days) {
+  const p_days = Number(days) > 0 ? Number(days) : 7;
+  if (!env.RESEND_API_KEY) {
+    console.error("Weekly metrics: RESEND_API_KEY is not set, nothing sent");
+    return { ok: false, error: "RESEND_API_KEY not set" };
+  }
+
+  const res = await supabase(env, "POST", "/rpc/weekly_metrics", { p_days });
+  if (!res.ok) {
+    console.error(`Weekly metrics: weekly_metrics() failed, http=${res.status} body=${JSON.stringify(res.data)}`);
+    return { ok: false, error: `rpc ${res.status}` };
+  }
+  // PostgREST returns a scalar jsonb result as the body itself. Tolerating the
+  // single-row-array shape too costs one line and removes a way for this to
+  // break on an upgrade.
+  const data = Array.isArray(res.data) ? res.data[0] : res.data;
+  if (!data || typeof data !== "object") {
+    console.error(`Weekly metrics: unexpected rpc shape: ${JSON.stringify(res.data).slice(0, 300)}`);
+    return { ok: false, error: "unexpected rpc shape" };
+  }
+
+  const period = data.period || {};
+  const subject = `PlayFund weekly metrics, ${metricDate(period.start)} to ${metricDate(period.end)}`;
+  const sent = await resendSend(env, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: "PlayFund Metrics <admin@playfundai.com>",
+      to: ["admin@playfundai.com"],
+      subject,
+      html: buildWeeklyMetricsHtml(data)
+    })
+  });
+  if (!sent.ok) return { ok: false, error: sent.error || "send failed" };
+
+  const s = data.site?.now || {}, e = data.email?.now || {};
+  console.log(`Weekly metrics sent: visitors=${s.visitors || 0} page_views=${s.page_views || 0} clicks=${s.clicks || 0} emails_sent=${e.sent || 0} unique_opens=${e.unique_opened || 0}`);
+  return { ok: true, subject, summary: { site: s, email: e } };
+}
+__name(runWeeklyMetrics, "runWeeklyMetrics");
+
 var index_default = {
   async scheduled(event, env, ctx) {
+    // Two triggers share this handler, so it dispatches on the expression that
+    // fired rather than running both. They are at different times on purpose:
+    // overlapping expressions fire the handler once per expression, which is
+    // correct but harder to read in the logs.
+    if (event.cron === WEEKLY_METRICS_CRON) {
+      ctx.waitUntil(runWeeklyMetrics(env));
+      return;
+    }
     ctx.waitUntil(runScheduledReminders(env));
   },
   async fetch(request, env) {
@@ -1346,6 +1579,24 @@ var index_default = {
       });
       if (!updateRes.ok) return err("Failed to update capabilities: " + JSON.stringify(updateRes.data), 500);
       return json({ success: true, capabilities: updateRes.data?.configuration?.merchant?.capabilities });
+    }
+    // Same auth as /admin/run-reminders: a Supabase session token belonging to
+    // a playfund_admin. Behind auth because the response is every business
+    // number we have, and the digest itself goes to one internal address.
+    if (method === "POST" && path === "/admin/send-weekly-metrics") {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!userRes.ok) return err("Invalid token", 401);
+      const userData = await userRes.json();
+      const profileRes = await supabase(env, "GET", `/user_profiles?id=eq.${userData.id}&select=role`);
+      if (profileRes.data?.[0]?.role !== "playfund_admin") return err("Forbidden", 403);
+      const days = Number(url.searchParams.get("days")) || 7;
+      const result = await runWeeklyMetrics(env, days);
+      return result.ok ? json(result) : err(result.error || "Could not send", 502);
     }
     if (method === "POST" && path === "/admin/run-reminders") {
       const authHeader = request.headers.get("Authorization") || "";
@@ -2802,7 +3053,10 @@ var index_default = {
       if (!eventType || !eventType.startsWith("email.")) return json({ received: true });
       const properties = {
         resend_email_id: event.data?.email_id || null,
-        subject: event.data?.subject || null
+        subject: event.data?.subject || null,
+        // Same labelling as the send, so the digest can group a send and the
+        // opens it produced under one row.
+        kind: emailKind(event.data?.subject)
       };
       if (eventType === "email.clicked" && event.data?.click?.link) {
         properties.link = event.data.click.link;

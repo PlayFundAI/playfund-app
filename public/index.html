@@ -469,6 +469,72 @@
 
   var WORKER_URL = 'https://playfund-worker.playfund.workers.dev';
 
+  // ---------- site analytics ----------
+  // First party: posts to our own /events endpoint, the same one the app has
+  // used since September, so the marketing pages and the app land in one table
+  // and can be joined on session_id. No third party, and nothing here is
+  // persistent: sessionStorage is cleared when the tab closes, which is why
+  // this needs no cookie banner.
+  //
+  // Deliberately not recorded: no cursor positions, no scroll heatmap, no form
+  // field contents. Click tracking is which control was pressed, not what was
+  // typed into the form beside it. These pages collect a parent's name, email
+  // and club, and none of that should ever reach an analytics table.
+  (function(){
+    var KEY = 'pf_site_session';
+    function sessionId(){
+      try {
+        var id = sessionStorage.getItem(KEY);
+        if(!id){
+          id = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+          sessionStorage.setItem(KEY, id);
+        }
+        return id;
+      } catch(e){ return null; }
+    }
+    function track(name, props){
+      try {
+        var payload = JSON.stringify({
+          event_name: name,
+          session_id: sessionId(),
+          properties: props || {}
+        });
+        // sendBeacon survives the page unloading, which a fetch on a link click
+        // does not. Without it every outbound click would be lost in the race
+        // between the request and the navigation.
+        if(navigator.sendBeacon){
+          navigator.sendBeacon(WORKER_URL + '/events', new Blob([payload], {type:'application/json'}));
+        } else {
+          fetch(WORKER_URL + '/events', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: payload, keepalive: true
+          }).catch(function(){});
+        }
+      } catch(e){}
+    }
+
+    track('site_page_view', {
+      path: location.pathname,
+      // Referrer host only. The full URL can carry someone else's query string.
+      referrer: document.referrer ? (function(){ try { return new URL(document.referrer).host; } catch(e){ return null; } })() : null
+    });
+
+    // One listener on the document rather than one per control, so anything
+    // added to the page later is covered without remembering to wire it up.
+    document.addEventListener('click', function(e){
+      var el = e.target.closest('a, button');
+      if(!el) return;
+      var label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g,' ').slice(0, 60);
+      track('site_click', {
+        path: location.pathname,
+        label: label,
+        href: el.tagName === 'A' ? (el.getAttribute('href') || null) : null,
+        kind: el.tagName.toLowerCase()
+      });
+    }, true);
+  })();
+
+
   document.getElementById('contactForm').addEventListener('submit', async function(e){
     e.preventDefault();
     var msgEl = document.getElementById('contactMsg');

@@ -979,7 +979,24 @@ var index_default = {
       await suppressEmail(env, email, "unsubscribed");
       return htmlPage("You're unsubscribed", `${email} won't receive any further reminder emails from PlayFund.`);
     }
+    // Open by design: it is called from the marketing pages and from /app/
+    // before anyone has signed in, so there is no token to check. What it does
+    // have is a shape, and anything outside that shape is refused rather than
+    // written. Worth being deliberate about, because this is the one endpoint
+    // that writes to the database with no authentication at all.
     if (method === "POST" && path === "/events") {
+      // Browsers always send Origin on these, since every caller is
+      // cross-origin to the Worker. A missing or foreign Origin is not a
+      // request we want in the table. This stops casual abuse and other sites
+      // pointing at us; it does not stop a determined caller with curl, and is
+      // not meant to.
+      const origin = request.headers.get("Origin") || "";
+      const ALLOWED = ["https://www.playfundai.com", "https://playfundai.com"];
+      const isPreview = /^https:\/\/[a-z0-9-]+\.playfund-app\.pages\.dev$/.test(origin);
+      if (!ALLOWED.includes(origin) && !isPreview) {
+        return json({ success: true });
+      }
+
       let body;
       try {
         body = await request.json();
@@ -988,15 +1005,28 @@ var index_default = {
       }
       const { event_name, session_id, athlete_id, club_id, properties } = body;
       if (!event_name || typeof event_name !== "string") return err("event_name required");
-      try {
-        await supabase(env, "POST", "/events", {
-          event_name,
-          session_id: session_id || null,
-          athlete_id: athlete_id || null,
-          club_id: club_id || null,
-          properties: properties && typeof properties === "object" ? properties : {}
-        });
-      } catch (e) {
+      // Every name the app and the Worker currently write is lowercase with
+      // underscores. A pattern rather than an allowlist, so adding an event
+      // does not mean editing two files and finding out it silently vanished.
+      if (!/^[a-z0-9_.]{1,60}$/.test(event_name)) return err("Invalid event_name");
+
+      let props = properties && typeof properties === "object" && !Array.isArray(properties) ? properties : {};
+      // Caps so a loop on a public page cannot write unbounded rows.
+      if (Object.keys(props).length > 20) props = { _truncated: "too many keys" };
+      if (JSON.stringify(props).length > 2000) props = { _truncated: "payload too large" };
+
+      const res = await supabase(env, "POST", "/events", {
+        event_name,
+        session_id: typeof session_id === "string" ? session_id.slice(0, 64) : null,
+        athlete_id: athlete_id || null,
+        club_id: club_id || null,
+        properties: props
+      });
+      // The caller is a page that should not care, so this always answers 200.
+      // But a failed insert used to vanish into an empty catch, which meant an
+      // empty dashboard and no way to tell a quiet week from a broken pipe.
+      if (!res.ok) {
+        console.error(`Event insert failed (${event_name}): ${res.status} ${JSON.stringify(res.data)}`);
       }
       return json({ success: true });
     }

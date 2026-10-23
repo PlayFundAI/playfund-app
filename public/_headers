@@ -42,8 +42,13 @@
 # beacon into every page of the project at deploy time, including this one, so
 # without it in script-src the app logs a CSP violation on every page load and
 # reports nothing. connect-src does not need a matching entry: the beacon posts
-# to /cdn-cgi/rum on our own origin, which 'self' already covers, and that is
-# only true because the injection is automatic rather than a hand-placed tag.
+# to cloudflareinsights.com, so connect-src needs that host too.
+#
+# Cloudflare's own FAQ says automatic injection only needs connect-src 'self',
+# because the beacon is supposed to post to /cdn-cgi/rum on your own origin.
+# That is not what a Pages project does. Checked on the live site: it posts to
+# https://cloudflareinsights.com/cdn-cgi/rum and the CSP blocked it on every
+# page load until this host was added. Trust the console over the doc.
 # The app embeds Stripe, so its CSP has to allow Stripe's scripts and frames
 # and our own Worker. Kept as a separate block from the marketing page so the
 # marketing page isn't forced to trust anything it doesn't need.
@@ -60,4 +65,4 @@
 # popup window instead — which reads to a club as being sent off to a third
 # party, the exact thing embedded onboarding was chosen to avoid.
 /app/*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://playfund-worker.playfund.workers.dev https://klnbdvwasnnqszlhawbl.supabase.co https://api.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://q.stripe.com; frame-src https://js.stripe.com https://connect-js.stripe.com https://connect.stripe.com https://hooks.stripe.com https://m.stripe.network https://checkout.stripe.com; form-action 'self' https://checkout.stripe.com https://hooks.stripe.com; base-uri 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://connect-js.stripe.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cloudflareinsights.com https://playfund-worker.playfund.workers.dev https://klnbdvwasnnqszlhawbl.supabase.co https://api.stripe.com https://connect-js.stripe.com https://merchant-ui-api.stripe.com https://m.stripe.network https://q.stripe.com; frame-src https://js.stripe.com https://connect-js.stripe.com https://connect.stripe.com https://hooks.stripe.com https://m.stripe.network https://checkout.stripe.com; form-action 'self' https://checkout.stripe.com https://hooks.stripe.com; base-uri 'self'; object-src 'none'

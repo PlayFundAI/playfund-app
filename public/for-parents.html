@@ -392,8 +392,16 @@
         // sendBeacon survives the page unloading, which a fetch on a link click
         // does not. Without it every outbound click would be lost in the race
         // between the request and the navigation.
+        //
+        // text/plain, not application/json, and that is not cosmetic. sendBeacon
+        // always sends with credentials, and a credentialed cross-origin request
+        // cannot be answered with Access-Control-Allow-Origin: *, which is what
+        // the Worker returns. Declaring JSON made it a preflighted request and
+        // the browser rejected every single beacon. text/plain is CORS-safelisted,
+        // so it is a simple request: no preflight, response discarded. The
+        // Worker parses the body with request.json() either way.
         if(navigator.sendBeacon){
-          navigator.sendBeacon(WORKER_URL + '/events', new Blob([payload], {type:'application/json'}));
+          navigator.sendBeacon(WORKER_URL + '/events', new Blob([payload], {type:'text/plain'}));
         } else {
           fetch(WORKER_URL + '/events', {
             method:'POST', headers:{'Content-Type':'application/json'},

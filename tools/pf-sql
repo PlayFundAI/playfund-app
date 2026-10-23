@@ -9,9 +9,10 @@
 #   export SUPABASE_ACCESS_TOKEN="sbp_..."   # dashboard > account > tokens
 #   export SUPABASE_PROJECT_REF="klnbdvwasnnqszlhawbl"
 #
-# The token is account-scoped and can do anything the dashboard can, including
-# dropping tables. Read queries freely; think before writing. This is a
-# payments database holding minors' data.
+# The token is project-scoped: read everywhere, write only on Database.
+# Migrations and backups are read-only, so it cannot drop or restore the
+# project. Read queries freely; think before writing. This is a payments
+# database holding minors' data.
 set -e
 
 [ -f "$HOME/.playfund-env" ] && source "$HOME/.playfund-env"

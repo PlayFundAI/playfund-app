@@ -1,0 +1,61 @@
+#!/bin/zsh
+# Read the site and app analytics the events table collects.
+#
+#   tools/pf-analytics          # last 7 days
+#   tools/pf-analytics 30       # last 30 days
+#
+# Events arrive from public/index.html and public/for-parents.html
+# (site_page_view, site_click) and from the app (screen_view and friends),
+# all via POST /events on the worker.
+set -e
+cd "${0:A:h:h}"
+DAYS="${1:-7}"
+
+tools/pf-sql "
+select date_trunc('day', created_at)::date as day,
+       count(distinct session_id) as visitors,
+       count(*) filter (where event_name = 'site_page_view') as page_views,
+       count(*) filter (where event_name = 'site_click')     as clicks
+from events
+where event_name in ('site_page_view', 'site_click')
+  and created_at > now() - interval '$DAYS days'
+group by 1
+order by 1 desc;"
+
+echo
+echo "Pages, last $DAYS days"
+tools/pf-sql "
+select properties->>'path' as page,
+       count(*) as views,
+       count(distinct session_id) as visitors
+from events
+where event_name = 'site_page_view'
+  and created_at > now() - interval '$DAYS days'
+group by 1
+order by views desc
+limit 20;"
+
+echo
+echo "Clicks, last $DAYS days"
+tools/pf-sql "
+select properties->>'label' as label,
+       properties->>'path'  as page,
+       count(*) as clicks
+from events
+where event_name = 'site_click'
+  and created_at > now() - interval '$DAYS days'
+group by 1, 2
+order by clicks desc
+limit 20;"
+
+echo
+echo "Where visitors came from, last $DAYS days"
+tools/pf-sql "
+select coalesce(properties->>'referrer', 'direct or unknown') as source,
+       count(distinct session_id) as visitors
+from events
+where event_name = 'site_page_view'
+  and created_at > now() - interval '$DAYS days'
+group by 1
+order by visitors desc
+limit 20;"

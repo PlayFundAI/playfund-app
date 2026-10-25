@@ -179,10 +179,21 @@ export type BeatId =
   | 'act3-split'
   | 'act4-card';
 
+/**
+ * Playback rate for the voiceover. The engine's own pace control turned out
+ * to be unreliable (asking for a brisk read moved the total by 4% and made
+ * one line slower), so speed is set here instead. Remotion preserves pitch.
+ *
+ * This is the dial to turn if the read feels slow or rushed. Nothing else
+ * needs to change: the effective length of every clip is derived from it, so
+ * the cuts stay on the words.
+ */
+export const SPEED = 1.2;
+
 /** Silence before the line starts, in seconds. */
-export const LEAD = 0.5;
+export const LEAD = 0.4;
 /** Silence after the line ends, before the cut. */
-export const TAIL = 1.5;
+export const TAIL = 1.1;
 
 const spec: {id: BeatId; minHold: number}[] = [
   {id: 'act1-dues', minHold: 4},
@@ -199,12 +210,20 @@ const spec: {id: BeatId; minHold: number}[] = [
   {id: 'act4-card', minHold: 4},
 ];
 
-/** Seconds of speech per beat, measured from the rendered track. */
+/** Seconds of speech per beat as recorded, before SPEED is applied. */
 export const speech: Partial<Record<BeatId, number>> = voDurations.seconds;
+
+/** How long a line actually takes on screen, once sped up. */
+export const spokenFor = (id: BeatId) => (speech[id] ?? 0) / SPEED;
+
+/** Per-beat minimum hold, exposed so tooling need not duplicate it. */
+export const floors: Record<BeatId, number> = Object.fromEntries(
+  spec.map((b) => [b.id, b.minHold]),
+) as Record<BeatId, number>;
 
 export const timeline: {id: BeatId; frames: number; voice: boolean}[] = spec.map(
   (beat) => {
-    const line = speech[beat.id] ?? 0;
+    const line = spokenFor(beat.id);
     const needed = line > 0 ? LEAD + line + TAIL : 0;
     return {
       id: beat.id,

@@ -52,6 +52,25 @@ mood and leaves all four tells in place; `natural` names them. Switching
 `level` to `natural` did more for how human the track sounds than any change
 of voice did.
 
+### Speed
+
+`SPEED` in `src/script.ts` is the dial for how fast the voiceover plays
+(currently `1.2`). Remotion preserves pitch, and the effective length of every
+clip is derived from it, so the cuts stay on the words and no regeneration is
+needed to change it.
+
+Asking the engine for a brisker read does *not* work reliably: rewriting the
+style direction to demand pace moved the total by 4% and made one line
+slower. Set the speed here instead.
+
+```bash
+npm run timeline    # how every beat's length was arrived at
+```
+
+A beat marked FLOOR is holding longer than its line needs. That is correct for
+`act3-split`, where the floor exists so the disclosure stays readable, and is
+usually dead air anywhere else.
+
 Audition before committing to a full regeneration:
 
 ```bash
@@ -90,5 +109,5 @@ first, so you can see what you have before choosing.
 
 | id | what |
 |---|---|
-| `Main` | the explainer, ~0:57, narrated |
+| `Main` | the explainer, ~0:48, narrated |
 | `HeroLoop` | the payout beat alone, 8s, silent, for the homepage hero |

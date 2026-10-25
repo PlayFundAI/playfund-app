@@ -1,14 +1,14 @@
 {
   "engine": "openai/echo/natural",
   "seconds": {
-    "act1-dues": 3.72,
-    "act1-expenses": 7.512,
-    "act1-split": 4.848,
-    "act2-roster": 3.168,
-    "act2-payout": 4.2,
-    "act2-buckets": 2.952,
-    "act3-dues": 3.768,
-    "act3-split": 4.008,
-    "act4-card": 2.208
+    "act1-dues": 3.264,
+    "act1-expenses": 7.104,
+    "act1-split": 5.304,
+    "act2-roster": 4.32,
+    "act2-payout": 2.76,
+    "act2-buckets": 3.72,
+    "act3-dues": 3.408,
+    "act3-split": 3.048,
+    "act4-card": 2.064
   }
 }

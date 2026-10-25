@@ -248,6 +248,39 @@
   }
 
 
+
+  /* Vision. Three phases from the investor deck's product roadmap, written as
+     direction rather than roadmap: no dates, nothing a club could hold us to.
+     The live phase is a solid ink card and the two ahead of it are dashed
+     outlines, so what exists and what does not is visible before the status
+     pills are read. A page that promises in the same weight it delivers is how
+     the second promise stops being believed. */
+  .vision{padding:84px 0}
+  .vision-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:8px}
+  .vision-col{border-radius:13px;padding:26px 24px 28px;display:flex;flex-direction:column}
+  .vision-col.is-live{background:var(--ink);color:#fff}
+  .vision-col.is-ahead{background:#fff;border:1.5px dashed var(--line)}
+  .vision-num{font-family:'Anton',sans-serif;font-size:13px;letter-spacing:.06em;
+              color:var(--ink-faint);margin-bottom:16px}
+  .is-live .vision-num{color:rgba(255,255,255,0.5)}
+  .vision-col svg{width:22px;height:22px;fill:none;stroke:var(--green);
+                  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;margin-bottom:14px}
+  .vision-col h3{margin-bottom:8px}
+  .vision-col p{font-size:14px;color:var(--ink-soft);margin:0 0 18px}
+  .is-live p{color:rgba(255,255,255,0.74)}
+  /* Pinned to the bottom rather than following the text. The three columns
+     carry different amounts of copy, so left to flow the pills land at three
+     different heights and the row stops reading as one row. */
+  .vision-tag{display:inline-block;align-self:flex-start;margin-top:auto;
+              border-radius:999px;padding:5px 13px;font-size:12px;font-weight:700}
+  .is-live .vision-tag{background:var(--green);color:#fff}
+  .is-ahead .vision-tag{background:var(--paper-dim);color:var(--ink-faint)}
+  /* The deck's own self-limiting line. It belongs on a public page precisely
+     because it manages the expectation the section above it creates. */
+  .vision-note{margin-top:26px;text-align:center;font-size:13.5px;color:var(--ink-faint);
+               max-width:660px;margin-left:auto;margin-right:auto}
+  @media (max-width:860px){ .vision-grid{grid-template-columns:1fr} }
+
   /* closing */
   .closing{background:var(--ink);color:#fff;text-align:center;padding:76px 0}
   .closing h2{color:#fff}
@@ -303,6 +336,7 @@
       <a href="#contact" class="nav-aud">For clubs</a>
       <a href="/for-parents" class="nav-aud">For parents</a>
       <a href="#platform">Why PlayFund</a>
+      <a href="#vision">What's next</a>
     </div>
     <div class="nav-right">
       <a class="nav-signin" href="/app/">Sign in</a>
@@ -375,7 +409,52 @@
         <h3>Flexible installments</h3>
         <p>Families have the option to pay over time.</p>
       </div>
-      
+    </div>
+  </div>
+</section>
+
+<section class="vision" id="vision">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Registration is where we start.</h2>
+      <p>Most payment plans see a transaction. We see a season, and everything a family spends
+         getting through it. We began with the payment that hurts most. Here is what we think
+         comes after it.</p>
+    </div>
+    <div class="vision-grid">
+
+      <div class="vision-col is-live">
+        <div class="vision-num">01</div>
+        <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        <h3>Registration payments</h3>
+        <p>Families pay in full or over time. The club gets the season up front either way, and
+           stops chasing dues in February.</p>
+        <span class="vision-tag">Live today</span>
+      </div>
+
+      <div class="vision-col is-ahead">
+        <div class="vision-num">02</div>
+        <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10l7-5 7 5v11"/><path d="M10 21v-6h4v6"/></svg>
+        <h3>Club capital and scholarship rails</h3>
+        <p>Clubs need money before registration opens, not just during it: facilities, tournament
+           entry, equipment. The same rails could carry scholarship and hardship decisions, which
+           today are made by hand and are close to impossible to audit.</p>
+        <span class="vision-tag">Exploring</span>
+      </div>
+
+      <div class="vision-col is-ahead">
+        <div class="vision-num">03</div>
+        <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M15.5 15.2l1.6.9-.3-1.8 1.3-1.3-1.8-.3-.8-1.6-.8 1.6-1.8.3 1.3 1.3-.3 1.8z"/></svg>
+        <h3>The sports wallet</h3>
+        <p>A season does not stop at registration. Gear, travel, fuel, hotels, camps and next
+           year's fees are all the same budget. An account built around that, which pays families
+           back on the money they are already spending on the sport.</p>
+        <span class="vision-tag">Where we're headed</span>
+      </div>
+
+    </div>
+    <p class="vision-note">Everything past the first column is direction, not something you can
+       sign up for. The card follows the financing. It does not come first.</p>
   </div>
 </section>
 

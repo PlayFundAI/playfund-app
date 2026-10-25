@@ -1,6 +1,5 @@
 {
-  "voice": "Samantha",
-  "rate": 158,
+  "engine": "say/Samantha@158wpm",
   "seconds": {
     "act1-dues": 2.811,
     "act1-expenses": 6.216,

@@ -14,6 +14,7 @@ import {mkdirSync, rmSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
+import {STYLES, DEFAULT_STYLE, DEFAULT_OPENAI_VOICE} from './vo-styles.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -99,19 +100,22 @@ async function openAiEngine(line, id) {
         '  export OPENAI_API_KEY=...',
     );
   }
+  const voice = process.env.OPENAI_VOICE ?? DEFAULT_OPENAI_VOICE;
+  const style = process.env.VO_STYLE ?? DEFAULT_STYLE;
+  const instructions = STYLES[style];
+  if (!instructions) {
+    throw new Error(`Unknown VO_STYLE "${style}". Known: ${Object.keys(STYLES).join(', ')}`);
+  }
+
   const res = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
     headers: {Authorization: `Bearer ${key}`, 'Content-Type': 'application/json'},
     body: JSON.stringify({
       model: process.env.OPENAI_TTS_MODEL ?? 'gpt-4o-mini-tts',
-      voice: process.env.OPENAI_VOICE ?? 'onyx',
+      voice,
       input: line,
       response_format: 'mp3',
-      // gpt-4o-mini-tts takes direction. Keep it level: this narration sits
-      // over a payments product, and salesy delivery reads as untrustworthy.
-      instructions:
-        'Calm, grounded, unhurried. A confident person explaining something ' +
-        'useful to a colleague. No upsell energy, no rising enthusiasm.',
+      instructions,
     }),
   });
   if (!res.ok) {
@@ -119,7 +123,7 @@ async function openAiEngine(line, id) {
   }
   const mp3 = join(voDir, `${id}.tmp.mp3`);
   writeFileSync(mp3, Buffer.from(await res.arrayBuffer()));
-  return {path: mp3, label: `openai/${process.env.OPENAI_VOICE ?? 'onyx'}`};
+  return {path: mp3, label: `openai/${voice}/${style}`};
 }
 
 const engines = {say: sayEngine, elevenlabs: elevenLabsEngine, openai: openAiEngine};

@@ -29,20 +29,37 @@ stylesheet from `../public/app/index.html`.
 
 ## Voiceover
 
-The committed track is macOS `say`, which is a placeholder for timing. It is
-not a shippable voice for a payments homepage.
+The committed track is OpenAI `gpt-4o-mini-tts`, voice **echo**, style
+**natural**, chosen by ear over two rounds of auditions.
+
+```bash
+source ~/.playfund-env && VO_ENGINE=openai npm run vo && npm run render
+```
 
 ```bash
 export ELEVENLABS_API_KEY=...          # elevenlabs.io > Profile > API Keys
 VO_ENGINE=elevenlabs npm run vo && npm run render
 ```
 
+Keys are read from the environment only. Never put one in a file here.
+
+### Style, not just voice
+
+What makes TTS sound synthetic is mostly delivery: metronomic pacing, no
+breath between ideas, every sentence landing on the same pitch,
+over-enunciation. `scripts/vo-styles.mjs` holds two directions. `level` sets a
+mood and leaves all four tells in place; `natural` names them. Switching
+`level` to `natural` did more for how human the track sounds than any change
+of voice did.
+
+Audition before committing to a full regeneration:
+
 ```bash
-export OPENAI_API_KEY=...
-VO_ENGINE=openai npm run vo && npm run render
+source ~/.playfund-env && VO_ENGINE=openai node scripts/vo-samples.mjs
 ```
 
-Keys are read from the environment only. Never put one in a file here.
+That renders one line across voices and both styles into a temp directory, for
+well under a cent. `OPENAI_VOICES`, `VO_STYLES` and `VO_SAMPLE_LINE` narrow it.
 
 The script is ~440 characters, so a full regeneration fits ElevenLabs' free
 tier about 22 times over, or costs under a cent on OpenAI.
@@ -53,7 +70,8 @@ tier about 22 times over, or costs under a cent on OpenAI.
 | `VO_VOICE`, `VO_RATE` | `say` | `Samantha`, `158` |
 | `ELEVENLABS_VOICE_NAME` or `ELEVENLABS_VOICE_ID` | `elevenlabs` | first voice on the account |
 | `ELEVENLABS_MODEL` | `elevenlabs` | `eleven_multilingual_v2` |
-| `OPENAI_VOICE` | `openai` | `onyx` |
+| `OPENAI_VOICE` | `openai` | `echo` |
+| `VO_STYLE` | `openai` | `natural` |
 | `OPENAI_TTS_MODEL` | `openai` | `gpt-4o-mini-tts` |
 
 Running with no voice name prints every voice on the account and uses the
@@ -72,5 +90,5 @@ first, so you can see what you have before choosing.
 
 | id | what |
 |---|---|
-| `Main` | the explainer, ~0:48, narrated |
+| `Main` | the explainer, ~0:57, narrated |
 | `HeroLoop` | the payout beat alone, 8s, silent, for the homepage hero |

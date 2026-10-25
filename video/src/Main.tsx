@@ -1,6 +1,6 @@
 import React from 'react';
-import {AbsoluteFill, Sequence} from 'remotion';
-import {BeatId, timeline} from './script';
+import {AbsoluteFill, Audio, Sequence, staticFile} from 'remotion';
+import {BeatId, LEAD, sec, timeline} from './script';
 import {BeatWrap} from './components/BeatWrap';
 
 import {Act1Dues} from './beats/Act1Dues';
@@ -49,6 +49,11 @@ export const Main: React.FC = () => {
             <BeatWrap durationInFrames={beat.frames}>
               <Beat />
             </BeatWrap>
+            {beat.voice ? (
+              <Sequence from={sec(LEAD)} name={`vo:${beat.id}`}>
+                <Audio src={staticFile(`vo/${beat.id}.m4a`)} />
+              </Sequence>
+            ) : null}
           </Sequence>
         );
       })}

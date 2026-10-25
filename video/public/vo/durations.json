@@ -1,0 +1,15 @@
+{
+  "voice": "Samantha",
+  "rate": 158,
+  "seconds": {
+    "act1-dues": 2.811,
+    "act1-expenses": 6.216,
+    "act1-split": 4.259,
+    "act2-roster": 2.264,
+    "act2-payout": 1.916,
+    "act2-buckets": 2.272,
+    "act3-dues": 2.053,
+    "act3-split": 2.946,
+    "act4-card": 1.413
+  }
+}

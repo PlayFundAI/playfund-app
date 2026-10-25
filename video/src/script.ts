@@ -8,6 +8,8 @@
 // Durations are in frames at 30fps: 30 frames = 1 second.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import voDurations from '../public/vo/durations.json';
+
 export const FPS = 30;
 
 export const sec = (s: number) => Math.round(s * FPS);
@@ -159,8 +161,12 @@ export const copy = {
 } as const;
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
-// Order and duration of every beat. Cutting a beat is deleting one line.
-// Reordering is moving one line. Retiming is changing one number.
+// Durations are COMPUTED from the voiceover, not typed. Re-record the track,
+// run `npm run vo`, and every beat retimes itself to the new read.
+//
+// Each beat holds for: a lead-in, the line itself, then a tail so the picture
+// lands before the cut. `minHold` is the floor for beats whose animation needs
+// longer than the line does, or whose text needs reading time.
 
 export type BeatId =
   | 'act1-dues'
@@ -173,17 +179,40 @@ export type BeatId =
   | 'act3-split'
   | 'act4-card';
 
-export const timeline: {id: BeatId; frames: number}[] = [
-  {id: 'act1-dues', frames: sec(6)},
-  {id: 'act1-expenses', frames: sec(8)},
-  {id: 'act1-split', frames: sec(6)},
-  {id: 'act2-roster', frames: sec(10)},
-  {id: 'act2-payout', frames: sec(10)},
-  {id: 'act2-buckets', frames: sec(8)},
-  {id: 'act3-dues', frames: sec(8)},
-  {id: 'act3-split', frames: sec(8)},
-  {id: 'act4-card', frames: sec(8)},
+/** Silence before the line starts, in seconds. */
+export const LEAD = 0.5;
+/** Silence after the line ends, before the cut. */
+export const TAIL = 1.5;
+
+const spec: {id: BeatId; minHold: number}[] = [
+  {id: 'act1-dues', minHold: 4},
+  {id: 'act1-expenses', minHold: 6},
+  {id: 'act1-split', minHold: 4},
+  {id: 'act2-roster', minHold: 4.5},
+  {id: 'act2-payout', minHold: 4},
+  {id: 'act2-buckets', minHold: 4},
+  {id: 'act3-dues', minHold: 3.5},
+  // The disclosure appears part-way in and is the longest text in the video.
+  // This floor is what keeps it on screen long enough to actually be read;
+  // do not lower it to tighten the edit.
+  {id: 'act3-split', minHold: 8.5},
+  {id: 'act4-card', minHold: 4},
 ];
+
+/** Seconds of speech per beat, measured from the rendered track. */
+export const speech: Partial<Record<BeatId, number>> = voDurations.seconds;
+
+export const timeline: {id: BeatId; frames: number; voice: boolean}[] = spec.map(
+  (beat) => {
+    const line = speech[beat.id] ?? 0;
+    const needed = line > 0 ? LEAD + line + TAIL : 0;
+    return {
+      id: beat.id,
+      frames: sec(Math.max(needed, beat.minHold)),
+      voice: line > 0,
+    };
+  },
+);
 
 /** Frames of cross-dissolve between beats. */
 export const TRANSITION = sec(0.5);

@@ -136,7 +136,7 @@ export const Act3Split: React.FC = () => {
             fontSize: 17,
             lineHeight: 1.55,
             color: 'var(--ink-soft)',
-            opacity: interpolate(frame, [84, 104], [0, 1], {
+            opacity: interpolate(frame, [52, 72], [0, 1], {
               extrapolateLeft: 'clamp',
               extrapolateRight: 'clamp',
             }),

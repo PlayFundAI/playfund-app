@@ -1,0 +1,27 @@
+{
+  "name": "playfund-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pilot explainer video, rendered from the app's own UI and stylesheet.",
+  "scripts": {
+    "dev": "npm run sync-css && remotion studio",
+    "sync-css": "node scripts/sync-app-css.mjs",
+    "render": "npm run sync-css && remotion render Main out/playfund-pilot.mp4",
+    "render-hero": "npm run sync-css && remotion render HeroLoop out/hero-loop.mp4",
+    "still": "npm run sync-css && remotion still Main out/frame.png --frame=600"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.390",
+    "@remotion/google-fonts": "4.0.390",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.390"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  },
+  "allowScripts": {
+    "esbuild@0.25.0": true
+  }
+}

@@ -65,6 +65,17 @@ export const data = {
     {label: 'Referees', amount: 1100},
   ],
 
+  // Act 2's closing beat. What a club keeps versus what actually moves.
+  //
+  // Deliberately describes a division of labour, not an integration: nothing
+  // syncs, and a club admin marks each payment back in their own system by
+  // hand. See pilot-prep-punchlist.md section 14 before strengthening any of
+  // this wording.
+  alongside: {
+    stays: ['Rosters', 'Schedules', 'Team messaging', 'Your club website'],
+    moves: ['How families pay'],
+  },
+
   // Act 3. Four payments, two weeks apart, which is what the product actually
   // offers (see the installments section of screen-athlete-detail).
   installments: {
@@ -137,6 +148,14 @@ export const copy = {
     caption: 'Where every\nathlete stands.',
   },
 
+  act2Alongside: {
+    voice:
+      'Keep the platform you already use. PlayFund only changes how families pay.',
+    caption: 'Keep the platform\nyou already use.',
+    staysLabel: 'Stays where it is',
+    movesLabel: 'Moves to PlayFund',
+  },
+
   act3Dues: {
     voice: "That thousand dollars isn't one payment.",
     caption: 'Pay now,\nor pay over time.',
@@ -175,6 +194,7 @@ export type BeatId =
   | 'act2-roster'
   | 'act2-payout'
   | 'act2-buckets'
+  | 'act2-alongside'
   | 'act3-dues'
   | 'act3-split'
   | 'act4-card';
@@ -202,6 +222,7 @@ const spec: {id: BeatId; minHold: number}[] = [
   {id: 'act2-roster', minHold: 4.5},
   {id: 'act2-payout', minHold: 4},
   {id: 'act2-buckets', minHold: 4},
+  {id: 'act2-alongside', minHold: 5},
   {id: 'act3-dues', minHold: 3.5},
   // The disclosure appears part-way in and is the longest text in the video.
   // This floor is what keeps it on screen long enough to actually be read;

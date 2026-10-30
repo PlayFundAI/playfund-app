@@ -80,14 +80,15 @@ async function pickElevenLabsVoice(key) {
   const {voices} = await res.json();
   if (!voices?.length) throw new Error('No voices on this ElevenLabs account.');
 
-  const wanted = process.env.ELEVENLABS_VOICE_NAME?.toLowerCase();
-  const match = wanted
-    ? voices.find((v) => v.name?.toLowerCase() === wanted)
-    : voices[0];
+  // Names come back as "Eric - Smooth, Trustworthy", so match the part before
+  // the dash rather than the whole string.
+  const shortName = (v) => (v.name ?? '').split(/\s+-\s+/)[0].trim().toLowerCase();
+  const wanted = process.env.ELEVENLABS_VOICE_NAME?.trim().toLowerCase();
+  const match = wanted ? voices.find((v) => shortName(v) === wanted) : voices[0];
   if (!match) {
     throw new Error(
       `No voice named "${process.env.ELEVENLABS_VOICE_NAME}". Available:\n` +
-        voices.map((v) => `  ${v.name}  ${v.voice_id}`).join('\n'),
+        voices.map((v) => `  ${shortName(v).padEnd(10)} ${v.voice_id}  ${v.name}`).join('\n'),
     );
   }
   console.log(`  voices on this account: ${voices.map((v) => v.name).join(', ')}`);

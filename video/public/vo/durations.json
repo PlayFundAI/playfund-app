@@ -1,15 +1,15 @@
 {
-  "engine": "openai/echo/natural",
+  "engine": "elevenlabs/iP95p4xoKVk53GoZ742B",
   "seconds": {
-    "act1-dues": 4.65,
-    "act1-expenses": 7.05,
-    "act1-split": 5.85,
-    "act2-roster": 2.1,
-    "act2-payout": 2.75,
-    "act2-buckets": 3.3,
-    "act2-alongside": 6.95,
-    "act3-dues": 2.95,
-    "act3-split": 4.05,
-    "act4-card": 2.6
+    "act1-dues": 2.586,
+    "act1-expenses": 6.583,
+    "act1-split": 3.997,
+    "act2-roster": 1.489,
+    "act2-payout": 1.933,
+    "act2-buckets": 2.116,
+    "act2-alongside": 4.206,
+    "act3-dues": 2.09,
+    "act3-split": 2.508,
+    "act4-card": 1.28
   }
 }

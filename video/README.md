@@ -92,7 +92,12 @@ source ~/.playfund-env && VO_ENGINE=elevenlabs node scripts/vo-samples.mjs
 
 The ElevenLabs run prints every voice on the account with its labels, then
 samples the ones tagged for narration (or the first six). `ELEVENLABS_VOICES`
-takes a comma-separated list of names from that printout.
+takes a comma-separated list of first names from that printout (`Eric,Chris`,
+not the full `Eric - Smooth, Trustworthy`).
+
+Its output is 44.1kHz against OpenAI's 24kHz. `pcm_44100` is Pro tier and
+above, so the default is `mp3_44100_128`; set `ELEVENLABS_FORMAT=pcm_44100`
+on a Pro account to drop the last lossy step.
 
 Its free tier has **no commercial licence**, so audition on free but regenerate
 on a paid plan before the video ships.

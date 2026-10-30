@@ -59,6 +59,9 @@ const ENGINE = process.env.VO_ENGINE ?? 'openai';
 // per-account, so this asks the account what it has rather than guessing at
 // voice ids.
 
+// Output format: pcm_44100 is Pro tier and above only, so the default is
+// 44.1kHz mp3, which is still well past OpenAI's 24kHz ceiling. Set
+// ELEVENLABS_FORMAT=pcm_44100 on a Pro account to drop the last lossy step.
 async function elevenLabsSamples(line) {
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) {
@@ -95,8 +98,11 @@ async function elevenLabsSamples(line) {
     const u = `${v.labels?.use_case ?? ''} ${v.labels?.description ?? ''}`.toLowerCase();
     return u.includes('narrat') || u.includes('news') || u.includes('informative');
   });
+  // Names come back as "Eric - Smooth, Trustworthy", so match the leading
+  // part rather than the whole string.
+  const shortName = (v) => (v.name ?? '').split(/\s+-\s+/)[0].trim().toLowerCase();
   const picked = named
-    ? voices.filter((v) => named.includes((v.name ?? '').toLowerCase()))
+    ? named.map((n) => voices.find((v) => shortName(v) === n)).filter(Boolean)
     : (narration.length >= 3 ? narration : voices).slice(0, 6);
 
   if (!picked.length) {
@@ -105,12 +111,13 @@ async function elevenLabsSamples(line) {
   }
 
   const model = process.env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2';
+  const FORMAT = process.env.ELEVENLABS_FORMAT ?? 'mp3_44100_128';
   console.log(`sampling ${picked.length} with ${model}\n`);
   let chars = 0;
 
   for (const voice of picked) {
     const res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voice.voice_id}?output_format=pcm_44100`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${voice.voice_id}?output_format=${FORMAT}`,
       {
         method: 'POST',
         headers: {'xi-api-key': key, 'Content-Type': 'application/json'},
@@ -132,16 +139,18 @@ async function elevenLabsSamples(line) {
       console.error(`\n${voice.name}: ElevenLabs ${res.status}: ${(await res.text()).slice(0, 250)}\n`);
       process.exit(1);
     }
-    const stem = `${(voice.name ?? voice.voice_id).replace(/[^A-Za-z0-9]+/g, '-')}`;
-    const pcm = join(outDir, `${stem}.tmp.pcm`);
+    const stem = shortName(voice) || voice.voice_id;
+    const raw = join(outDir, `${stem}.tmp`);
     const out = join(outDir, `${stem}.wav`);
-    writeFileSync(pcm, Buffer.from(await res.arrayBuffer()));
+    writeFileSync(raw, Buffer.from(await res.arrayBuffer()));
     execFileSync('afconvert', [
       '-f', 'WAVE', '-d', 'LEI16', '-c', '1',
-      '--raw', '--rawformat', 'LEI16@44100', '--rawchannels', '1',
-      pcm, out,
+      ...(FORMAT.startsWith('pcm_')
+        ? ['--raw', '--rawformat', 'LEI16@44100', '--rawchannels', '1']
+        : []),
+      raw, out,
     ]);
-    rmSync(pcm, {force: true});
+    rmSync(raw, {force: true});
     const info = execFileSync('afinfo', [out], {encoding: 'utf8'});
     const seconds = Number(info.match(/estimated duration: ([\d.]+) sec/)?.[1]);
     chars += line.length;

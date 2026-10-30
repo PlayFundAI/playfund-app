@@ -46,9 +46,11 @@ async function elevenLabsEngine(line, id) {
 
   const voiceId = process.env.ELEVENLABS_VOICE_ID ?? (await pickElevenLabsVoice(key));
   const model = process.env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2';
+  // pcm_44100 needs a Pro account; 44.1kHz mp3 is the free/Starter ceiling.
+  const format = process.env.ELEVENLABS_FORMAT ?? 'mp3_44100_128';
 
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_44100`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${format}`,
     {
       method: 'POST',
       headers: {'xi-api-key': key, 'Content-Type': 'application/json'},
@@ -63,10 +65,11 @@ async function elevenLabsEngine(line, id) {
   if (!res.ok) {
     throw new Error(`ElevenLabs ${res.status}: ${(await res.text()).slice(0, 300)}`);
   }
-  // Raw PCM at 44.1k: headerless, so give afconvert the shape explicitly.
-  const raw = join(voDir, `${id}.tmp.pcm`);
+  const raw = join(voDir, `${id}.tmp`);
   writeFileSync(raw, Buffer.from(await res.arrayBuffer()));
-  return {path: raw, label: `elevenlabs/${voiceId}`, rawPcm: true};
+  // Raw PCM is headerless, so afconvert needs the shape spelled out; mp3
+  // carries its own header.
+  return {path: raw, label: `elevenlabs/${voiceId}`, rawPcm: format.startsWith('pcm_')};
 }
 
 let cachedVoiceId = null;

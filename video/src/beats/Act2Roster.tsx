@@ -42,7 +42,7 @@ export const Act2Roster: React.FC = () => {
           </div>
           <div style={{fontSize: 14, color: 'var(--ink-soft)', marginBottom: 18}}>
             <b style={{color: 'var(--ink)'}}>
-              <Counter to={data.club.funded} start={8} duration={70} />
+              <Counter to={data.club.funded} start={5} duration={46} />
             </b>{' '}
             of {data.club.athletesTotal} athletes funded
           </div>
@@ -52,7 +52,7 @@ export const Act2Roster: React.FC = () => {
               className="stat-bar-fill"
               style={{
                 width: `${
-                  spring({frame: frame - 8, fps, config: {damping: 200}, durationInFrames: 70}) *
+                  spring({frame: frame - 5, fps, config: {damping: 200}, durationInFrames: 46}) *
                   (data.club.funded / data.club.athletesTotal) *
                   100
                 }%`,
@@ -63,10 +63,10 @@ export const Act2Roster: React.FC = () => {
 
           {data.roster.map((athlete, i) => {
             const enter = spring({
-              frame: frame - (10 + i * 9),
+              frame: frame - (6 + i * 6),
               fps,
               config: {damping: 200},
-              durationInFrames: 20,
+              durationInFrames: 16,
             });
             const funded = athlete.status === 'funded';
             return (

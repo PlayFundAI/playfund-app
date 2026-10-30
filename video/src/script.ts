@@ -22,9 +22,12 @@ export const sec = (s: number) => Math.round(s * FPS);
 const duesPerAthlete = 1000;
 const serviceFeeBps = 800; // 8%, the default in migrations/2026-09-16-default-fee-bps-800.sql
 
-const funded = 287;
-const deciding = 19;
-const needsOption = 6;
+// Sized to a real club rather than a league. A treasurer at a 60-athlete club
+// does not see themselves in a 312-athlete roster, and eight names on screen
+// read as a sample of 58 but as a rounding error out of 312.
+const funded = 50;
+const deciding = 6;
+const needsOption = 2;
 
 const gross = funded * duesPerAthlete;
 const payout = Math.round(gross * (1 - serviceFeeBps / 10000));
@@ -133,8 +136,8 @@ export const copy = {
   },
 
   act2Roster: {
-    voice: '287 families sign up.',
-    caption: '287 families\nsign up.',
+    voice: 'Fifty families sign up.',
+    caption: 'Fifty families\nsign up.',
     eyebrow: 'Club dashboard',
     heading: 'Fall registration',
   },
@@ -208,27 +211,27 @@ export type BeatId =
  * needs to change: the effective length of every clip is derived from it, so
  * the cuts stay on the words.
  */
-export const SPEED = 1.2;
+export const SPEED = 1.3;
 
 /** Silence before the line starts, in seconds. */
-export const LEAD = 0.4;
+export const LEAD = 0.3;
 /** Silence after the line ends, before the cut. */
-export const TAIL = 1.1;
+export const TAIL = 0.7;
 
 const spec: {id: BeatId; minHold: number}[] = [
   {id: 'act1-dues', minHold: 4},
   {id: 'act1-expenses', minHold: 6},
   {id: 'act1-split', minHold: 4},
-  {id: 'act2-roster', minHold: 4.5},
-  {id: 'act2-payout', minHold: 4},
-  {id: 'act2-buckets', minHold: 4},
+  {id: 'act2-roster', minHold: 3.2},
+  {id: 'act2-payout', minHold: 3.2},
+  {id: 'act2-buckets', minHold: 3.4},
   {id: 'act2-alongside', minHold: 5},
-  {id: 'act3-dues', minHold: 3.5},
+  {id: 'act3-dues', minHold: 3.2},
   // The disclosure appears part-way in and is the longest text in the video.
   // This floor is what keeps it on screen long enough to actually be read;
   // do not lower it to tighten the edit.
   {id: 'act3-split', minHold: 8.5},
-  {id: 'act4-card', minHold: 4},
+  {id: 'act4-card', minHold: 3.2},
 ];
 
 /** Seconds of speech per beat as recorded, before SPEED is applied. */
@@ -255,7 +258,7 @@ export const timeline: {id: BeatId; frames: number; voice: boolean}[] = spec.map
 );
 
 /** Frames of cross-dissolve between beats. */
-export const TRANSITION = sec(0.5);
+export const TRANSITION = sec(0.35);
 
 export const totalFrames = timeline.reduce((n, b) => n + b.frames, 0);
 

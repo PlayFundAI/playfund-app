@@ -71,10 +71,10 @@ export const Act3Dues: React.FC = () => {
 
           {options.map((option, i) => {
             const enter = spring({
-              frame: frame - (14 + i * 14),
+              frame: frame - (8 + i * 10),
               fps,
               config: {damping: 200},
-              durationInFrames: 24,
+              durationInFrames: 18,
             });
             const highlighted = i === 1;
             return (

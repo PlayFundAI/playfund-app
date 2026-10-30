@@ -1,6 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Sequence, staticFile} from 'remotion';
-import {BeatId, LEAD, SPEED, sec, timeline} from './script';
+import {BeatId, LEAD, SPEED, TRANSITION, sec, timeline} from './script';
 import {BeatWrap} from './components/BeatWrap';
 
 import {Act1Dues} from './beats/Act1Dues';
@@ -37,23 +37,27 @@ export const Main: React.FC = () => {
 
   return (
     <AbsoluteFill style={{background: '#F4F7F6'}}>
-      {timeline.map((beat) => {
+      {timeline.map((beat, i) => {
         const Beat = beats[beat.id];
-        const from = at;
+        // Start early enough that this beat's fade-in overlaps the previous
+        // beat's fade-out. The first beat has nothing to dissolve from.
+        const overlap = i === 0 ? 0 : TRANSITION;
+        const from = at - overlap;
+        const duration = beat.frames + overlap;
         at += beat.frames;
         return (
           <Sequence
             key={beat.id}
             name={beat.id}
             from={from}
-            durationInFrames={beat.frames}
+            durationInFrames={duration}
           >
-            <BeatWrap durationInFrames={beat.frames}>
+            <BeatWrap durationInFrames={duration}>
               <Beat />
             </BeatWrap>
             {beat.voice ? (
-              <Sequence from={sec(LEAD)} name={`vo:${beat.id}`}>
-                <Audio src={staticFile(`vo/${beat.id}.m4a`)} playbackRate={SPEED} />
+              <Sequence from={overlap + sec(LEAD)} name={`vo:${beat.id}`}>
+                <Audio src={staticFile(`vo/${beat.id}.wav`)} playbackRate={SPEED} />
               </Sequence>
             ) : null}
           </Sequence>

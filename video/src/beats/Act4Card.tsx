@@ -8,8 +8,8 @@ import {copy} from '../script';
 export const Act4Card: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const enter = spring({frame, fps, config: {damping: 200}, durationInFrames: 32});
-  const cta = spring({frame: frame - 16, fps, config: {damping: 200}, durationInFrames: 28});
+  const enter = spring({frame, fps, config: {damping: 200}, durationInFrames: 22});
+  const cta = spring({frame: frame - 10, fps, config: {damping: 200}, durationInFrames: 20});
 
   return (
     <Stage background="#004643">

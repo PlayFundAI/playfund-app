@@ -63,10 +63,10 @@ export const Act2Buckets: React.FC = () => {
           <div className="status-buckets">
             {buckets.map((bucket, i) => {
               const enter = spring({
-                frame: frame - (14 + i * 12),
+                frame: frame - (8 + i * 8),
                 fps,
                 config: {damping: 200},
-                durationInFrames: 24,
+                durationInFrames: 18,
               });
               return (
                 <div

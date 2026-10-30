@@ -15,7 +15,7 @@ import {data} from '../script';
 export const Act2Payout: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const enter = spring({frame, fps, config: {damping: 200}, durationInFrames: 34});
+  const enter = spring({frame, fps, config: {damping: 200}, durationInFrames: 24});
 
   return (
     <Stage>
@@ -30,11 +30,11 @@ export const Act2Payout: React.FC = () => {
         <div className="payout-hero" style={{marginBottom: 0, padding: 24}}>
           <div className="payout-hero-eyebrow">LANDING IN YOUR ACCOUNT</div>
           <div className="payout-hero-amount" style={{fontSize: 52}}>
-            <Money to={data.club.payout} start={10} duration={62} />
+            <Money to={data.club.payout} start={6} duration={44} />
           </div>
           <div className="payout-hero-sub">
             <b>
-              <Counter to={data.club.funded} start={10} duration={62} />
+              <Counter to={data.club.funded} start={6} duration={44} />
             </b>{' '}
             of {data.club.athletesTotal} athletes &middot;{' '}
             <b>{money(data.club.funded * data.club.duesPerAthlete)}</b> in dues

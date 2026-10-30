@@ -32,6 +32,15 @@ stylesheet from `../public/app/index.html`.
 The committed track is OpenAI `gpt-4o-mini-tts`, voice **echo**, style
 **natural**, chosen by ear over two rounds of auditions.
 
+Clips are stored as **lossless WAV**, so Remotion's own encode is the only
+lossy step. They were briefly mp3 from the API re-encoded to 48kbps AAC, which
+is three generations of compression and audibly muffled. Do not reintroduce an
+intermediate codec to save repo space; ten clips of speech is about 2MB.
+
+`gpt-4o-mini-tts` outputs 24kHz whatever format you ask for, so 12kHz is the
+top end available from OpenAI. ElevenLabs returns 44.1kHz, which is the main
+reason to switch if the track still sounds thin.
+
 ```bash
 source ~/.playfund-env && VO_ENGINE=openai npm run vo && npm run render
 ```

@@ -48,7 +48,7 @@ async function elevenLabsEngine(line, id) {
   const model = process.env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2';
 
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_44100`,
     {
       method: 'POST',
       headers: {'xi-api-key': key, 'Content-Type': 'application/json'},
@@ -63,9 +63,10 @@ async function elevenLabsEngine(line, id) {
   if (!res.ok) {
     throw new Error(`ElevenLabs ${res.status}: ${(await res.text()).slice(0, 300)}`);
   }
-  const mp3 = join(voDir, `${id}.tmp.mp3`);
-  writeFileSync(mp3, Buffer.from(await res.arrayBuffer()));
-  return {path: mp3, label: `elevenlabs/${voiceId}`};
+  // Raw PCM at 44.1k: headerless, so give afconvert the shape explicitly.
+  const raw = join(voDir, `${id}.tmp.pcm`);
+  writeFileSync(raw, Buffer.from(await res.arrayBuffer()));
+  return {path: raw, label: `elevenlabs/${voiceId}`, rawPcm: true};
 }
 
 let cachedVoiceId = null;
@@ -114,16 +115,19 @@ async function openAiEngine(line, id) {
       model: process.env.OPENAI_TTS_MODEL ?? 'gpt-4o-mini-tts',
       voice,
       input: line,
-      response_format: 'mp3',
+      // Lossless. The clips were going out as mp3 and then being re-encoded to
+      // 48kbps AAC, so every line was double-compressed before Remotion
+      // encoded it a third time, which is what made the track sound muffled.
+      response_format: 'wav',
       instructions,
     }),
   });
   if (!res.ok) {
     throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
   }
-  const mp3 = join(voDir, `${id}.tmp.mp3`);
-  writeFileSync(mp3, Buffer.from(await res.arrayBuffer()));
-  return {path: mp3, label: `openai/${voice}/${style}`};
+  const wav = join(voDir, `${id}.tmp.wav`);
+  writeFileSync(wav, Buffer.from(await res.arrayBuffer()));
+  return {path: wav, label: `openai/${voice}/${style}`};
 }
 
 const engines = {say: sayEngine, elevenlabs: elevenLabsEngine, openai: openAiEngine};
@@ -163,10 +167,10 @@ for (const beat of timeline) {
     continue;
   }
 
-  const out = join(voDir, `${beat.id}.m4a`);
-  let raw, engineLabel;
+  const out = join(voDir, `${beat.id}.wav`);
+  let raw, engineLabel, rawPcm;
   try {
-    ({path: raw, label: engineLabel} = await engine(line, beat.id));
+    ({path: raw, label: engineLabel, rawPcm} = await engine(line, beat.id));
   } catch (err) {
     // A missing key or a provider error is a configuration problem, not a
     // crash: say what to do and stop, without a stack trace on top of it.
@@ -175,9 +179,14 @@ for (const beat of timeline) {
   }
   label = engineLabel;
 
-  // AAC mono at 48kbps: speech-transparent, and small enough that the track
-  // can live in the repo instead of being a build artefact.
-  execFileSync('afconvert', ['-f', 'm4af', '-d', 'aac', '-b', '48000', '-c', '1', raw, out]);
+  // Stored lossless, so Remotion's own encode is the only lossy step in the
+  // chain. Ten clips of speech come to a couple of megabytes, which is worth
+  // it: the previous AAC intermediate was audible.
+  execFileSync('afconvert', [
+    '-f', 'WAVE', '-d', 'LEI16', '-c', '1',
+    ...(rawPcm ? ['--raw', '--rawformat', 'LEI16@44100', '--rawchannels', '1'] : []),
+    raw, out,
+  ]);
   rmSync(raw, {force: true});
 
   const info = execFileSync('afinfo', [out], {encoding: 'utf8'});

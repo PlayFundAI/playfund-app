@@ -86,6 +86,17 @@ Audition before committing to a full regeneration:
 source ~/.playfund-env && VO_ENGINE=openai node scripts/vo-samples.mjs
 ```
 
+```bash
+source ~/.playfund-env && VO_ENGINE=elevenlabs node scripts/vo-samples.mjs
+```
+
+The ElevenLabs run prints every voice on the account with its labels, then
+samples the ones tagged for narration (or the first six). `ELEVENLABS_VOICES`
+takes a comma-separated list of names from that printout.
+
+Its free tier has **no commercial licence**, so audition on free but regenerate
+on a paid plan before the video ships.
+
 That renders one line across voices and both styles into a temp directory, for
 well under a cent. `OPENAI_VOICES`, `VO_STYLES` and `VO_SAMPLE_LINE` narrow it.
 

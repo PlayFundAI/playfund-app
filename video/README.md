@@ -135,10 +135,13 @@ cut from one place and redrawn in another. Beats must not draw their own.
 - **`act3-split` holds for 8.5s** because the installment disclosure is the
   longest text in the video and has to stay readable. Do not lower that floor
   to tighten the edit.
+- **The club strip in `act3-split` carries no dollar figure.** The club is paid
+  dues less the service fee, so a number there would contradict the payout
+  hero, which is already net of it. That strip is about *when*.
 
 ## Compositions
 
 | id | what |
 |---|---|
-| `Main` | the explainer, ~0:49, narrated |
+| `Main` | the explainer, ~0:43, narrated |
 | `HeroLoop` | the payout beat alone, 8s, silent, for the homepage hero |

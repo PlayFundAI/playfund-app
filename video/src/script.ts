@@ -144,7 +144,7 @@ export const copy = {
   },
 
   act2Payout: {
-    voice: 'The whole season lands in your account before it starts.',
+    voice: "The whole season lands in the club's account before it starts.",
   },
 
   act2Alongside: {
@@ -155,18 +155,19 @@ export const copy = {
     oursLabel: 'PlayFund',
   },
 
-  act3Dues: {
+  act3Split: {
     voice:
       'If approved, a family can split their payments up over time, ' +
       'but we still pay the club everything up front.',
-    caption: 'Families split it.\nYou still get it all.',
-  },
-
-  act3Split: {
-    // act3-dues already carries the "if approved" qualifier, so this one
-    // just describes the shape of the plan.
-    voice: 'Four payments, two weeks apart.',
-    heading: 'Four payments, two weeks apart',
+    // The schedule is shown, not narrated and not captioned: four dated cards
+    // say "four payments, two weeks apart" without anyone reading it out.
+    // Deliberately no figure here. The club is paid dues less the service
+    // fee, so "$1,000" would contradict the payout hero earlier in the film,
+    // which is already net of it. The point of this strip is WHEN, and the
+    // amount is established elsewhere.
+    clubLabel: 'The club is paid',
+    clubWhen: 'However the family chooses to pay',
+    clubWhen2: 'Up front',
     // Mirrors step 3 of the installments section in screen-athlete-detail,
     // with the provider genericized for a public video. Do not cut this for
     // pacing: it is the only place the video qualifies a credit offer.
@@ -199,7 +200,6 @@ export type BeatId =
   | 'act2-roster'
   | 'act2-payout'
   | 'act2-alongside'
-  | 'act3-dues'
   | 'act3-split'
   | 'act4-card';
 
@@ -226,7 +226,6 @@ const spec: {id: BeatId; minHold: number}[] = [
   {id: 'act2-roster', minHold: 3.2},
   {id: 'act2-payout', minHold: 3.2},
   {id: 'act2-alongside', minHold: 5},
-  {id: 'act3-dues', minHold: 3.2},
   // The disclosure appears part-way in and is the longest text in the video.
   // This floor is what keeps it on screen long enough to actually be read;
   // do not lower it to tighten the edit.

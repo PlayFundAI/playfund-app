@@ -10,7 +10,6 @@ import {Act1Split} from './beats/Act1Split';
 import {Act2Roster} from './beats/Act2Roster';
 import {Act2Payout} from './beats/Act2Payout';
 import {Act2Alongside} from './beats/Act2Alongside';
-import {Act3Dues} from './beats/Act3Dues';
 import {Act3Split} from './beats/Act3Split';
 import {Act4Card} from './beats/Act4Card';
 
@@ -21,7 +20,6 @@ const beats: Record<BeatId, React.FC> = {
   'act2-roster': Act2Roster,
   'act2-payout': Act2Payout,
   'act2-alongside': Act2Alongside,
-  'act3-dues': Act3Dues,
   'act3-split': Act3Split,
   'act4-card': Act4Card,
 };

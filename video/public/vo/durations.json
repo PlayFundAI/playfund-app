@@ -1,13 +1,12 @@
 {
   "engine": "elevenlabs/XrExE9yKIg1WjnnlVkGX",
   "seconds": {
-    "act1-dues": 2.926,
-    "act1-expenses": 8.255,
+    "act1-dues": 3.056,
+    "act1-expenses": 8.202,
     "act1-split": 4.31,
     "act2-roster": 2.09,
-    "act2-payout": 3.004,
-    "act2-alongside": 3.709,
-    "act3-dues": 6.034,
-    "act3-split": 1.985
+    "act2-payout": 3.239,
+    "act2-alongside": 3.762,
+    "act3-split": 5.982
   }
 }

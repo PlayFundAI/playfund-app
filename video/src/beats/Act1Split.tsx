@@ -28,7 +28,8 @@ export const Act1Split: React.FC = () => {
   return (
     <Stage>
       <style>{appCss}</style>
-      <div style={{display: 'flex', gap: 28}}>
+      {/* Nudged down to clear the wordmark, which LogoLayer walks in above. */}
+      <div style={{display: 'flex', gap: 28, transform: 'translateY(46px)'}}>
         <div
           style={{
             ...panel,

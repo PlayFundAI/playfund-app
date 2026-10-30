@@ -4,96 +4,113 @@ import {SplitStage} from '../components/Stage';
 import {appCss} from '../app-css';
 import {copy, data} from '../script';
 
-const Column: React.FC<{
+const Panel: React.FC<{
   label: string;
   items: readonly string[];
-  tone: 'kept' | 'moved';
+  ours?: boolean;
   enter: number;
-}> = ({label, items, tone, enter}) => {
-  const moved = tone === 'moved';
-  return (
+  slide: number;
+}> = ({label, items, ours = false, enter, slide}) => (
+  <div
+    style={{
+      width: 300,
+      background: ours ? 'var(--ink)' : 'var(--white)',
+      border: `1px solid ${ours ? 'var(--ink)' : 'var(--line)'}`,
+      borderRadius: 18,
+      padding: '24px 24px 20px',
+      opacity: enter,
+      transform: `translateX(${slide}px)`,
+    }}
+  >
     <div
       style={{
-        width: 330,
-        background: moved ? 'var(--ink)' : 'var(--white)',
-        border: `1px solid ${moved ? 'var(--ink)' : 'var(--line)'}`,
-        borderRadius: 18,
-        padding: '26px 26px 22px',
-        opacity: enter,
-        transform: `translateY(${(1 - enter) * 16}px)`,
+        fontSize: 13,
+        fontWeight: 700,
+        letterSpacing: '0.04em',
+        color: ours ? 'var(--fund-green)' : 'var(--ink-faint)',
+        marginBottom: 14,
       }}
     >
+      {label.toUpperCase()}
+    </div>
+    {items.map((item) => (
       <div
+        key={item}
         style={{
-          fontSize: 13,
-          fontWeight: 700,
-          letterSpacing: '0.04em',
-          color: moved ? 'var(--fund-green)' : 'var(--ink-faint)',
-          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '8px 0',
+          fontSize: 18,
+          fontWeight: 500,
+          color: ours ? 'var(--white)' : 'var(--ink)',
         }}
       >
-        {label.toUpperCase()}
-      </div>
-      {items.map((item) => (
         <div
-          key={item}
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '9px 0',
-            fontSize: 19,
-            fontWeight: 500,
-            color: moved ? 'var(--white)' : 'var(--ink)',
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: ours ? 'var(--fund-green)' : 'var(--ink-faint)',
+            flexShrink: 0,
           }}
-        >
-          <div
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: moved ? 'var(--fund-green)' : 'var(--ink-faint)',
-              flexShrink: 0,
-            }}
-          />
-          {item}
-        </div>
-      ))}
-    </div>
-  );
-};
+        />
+        {item}
+      </div>
+    ))}
+  </div>
+);
 
 /**
- * Closes Act 2 by answering the objection a club raises the moment it is
- * impressed: we already have a platform.
+ * Closes the club act by answering the objection a club raises the moment it
+ * is impressed: we already have a platform.
  *
- * It claims a division of labour and nothing more. There is no integration,
- * nothing syncs, and whether a club can even switch its existing card
- * payments off is unverified on one platform and unknown on another
- * (pilot-prep-punchlist.md section 14). Do not restate this as "works with"
- * or "connects to" without that research landing first.
+ * The two panels pull APART rather than together, and the dashed rule between
+ * them is the point of the beat: these are two systems running side by side,
+ * not one plugged into the other. Nothing syncs, and whether a club can even
+ * switch its existing card payments off is unverified on one platform and
+ * unknown on another (pilot-prep-punchlist.md section 14). Do not redraw this
+ * with an arrow, a bridge or a merge.
  */
 export const Act2Alongside: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const at = (i: number) =>
-    spring({frame: frame - i * 9, fps, config: {damping: 200}, durationInFrames: 26});
+
+  const enter = spring({frame, fps, config: {damping: 200}, durationInFrames: 24});
+  // They begin overlapping and separate, which reads as "these stay apart".
+  const apart = spring({
+    frame: frame - 14,
+    fps,
+    config: {damping: 200},
+    durationInFrames: 30,
+  });
+  const gap = 10 + apart * 34;
 
   return (
     <SplitStage caption={copy.act2Alongside.caption}>
       <style>{appCss}</style>
-      <div style={{display: 'flex', alignItems: 'flex-start', gap: 20}}>
-        <Column
-          label={copy.act2Alongside.staysLabel}
-          items={data.alongside.stays}
-          tone="kept"
-          enter={at(0)}
+      <div style={{display: 'flex', alignItems: 'stretch', gap: 0}}>
+        <Panel
+          label={copy.act2Alongside.theirsLabel}
+          items={data.alongside.theirs}
+          enter={enter}
+          slide={-gap}
         />
-        <Column
-          label={copy.act2Alongside.movesLabel}
-          items={data.alongside.moves}
-          tone="moved"
-          enter={at(1)}
+        <div
+          style={{
+            width: 2,
+            alignSelf: 'stretch',
+            margin: '8px 0',
+            borderLeft: '2px dashed var(--line)',
+            opacity: apart,
+          }}
+        />
+        <Panel
+          label={copy.act2Alongside.oursLabel}
+          items={data.alongside.ours}
+          ours
+          enter={enter}
+          slide={gap}
         />
       </div>
     </SplitStage>

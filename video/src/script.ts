@@ -75,8 +75,8 @@ export const data = {
   // hand. See pilot-prep-punchlist.md section 14 before strengthening any of
   // this wording.
   alongside: {
-    stays: ['Rosters', 'Schedules', 'Team messaging', 'Your club website'],
-    moves: ['How families pay'],
+    theirs: ['Registration', 'Rosters', 'Schedules', 'Team messaging'],
+    ours: ['How families pay'],
   },
 
   // Act 3. Four payments, two weeks apart, which is what the product actually
@@ -122,7 +122,8 @@ export const copy = {
 
   act1Expenses: {
     voice:
-      "But a club can't wait on that money. Facilities, tournament fees, refs. Those bills come due now.",
+      "But a club can't wait on that money. Facilities, tournament fees, refs. " +
+      'Those bills are often due before the season starts.',
     eyebrow: 'What a club owes',
     heading: 'Due before the season starts',
     footnote: 'Figures are examples, not a real club.',
@@ -136,36 +137,35 @@ export const copy = {
   },
 
   act2Roster: {
-    voice: 'Fifty families sign up.',
-    caption: 'Fifty families\nsign up.',
+    voice: 'Families sign up before the season.',
+    caption: 'Families sign up\nbefore the season.',
     eyebrow: 'Club dashboard',
     heading: 'Fall registration',
   },
 
   act2Payout: {
-    voice: 'The whole season lands in your account.',
-  },
-
-  act2Buckets: {
-    voice: 'And you can see where every athlete stands.',
-    caption: 'Where every\nathlete stands.',
+    voice: 'The whole season lands in your account before it starts.',
   },
 
   act2Alongside: {
     voice:
-      'Keep the platform you already use. PlayFund only changes how families pay.',
-    caption: 'Keep the platform\nyou already use.',
-    staysLabel: 'Stays where it is',
-    movesLabel: 'Moves to PlayFund',
+      'PlayFund works alongside any management software you already use.',
+    caption: 'Works alongside\nwhat you already use.',
+    theirsLabel: 'Your management software',
+    oursLabel: 'PlayFund',
   },
 
   act3Dues: {
-    voice: "That thousand dollars isn't one payment.",
-    caption: 'Pay now,\nor pay over time.',
+    voice:
+      'If approved, a family can split their payments up over time, ' +
+      'but we still pay the club everything up front.',
+    caption: 'Families split it.\nYou still get it all.',
   },
 
   act3Split: {
-    voice: "If they're approved, it's four, two weeks apart.",
+    // act3-dues already carries the "if approved" qualifier, so this one
+    // just describes the shape of the plan.
+    voice: 'Four payments, two weeks apart.',
     heading: 'Four payments, two weeks apart',
     // Mirrors step 3 of the installments section in screen-athlete-detail,
     // with the provider genericized for a public video. Do not cut this for
@@ -175,7 +175,9 @@ export const copy = {
   },
 
   act4Card: {
-    voice: 'Explore a club pilot.',
+    // No line. The beat ends on a cursor settling over the button instead,
+    // which asks for the click more plainly than saying it would.
+    voice: '',
     headline: 'Families pay over time.\nClubs get paid up front.',
     cta: 'Explore a club pilot',
     url: 'playfundai.com',
@@ -196,7 +198,6 @@ export type BeatId =
   | 'act1-split'
   | 'act2-roster'
   | 'act2-payout'
-  | 'act2-buckets'
   | 'act2-alongside'
   | 'act3-dues'
   | 'act3-split'
@@ -211,7 +212,7 @@ export type BeatId =
  * needs to change: the effective length of every clip is derived from it, so
  * the cuts stay on the words.
  */
-export const SPEED = 1.3;
+export const SPEED = 1.1;
 
 /** Silence before the line starts, in seconds. */
 export const LEAD = 0.3;
@@ -224,14 +225,13 @@ const spec: {id: BeatId; minHold: number}[] = [
   {id: 'act1-split', minHold: 4},
   {id: 'act2-roster', minHold: 3.2},
   {id: 'act2-payout', minHold: 3.2},
-  {id: 'act2-buckets', minHold: 3.4},
   {id: 'act2-alongside', minHold: 5},
   {id: 'act3-dues', minHold: 3.2},
   // The disclosure appears part-way in and is the longest text in the video.
   // This floor is what keeps it on screen long enough to actually be read;
   // do not lower it to tighten the edit.
   {id: 'act3-split', minHold: 8.5},
-  {id: 'act4-card', minHold: 3.2},
+  {id: 'act4-card', minHold: 4.6},
 ];
 
 /** Seconds of speech per beat as recorded, before SPEED is applied. */
@@ -239,6 +239,24 @@ export const speech: Partial<Record<BeatId, number>> = voDurations.seconds;
 
 /** How long a line actually takes on screen, once sped up. */
 export const spokenFor = (id: BeatId) => (speech[id] ?? 0) / SPEED;
+
+/**
+ * Where the wordmark sits during a beat. It lives top-left by default and
+ * travels to these positions, so it is never cut and re-placed: one mark
+ * moving through the film. Coordinates are the centre of the mark, in a
+ * 1920x1080 frame.
+ */
+export type LogoSpot = {x: number; y: number; scale: number; onDark?: boolean};
+
+export const LOGO_HOME: LogoSpot = {x: 118, y: 62, scale: 1};
+
+export const logoSpots: Partial<Record<BeatId, LogoSpot>> = {
+  // Above the two cards: the mark arriving is what makes them a PlayFund
+  // claim rather than two assertions.
+  'act1-split': {x: 960, y: 286, scale: 1.7},
+  // Centre of the closing card, on ink.
+  'act4-card': {x: 960, y: 300, scale: 1.9, onDark: true},
+};
 
 /** Per-beat minimum hold, exposed so tooling need not duplicate it. */
 export const floors: Record<BeatId, number> = Object.fromEntries(

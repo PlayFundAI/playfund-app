@@ -2,13 +2,13 @@ import React from 'react';
 import {AbsoluteFill, Audio, Sequence, staticFile} from 'remotion';
 import {BeatId, LEAD, SPEED, TRANSITION, sec, timeline} from './script';
 import {BeatWrap} from './components/BeatWrap';
+import {LogoLayer} from './components/LogoLayer';
 
 import {Act1Dues} from './beats/Act1Dues';
 import {Act1Expenses} from './beats/Act1Expenses';
 import {Act1Split} from './beats/Act1Split';
 import {Act2Roster} from './beats/Act2Roster';
 import {Act2Payout} from './beats/Act2Payout';
-import {Act2Buckets} from './beats/Act2Buckets';
 import {Act2Alongside} from './beats/Act2Alongside';
 import {Act3Dues} from './beats/Act3Dues';
 import {Act3Split} from './beats/Act3Split';
@@ -20,7 +20,6 @@ const beats: Record<BeatId, React.FC> = {
   'act1-split': Act1Split,
   'act2-roster': Act2Roster,
   'act2-payout': Act2Payout,
-  'act2-buckets': Act2Buckets,
   'act2-alongside': Act2Alongside,
   'act3-dues': Act3Dues,
   'act3-split': Act3Split,
@@ -63,6 +62,9 @@ export const Main: React.FC = () => {
           </Sequence>
         );
       })}
+
+      {/* Above every beat: one mark that travels, never a cut. */}
+      <LogoLayer />
     </AbsoluteFill>
   );
 };

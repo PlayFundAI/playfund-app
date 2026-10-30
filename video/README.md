@@ -29,8 +29,8 @@ stylesheet from `../public/app/index.html`.
 
 ## Voiceover
 
-The committed track is OpenAI `gpt-4o-mini-tts`, voice **echo**, style
-**natural**, chosen by ear over two rounds of auditions.
+The committed track is ElevenLabs **Matilda** via `eleven_multilingual_v2`,
+chosen by ear over three rounds of auditions.
 
 Clips are stored as **lossless WAV**, so Remotion's own encode is the only
 lossy step. They were briefly mp3 from the API re-encoded to 48kbps AAC, which
@@ -42,7 +42,7 @@ top end available from OpenAI. ElevenLabs returns 44.1kHz, which is the main
 reason to switch if the track still sounds thin.
 
 ```bash
-source ~/.playfund-env && VO_ENGINE=openai npm run vo && npm run render
+source ~/.playfund-env && VO_ENGINE=elevenlabs ELEVENLABS_VOICE_NAME=Matilda npm run vo && npm run render
 ```
 
 ```bash
@@ -121,6 +121,12 @@ tier about 22 times over, or costs under a cent on OpenAI.
 Running with no voice name prints every voice on the account and uses the
 first, so you can see what you have before choosing.
 
+## The wordmark
+
+`LogoLayer` draws exactly one wordmark for the whole film. It sits top-left by
+default and travels to the positions in `logoSpots` (script.ts), so it is never
+cut from one place and redrawn in another. Beats must not draw their own.
+
 ## Two constraints that are not style choices
 
 - **The video never names the payment provider.** `screen-athlete-detail`
@@ -134,5 +140,5 @@ first, so you can see what you have before choosing.
 
 | id | what |
 |---|---|
-| `Main` | the explainer, ~0:48, narrated |
+| `Main` | the explainer, ~0:49, narrated |
 | `HeroLoop` | the payout beat alone, 8s, silent, for the homepage hero |

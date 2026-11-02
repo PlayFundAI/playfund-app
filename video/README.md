@@ -99,8 +99,10 @@ Its output is 44.1kHz against OpenAI's 24kHz. `pcm_44100` is Pro tier and
 above, so the default is `mp3_44100_128`; set `ELEVENLABS_FORMAT=pcm_44100`
 on a Pro account to drop the last lossy step.
 
-Its free tier has **no commercial licence**, so audition on free but regenerate
-on a paid plan before the video ships.
+Its free tier has **no commercial licence**. The committed track was generated
+on a Starter subscription, which includes one, so the film in `public/` is
+cleared for the marketing site. Keep that true: if you ever audition on a free
+account, regenerate on the paid one before shipping what you heard.
 
 That renders one line across voices and both styles into a temp directory, for
 well under a cent. `OPENAI_VOICES`, `VO_STYLES` and `VO_SAMPLE_LINE` narrow it.

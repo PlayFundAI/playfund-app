@@ -1,0 +1,4 @@
+node_modules/
+out/
+# Generated from ../public/app/index.html by scripts/sync-app-css.mjs
+src/app-css.ts

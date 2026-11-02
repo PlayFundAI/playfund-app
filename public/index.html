@@ -152,23 +152,38 @@
     .split{grid-template-columns:1fr;max-width:460px;gap:14px}
   }
 
-  /* dashboard illustration */
+  /* hero film, in the frame the dashboard illustration used to occupy */
   .shot{max-width:900px;margin:52px auto 0;border-radius:14px;border:1px solid var(--line);
         box-shadow:0 18px 50px rgba(0,70,67,0.10);overflow:hidden;background:#fff;text-align:left}
-  .shot-bar{display:flex;align-items:center;gap:8px;padding:11px 16px;background:var(--paper-dim);border-bottom:1px solid var(--line)}
-  .dot{width:10px;height:10px;border-radius:50%}
-  .shot-url{margin-left:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink-soft)}
-  .shot-body{display:grid;grid-template-columns:1fr 1fr;gap:26px;padding:26px}
-  .shot-label{font-size:11px;font-weight:700;color:var(--ink-faint);letter-spacing:0.04em;margin-bottom:6px}
-  .shot-big{font-family:'Anton',sans-serif;font-size:40px;line-height:1}
-  .shot-stats{display:flex;gap:10px;margin-top:18px}
-  .shot-stat{flex:1;background:var(--paper-dim);border-radius:9px;padding:11px 13px}
-  .shot-stat b{font-family:'Anton',sans-serif;font-size:21px;display:block;line-height:1}
-  .shot-stat span{font-size:10.5px;font-weight:700;color:var(--ink-soft);letter-spacing:0.03em}
-  .shot-panel{border:1px solid var(--line);border-radius:11px;padding:16px}
-  .shot-row{display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0}
-  .shot-row + .shot-row{border-top:1px solid var(--line)}
-  .shot-note{padding:0 26px 18px;font-size:11.5px;color:var(--ink-faint)}
+  .shot-note{padding:12px 26px 16px;font-size:11.5px;color:var(--ink-faint)}
+
+  /* Hero film. Replaced the hand-built dashboard illustration that used to sit
+     here: the film shows the same screens in motion and makes the argument the
+     illustration could only gesture at.
+     The silent 8s loop autoplays in its place so the hero still moves, at 258K.
+     The narrated film is preload="none" and only fetched on click — 3.8MB at
+     the top of a homepage is a real cost on a phone. */
+  .player{position:relative;aspect-ratio:16/9;background:var(--paper-dim)}
+  .player video{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .player .is-hidden{opacity:0;pointer-events:none}
+  /* Full-area click target, but the label sits in a solid pill: white text
+     floating over the loop was unreadable wherever the frame went light. */
+  /* Sits low, because the loop's whole job is the payout figure in the
+     middle of the frame and the pill was covering it. */
+  .player-play{position:absolute;inset:0;width:100%;height:100%;display:flex;
+               align-items:flex-end;justify-content:center;padding:0 0 7% 0;
+               background:rgba(0,48,46,0.14);border:none;cursor:pointer;
+               font-family:'Inter',sans-serif;transition:background .15s ease}
+  .player-play:hover{background:rgba(0,48,46,0.26)}
+  .player-pill{display:inline-flex;align-items:center;gap:13px;
+               background:rgba(0,48,46,0.92);color:#fff;border-radius:999px;
+               padding:12px 24px 12px 14px;box-shadow:0 10px 30px rgba(0,48,46,0.28);
+               transition:transform .15s ease}
+  .player-play:hover .player-pill{transform:scale(1.03)}
+  .player-play svg{width:34px;height:34px;flex-shrink:0}
+  .player-play-label{font-size:15px;font-weight:700;line-height:1.25;text-align:left}
+  .player-play-dur{display:block;font-size:12px;font-weight:500;opacity:.72}
+  .player.is-playing .player-play{display:none}
 
   /* sections */
   section{padding:76px 0}
@@ -283,8 +298,17 @@
   .foot-bottom{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);
                font-size:12.5px;color:var(--ink-faint)}
 
+  /* A 16:9 frame is only ~210px tall on a phone, so the pill has to shrink
+     and sit lower or it lands on top of the payout card. */
+  @media (max-width:640px){
+    .player-play{padding:0 0 4% 0}
+    .player-pill{gap:9px;padding:9px 17px 9px 10px}
+    .player-play svg{width:26px;height:26px}
+    .player-play-label{font-size:13px}
+    .player-play-dur{font-size:11px}
+  }
+
   @media (max-width:900px){
-    .shot-body{grid-template-columns:1fr}
     .nav-links{display:none}
     .trow{grid-template-columns:1fr;gap:6px}
     .thead{display:none}
@@ -330,31 +354,24 @@
     </div>
 
     <div class="shot">
-      <div class="shot-bar">
-        <span class="dot" style="background:#F87171"></span>
-        <span class="dot" style="background:#FBBF24"></span>
-        <span class="dot" style="background:#34D399"></span>
-        <span class="shot-url">www.playfundai.com/app</span>
+      <div class="player" id="filmPlayer">
+        <video class="player-loop" id="filmLoop" src="/hero-loop.mp4" poster="/video-poster.jpg"
+               muted loop playsinline autoplay preload="metadata" aria-hidden="true" tabindex="-1"></video>
+        <video class="is-hidden" id="filmFull" src="/playfund-pilot.mp4" poster="/video-poster.jpg"
+               playsinline preload="none" controls></video>
+        <button class="player-play" id="filmPlay" type="button">
+          <span class="player-pill">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="11" fill="#5BA888"/>
+              <path d="M10 8.2 L16.2 12 L10 15.8 Z" fill="#fff"/>
+            </svg>
+            <span class="player-play-label">See how it works
+              <span class="player-play-dur">43 seconds</span>
+            </span>
+          </span>
+        </button>
       </div>
-      <div class="shot-body">
-        <div>
-          <div class="shot-label">Landing in your account</div>
-          <div class="shot-big">$264,180</div>
-          <div style="font-size:13.5px;color:var(--ink-soft);margin-top:5px;">287 athletes, already funded</div>
-          <div class="shot-stats">
-            <div class="shot-stat"><b style="color:var(--green-dk)">287</b><span>Funded</span></div>
-            <div class="shot-stat"><b style="color:var(--amber)">19</b><span>Deciding</span></div>
-            <div class="shot-stat"><b style="color:var(--red)">6</b><span>Needs option</span></div>
-          </div>
-        </div>
-        <div class="shot-panel">
-          <div class="shot-label">Where every athlete stands</div>
-          <div class="shot-row"><span>Maya Rivera</span><span style="color:var(--green-dk);font-weight:700">Funded</span></div>
-          <div class="shot-row"><span>Jordan Rivera</span><span style="color:var(--green-dk);font-weight:700">Funded</span></div>
-          <div class="shot-row"><span>Marcus Bell</span><span style="color:var(--amber);font-weight:700">Link opened</span></div>
-        </div>
-      </div>
-      <div class="shot-note">Illustration of the club dashboard. Figures are examples, not a real club.</div>
+      <div class="shot-note">Figures shown are examples, not a real club.</div>
     </div>
   </div>
 </section>
@@ -543,7 +560,46 @@
   })();
 
 
-  document.getElementById('contactForm').addEventListener('submit', async function(e){
+  // ---------- hero film ----------
+// The loop is decoration; the film is the content. Clicking swaps one for the
+// other rather than loading both. The play button is a <button>, so the
+// click tracking above already records it — nothing extra to wire up.
+(function(){
+  var wrap = document.getElementById('filmPlayer');
+  if(!wrap) return;
+  var loop = document.getElementById('filmLoop');
+  var film = document.getElementById('filmFull');
+  var btn  = document.getElementById('filmPlay');
+
+  // Someone who has asked for less motion gets the poster, not a loop.
+  try {
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      loop.removeAttribute('autoplay');
+      loop.pause();
+    }
+  } catch(e){}
+
+  // If the film is missing or won't play, fall back to the loop rather than
+  // leaving a dead black rectangle where the illustration used to be.
+  function revert(){
+    wrap.classList.remove('is-playing');
+    film.classList.add('is-hidden');
+    loop.classList.remove('is-hidden');
+    loop.play().catch(function(){});
+  }
+  film.addEventListener('error', revert);
+
+  btn.addEventListener('click', function(){
+    wrap.classList.add('is-playing');
+    loop.pause();
+    loop.classList.add('is-hidden');
+    film.classList.remove('is-hidden');
+    var p = film.play();
+    if(p && p.catch) p.catch(revert);
+  });
+})();
+
+document.getElementById('contactForm').addEventListener('submit', async function(e){
     e.preventDefault();
     var msgEl = document.getElementById('contactMsg');
     var btn   = document.getElementById('contactBtn');

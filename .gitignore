@@ -1,2 +1,11 @@
 .env
 .wrangler/
+
+# The narrated film is deliberately NOT committed yet.
+#
+# Its voiceover was generated on ElevenLabs' free tier, which carries no
+# commercial licence, and this repository is public. Regenerate the track on a
+# paid plan, then delete these two lines and commit the file:
+#   cd video && source ~/.playfund-env && ELEVENLABS_VOICE_NAME=Matilda npm run vo && npm run render
+# The branch must not merge before that: the page links /playfund-pilot.mp4.
+public/playfund-pilot.mp4

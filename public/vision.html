@@ -322,27 +322,21 @@
 
   /* ── Vision page ──────────────────────────────────────────────────────────
      The status marker is a kicker, not a badge: a rule and a word in the body
-     face, no colour of its own. The notice bar under the nav is what carries
-     the disclosure. This only has to label each idea where it sits. */
+     face, no colour of its own. With the notice bar gone, the disclosure rests
+     on the hero line, these kickers and the note on each mock. Keep all three. */
   .exploring{display:inline-flex;align-items:center;gap:11px;font-size:13px;
              color:var(--ink-faint);font-weight:500}
   .exploring::before{content:"";width:24px;height:1px;background:var(--ink-faint);flex-shrink:0}
 
-  /* Sits directly under the nav on every viewport. It is the first thing read
-     after the wordmark, which is the point. */
-  .notice{background:var(--ink);color:#fff;padding-block:13px;font-size:14px;line-height:1.5}
-  .notice b{color:var(--green)}
-
-  .v-hero{padding-block:clamp(46px,6vw,74px);text-align:center}
-  .v-hero h1{margin:0 auto 18px;max-width:17ch}
+  .v-hero{padding-block:clamp(58px,7vw,92px);text-align:center}
+  .v-hero h1{margin:0 auto 16px;max-width:17ch}
   .v-lede{font-size:clamp(16.5px,1.8vw,19px);color:var(--ink-soft);max-width:60ch;margin:0 auto;line-height:1.65}
 
   .v-sec{display:grid;grid-template-columns:1fr;gap:30px;align-items:start}
   @media(min-width:900px){.v-sec{grid-template-columns:.95fr 1.05fr;gap:54px}}
   .v-copy{min-width:0;display:flex;flex-direction:column;gap:17px}
   .v-art{min-width:0}
-  .v-prob{border-left:3px solid var(--line);padding-left:16px;color:var(--ink-soft);
-          font-size:15.5px;max-width:56ch}
+  .v-prob{color:var(--ink-soft);font-size:16.5px;line-height:1.6;max-width:50ch}
   .v-prob b{color:var(--ink);font-weight:600}
   .v-points{display:flex;flex-direction:column;gap:13px;margin:0;padding:0;list-style:none}
   .v-points li{display:flex;gap:11px;font-size:15.5px;line-height:1.55}
@@ -400,19 +394,12 @@
   </div>
 </nav>
 
-<div class="notice">
-  <div class="wrap">
-    <b>None of this page is available today.</b>
-    These are directions we want to take PlayFund, not features you can use.
-    What we actually offer is on <a href="/" style="color:#fff">the home page</a>.
-  </div>
-</div>
-
 <section class="v-hero">
   <div class="wrap">
-    <h1>Registration is the first third of what a season costs.</h1>
+    <h1>Coming soon.</h1>
     <p class="v-lede">
-      PlayFund handles that third today. Two ideas for the rest of it.
+      Two things we want to build after registration and payments.
+      Neither is live today.
     </p>
   </div>
 </section>
@@ -421,16 +408,15 @@
   <div class="wrap v-sec">
     <div class="v-copy">
       <span class="exploring">Exploring</span>
-      <h2>Earn next season back while you pay for this one.</h2>
+      <h2>Rewards on everything a season costs.</h2>
       <p class="v-prob">
-        Dues are one line on a much longer bill. Fuel to away games, hotels for tournaments,
-        boots that last four months, an entry fee for every event.
-        <b>None of that spending comes back to anyone.</b>
+        Families earn on youth sports spending. <b>What they earn comes off next
+        season&rsquo;s registration.</b>
       </p>
       <ul class="v-points">
-        <li>Families earn on the spending a season already forces on them.</li>
-        <li>What they earn goes toward next season&rsquo;s dues, not a points balance that expires.</li>
-        <li>A family holding part of next year&rsquo;s registration signs up again.</li>
+        <li>Earns on travel, hotels, gear and entry fees, not just dues.</li>
+        <li>Credit applies to next season&rsquo;s registration, paid to the club.</li>
+        <li>No points balance and no expiry.</li>
       </ul>
     </div>
 
@@ -468,8 +454,7 @@
             <span><i style="background:repeating-linear-gradient(135deg,#E6EEEB 0 5px,#F4F7F6 5px 10px);border:1px solid var(--line)"></i>What it does not</span>
           </div>
           <p class="card-note">
-            Proportions are illustrative and vary by sport and how far a club travels.
-            No rate, no program, nothing to sign up for.
+            Illustrative proportions. No rate, no program, nothing to sign up for.
           </p>
         </div>
       </div>
@@ -481,15 +466,14 @@
   <div class="wrap v-sec">
     <div class="v-copy">
       <span class="exploring">Exploring</span>
-      <h2>Show a sponsor what their money did.</h2>
+      <h2>Sponsorship with a receipt.</h2>
       <p class="v-prob">
-        A local business writes the club a check and hears nothing until next year&rsquo;s ask.
-        <b>Renewing becomes a favor rather than a decision.</b>
+        A sponsor picks what to fund. <b>The club sends back where it went.</b>
       </p>
       <ul class="v-points">
-        <li>Sponsors fund named things: scholarship places, tournament travel, a month of referee fees.</li>
-        <li>Every dollar traced to what it paid for, because PlayFund already settles those payments.</li>
-        <li>The club gets something it can send.</li>
+        <li>Sponsors fund line items: scholarship places, tournament travel, referee fees.</li>
+        <li>Each dollar tied to what it paid for, because PlayFund settles those payments.</li>
+        <li>A report the club can send without building one.</li>
       </ul>
     </div>
 
@@ -520,8 +504,8 @@
             </div>
           </div>
           <p class="card-note">
-            An illustration, not a real club. Any version of this would show counts and
-            categories only. Athletes are never named to a sponsor.
+            An illustration, not a real club. Counts and categories only.
+            Athletes are never named to a sponsor.
           </p>
         </div>
       </div>
@@ -532,9 +516,8 @@
 <section class="closing">
   <div class="wrap">
     <h2 style="color:#fff">The pilot decides what gets built.</h2>
-    <p style="color:rgba(255,255,255,.78);max-width:58ch;margin-top:14px;font-size:16.5px;line-height:1.65">
-      Neither idea is scheduled, and each depends on things outside our control. If one of
-      them is the right direction, the clubs running the pilot are the ones who will tell us.
+    <p style="color:rgba(255,255,255,.78);max-width:52ch;margin-top:14px;font-size:16.5px;line-height:1.65">
+      Neither is scheduled. The clubs running the pilot pick what comes first.
     </p>
     <a class="btn btn-light" style="margin-top:24px" href="/#contact">Explore a Club Pilot</a>
   </div>

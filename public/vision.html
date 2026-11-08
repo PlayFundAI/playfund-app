@@ -376,14 +376,13 @@
   .pfcard-foot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
                font-size:10.5px;letter-spacing:.07em;color:rgba(255,255,255,.58)}
 
-  .ledger{margin-top:22px;border-top:1px solid var(--line)}
-  .ledger-row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
-              padding:11px 0;border-bottom:1px solid var(--line);font-size:14.5px}
-  .ledger-row b{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .ledger-row--earn b{color:var(--green-dk)}
-  .ledger-row--total{border-bottom:0;padding-top:14px}
-  .ledger-row--total span{font-weight:600}
-  .ledger-row--total b{font-family:'Anton',sans-serif;font-size:27px;line-height:1}
+  .ledger{margin-top:21px;border-top:1px solid var(--line)}
+  .ledger-row{display:flex;align-items:center;gap:11px;padding:11px 0;
+              border-bottom:1px solid var(--line);font-size:15px}
+  .ledger-row::before{content:"";width:7px;height:7px;border-radius:50%;
+                      background:var(--line);flex-shrink:0}
+  .ledger-row--earn{font-weight:600;border-bottom:0}
+  .ledger-row--earn::before{background:var(--green)}
 </style>
 </head>
 <body>
@@ -419,22 +418,22 @@
   <div class="wrap v-sec">
     <div class="v-copy">
       <span class="exploring">Exploring</span>
-      <h2>A card that pays for next season.</h2>
+      <h2>One card for everything a season costs.</h2>
       <p class="v-prob">
-        Families earn on youth sports spending. <b>What they earn comes off next
-        season&rsquo;s registration.</b>
+        Dues are the part PlayFund handles today. <b>A sports card would cover the
+        rest of the year and earn on it.</b>
       </p>
       <ul class="v-points">
-        <li>Earns on travel, hotels, gear and entry fees, not just dues.</li>
-        <li>Rewards arrive as registration credit, paid straight to the club.</li>
-        <li>No points balance, no expiry, nothing to redeem.</li>
+        <li>Gear, travel, gas, hotels, events and next season&rsquo;s registration.</li>
+        <li>Rewards funded by partners rather than by the club.</li>
+        <li>It follows the financing product. It does not come first.</li>
       </ul>
     </div>
 
     <div class="v-art">
       <div class="card">
         <div class="card-head">
-          <span class="card-title">HOW THE CARD WOULD WORK</span>
+          <span class="card-title">WHAT THE CARD WOULD COVER</span>
           <span class="exploring">Exploring</span>
         </div>
         <div class="card-body">
@@ -452,20 +451,16 @@
           </div>
 
           <div class="ledger">
-            <div class="ledger-row ledger-row--earn">
-              <span>Earned across the season</span><b>+$312</b>
-            </div>
-            <div class="ledger-row">
-              <span>Next season&rsquo;s registration</span><b>$1,000</b>
-            </div>
-            <div class="ledger-row ledger-row--total">
-              <span>The family pays</span><b>$688</b>
-            </div>
+            <div class="ledger-row"><span>Gear and equipment</span></div>
+            <div class="ledger-row"><span>Travel, gas and hotels</span></div>
+            <div class="ledger-row"><span>Tournaments and events</span></div>
+            <div class="ledger-row ledger-row--earn"><span>Next season&rsquo;s registration</span></div>
           </div>
 
           <p class="card-note">
-            Illustrative amounts. There is no card, no issuer, no rate and nothing to
-            apply for.</p>
+            There is no card, no issuer and no rate. How rewards would come back to a
+            family is not decided, and they would be funded by partners we have not
+            signed.</p>
         </div>
       </div>
     </div>
@@ -476,15 +471,15 @@
   <div class="wrap v-sec">
     <div class="v-copy">
       <span class="exploring">Exploring</span>
-      <h2>Sponsorship that reaches the families who need it.</h2>
+      <h2>Proof the money reached the families who needed it.</h2>
       <p class="v-prob">
-        A sponsor funds the families a club has flagged for help.
-        <b>Afterwards they see what the money actually covered.</b>
+        Aid decisions today are manual and hard to audit.
+        <b>A sponsor has to take the club&rsquo;s word for it.</b>
       </p>
       <ul class="v-points">
-        <li>Money goes to families the club has already approved for assistance.</li>
-        <li>Each dollar tied to what it paid for, because PlayFund settles those payments.</li>
-        <li>A report the club can send without building one.</li>
+        <li>The club decides who qualifies. That decision is recorded as it is made.</li>
+        <li>Each dollar tied to the registration it paid for, because PlayFund settles it.</li>
+        <li>Proof the club can send without building a report.</li>
       </ul>
     </div>
 

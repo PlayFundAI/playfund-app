@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Our vision for youth sports | PlayFund</title>
+<!-- Every piece of metadata here has to survive being read on its own, in a
+     search result or a link preview, without sounding like a product we sell.
+     "Exploring" and "not available today" are load-bearing words. -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://www.playfundai.com/vision">
+<meta property="og:site_name" content="PlayFund">
+<meta property="og:title" content="Our vision for youth sports">
+<meta property="og:description" content="Ideas we are exploring beyond registration and payments. Not available today.">
+<meta property="og:image" content="https://www.playfundai.com/share-club.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Our vision for youth sports">
+<meta name="twitter:description" content="Ideas we are exploring beyond registration and payments. Not available today.">
+<meta name="twitter:image" content="https://www.playfundai.com/share-club.png">
+<meta name="description" content="Where PlayFund wants to go after registration and payments: earning back on what a season really costs, and showing sponsors what their money funded. These are ideas we are exploring, not features we offer today.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* The marketing site keeps its CSS per page rather than in a shared sheet,
+     so this is index.html's stylesheet verbatim. Rules for elements this page
+     does not have are inert; keeping the block whole means the nav, footer,
+     bands and buttons cannot drift from the home page. */
+
+  :root{
+    --ink:#004643;
+    --ink-soft:#6B7280;
+    --ink-faint:#9CA3AF;
+    --green:#5BA888;
+    --green-dk:#3D8A6A;
+    --paper:#FFFFFF;
+    --paper-dim:#F4F7F6;
+    --line:#E8EDEC;
+    --red:#B42318;
+    --wrap:1120px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+  h1,h2,h3{font-family:'Anton',sans-serif;font-weight:400;letter-spacing:0.01em;line-height:1.1;margin:0}
+  h1{font-size:clamp(34px,5.2vw,58px)}
+  h2{font-size:clamp(27px,3.6vw,40px)}
+  h3{font-family:'Inter',sans-serif;font-weight:700;font-size:16px;line-height:1.4}
+  p{margin:0}
+  a{color:inherit}
+
+  /* nav */
+  .nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .nav-inner{display:flex;align-items:center;gap:28px;height:68px}
+  .logo{font-family:'Anton',sans-serif;font-size:21px;letter-spacing:0.02em;text-decoration:none}
+  .logo span{color:var(--green)}
+  .nav-links{display:flex;gap:24px;margin-left:8px}
+  .nav-links a{font-size:14.5px;font-weight:600;color:var(--ink);text-decoration:none;opacity:0.85}
+  /* The two audience links read as a pair and sit ahead of the section links,
+     with a hairline separating them from the rest of the nav. */
+  .nav-aud{opacity:1}
+  .nav-links a.nav-aud + a:not(.nav-aud){
+    border-left:1px solid var(--line);padding-left:24px;margin-left:0}
+  .nav-links a:hover{opacity:1;color:var(--green-dk)}
+  .nav-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .nav-signin{font-size:14.5px;font-weight:600;text-decoration:none;color:var(--ink)}
+
+  .btn{display:inline-block;border:none;border-radius:10px;font-family:'Inter',sans-serif;
+       font-size:15px;font-weight:700;padding:13px 26px;cursor:pointer;text-decoration:none;
+       transition:transform .06s ease,background .15s ease}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--ink);color:#fff}
+  .btn-primary:hover{background:#00302e}
+  .btn-light{background:var(--green);color:#fff}
+  .btn-light:hover{background:var(--green-dk)}
+  .btn-ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+  .btn-ghost:hover{border-color:var(--green)}
+  .btn-sm{padding:10px 18px;font-size:14px}
+  /* The nav CTA is the longest label on the page and the nav is the narrowest
+     place it appears. Below 560px the logo, "Sign in" and a 20-character
+     button do not fit on one line, and the button wrapped to two — which made
+     the header taller than the content it sat above. Same destination, shorter
+     label. */
+  .nav-cta{white-space:nowrap}
+  .cta-short{display:none}
+  @media (max-width:560px){
+    .cta-long{display:none}
+    .cta-short{display:inline}
+    .nav-cta{padding:10px 14px}
+    .nav-right{gap:12px}
+  }
+
+  /* hero */
+  .hero{padding:84px 0 64px;text-align:center}
+  /* Matches the section headings later on the page: Anton, ink, same scale. */
+  .tagline{font-family:'Anton',sans-serif;font-weight:400;letter-spacing:.01em;line-height:1.1;
+           font-size:clamp(27px,3.6vw,40px);color:var(--ink);margin:0 0 46px}
+  .eyebrow{display:inline-block;background:var(--paper-dim);border-radius:999px;
+           padding:7px 16px;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:22px}
+
+  /* Hero: two audiences as two cards, one tinted and one ink, each a
+     self-contained unit of icon, heading and that audience's own button. The
+     subject word is larger than the statement under it, so the two audiences
+     are what you see first.
+     The cards replaced a hairline divider, which read clearly on desktop and
+     not at all on a phone: stacked, the tagline and both statements were Anton
+     at 27, 34 and 24px with only a 1px line between them, so there was nothing
+     to tell you where one idea ended.
+     The left column is the <h1> and the right an <h2>, which keeps exactly one
+     top-level heading in document order. */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:960px;margin:0 auto}
+  .split-col{border-radius:13px;padding:34px 30px 30px;text-align:center;
+             display:flex;flex-direction:column}
+  .split-head{margin:0 0 26px}
+  /* Grid stretches both cards to the same height, so pinning the button to the
+     bottom of each lines the two up whatever the statements do. Sizing the type
+     to force one line each would have worked today and broken on the first copy
+     change. On mobile the cards are their own height, there is no free space to
+     absorb, and the heading's own margin provides the gap. */
+  .split-btn{margin-top:auto}
+  /* Centred with auto margins, not text-align: the column is a flex container
+     now, so the svg is a flex item and text-align no longer reaches it. */
+  .split-icon{width:40px;height:40px;fill:none;stroke-width:1.8;
+              stroke-linecap:round;stroke-linejoin:round;margin:0 auto 12px}
+  .split-who{display:block;font-size:clamp(34px,4.4vw,50px);line-height:1.05;margin-bottom:5px}
+  .split-say{display:block;font-size:clamp(24px,2.9vw,32px);line-height:1.12}
+
+  .split-col.fam{background:var(--paper-dim)}
+  .fam .split-icon{stroke:var(--green)}
+  .fam .split-who{color:var(--green-dk)}
+  .fam .split-say{color:var(--ink)}
+  .fam .split-btn{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+
+  .split-col.clb{background:var(--ink)}
+  /* --green rather than --green-dk on ink: the darker green fails for contrast
+     against #004643, so the two cards use different greens on purpose. */
+  .clb .split-icon{stroke:var(--green)}
+  .clb .split-who{color:var(--green)}
+  .clb .split-say{color:#fff}
+  /* A white border, not no border: the Families button carries a 1.5px line
+     and without a matching one here the two buttons differ by 3px in height
+     and sit 3px apart, which bottom-alignment cannot fix. */
+  .clb .split-btn{background:#fff;color:var(--ink);border:1.5px solid #fff}
+
+  /* Forces the break only where the columns are narrow enough to need it. */
+  @media (min-width:821px){ .split-brk{display:block} }
+  @media (max-width:820px){
+    .split{grid-template-columns:1fr;max-width:460px;gap:14px}
+  }
+
+  /* hero film, in the frame the dashboard illustration used to occupy */
+  .shot{max-width:900px;margin:52px auto 0;border-radius:14px;border:1px solid var(--line);
+        box-shadow:0 18px 50px rgba(0,70,67,0.10);overflow:hidden;background:#fff;text-align:left}
+  .shot-note{padding:12px 26px 16px;font-size:11.5px;color:var(--ink-faint)}
+
+  /* Hero film. Replaced the hand-built dashboard illustration that used to sit
+     here: the film shows the same screens in motion and makes the argument the
+     illustration could only gesture at.
+     The silent 8s loop autoplays in its place so the hero still moves, at 258K.
+     The narrated film is preload="none" and only fetched on click — 3.8MB at
+     the top of a homepage is a real cost on a phone. */
+  .player{position:relative;aspect-ratio:16/9;background:var(--paper-dim)}
+  .player video{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .player .is-hidden{opacity:0;pointer-events:none}
+  /* Full-area click target, but the label sits in a solid pill: white text
+     floating over the loop was unreadable wherever the frame went light. */
+  /* Sits low, because the loop's whole job is the payout figure in the
+     middle of the frame and the pill was covering it. */
+  .player-play{position:absolute;inset:0;width:100%;height:100%;display:flex;
+               align-items:flex-end;justify-content:center;padding:0 0 7% 0;
+               background:rgba(0,48,46,0.14);border:none;cursor:pointer;
+               font-family:'Inter',sans-serif;transition:background .15s ease}
+  .player-play:hover{background:rgba(0,48,46,0.26)}
+  .player-pill{display:inline-flex;align-items:center;gap:13px;
+               background:rgba(0,48,46,0.92);color:#fff;border-radius:999px;
+               padding:12px 24px 12px 14px;box-shadow:0 10px 30px rgba(0,48,46,0.28);
+               transition:transform .15s ease}
+  .player-play:hover .player-pill{transform:scale(1.03)}
+  .player-play svg{width:34px;height:34px;flex-shrink:0}
+  .player-play-label{font-size:15px;font-weight:700;line-height:1.25;text-align:left}
+  .player-play-dur{display:block;font-size:12px;font-weight:500;opacity:.72}
+  .player.is-playing .player-play{display:none}
+
+  /* sections */
+  section{padding:76px 0}
+  .tint{background:var(--paper-dim)}
+  .sec-head{text-align:center;max-width:720px;margin:0 auto 46px}
+  .sec-head p{margin-top:14px;color:var(--ink-soft);font-size:16.5px}
+
+  .grid-4{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;max-width:760px;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:24px}
+  .tint .card{background:#fff}
+  .card svg{width:22px;height:22px;stroke:var(--green);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;margin-bottom:14px}
+  .card p{margin-top:7px;font-size:14px;color:var(--ink-soft)}
+
+  /* comparison */
+  .table{background:#fff;border:1px solid var(--line);border-radius:13px;overflow:hidden}
+  .trow{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:18px;padding:16px 22px;align-items:center}
+  .trow + .trow{border-top:1px solid var(--line)}
+  .thead{font-size:12px;font-weight:700;color:var(--ink-faint);letter-spacing:0.02em}
+  .trow .quo{color:var(--ink-faint);font-size:14.5px}
+  .trow .pf{font-weight:700;font-size:14.5px}
+  .trow .told{font-size:14.5px}
+  .footnote{text-align:center;margin-top:18px;font-size:12.5px;color:var(--ink-faint);max-width:760px;margin-left:auto;margin-right:auto}
+
+
+  /* How it works — the club's actual first 15 minutes.
+     This replaced a "From signup to funded, in three steps" section that said
+     what the product does in the abstract. The question a volunteer treasurer
+     actually asks is how much work this is going to be for them, so: real
+     order, real times, and the one step that is ours rather than theirs. It
+     keeps the #how anchor the old section had, so existing links still land. */
+  .setup { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 8px; }
+  .setup-step { position: relative; padding: 0 18px 0 0; }
+  /* The connector sits behind the numbered node and stops short of the next
+     one, so the row reads as a sequence rather than four loose cards. */
+  .setup-step::after {
+    content: ''; position: absolute; top: 17px; left: 36px; right: 14px;
+    height: 2px; background: var(--line);
+  }
+  .setup-step:last-child::after { display: none; }
+  .setup-num {
+    position: relative; z-index: 1;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--ink); color: #fff;
+    font-family: 'Anton', sans-serif; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 14px;
+  }
+  /* The step PlayFund does, not the club. Calling it out rather than hiding it
+     is the point — a club that discovers a manual approval step after signing
+     up trusts the next claim less. */
+  .setup-step.is-ours .setup-num { background: var(--green); }
+  .setup-step h3 { margin-bottom: 6px; }
+  .setup-step p { font-size: 14px; color: var(--ink-soft); margin: 0; }
+  .setup-meta {
+    display: inline-block; margin-top: 10px;
+    font-size: 12px; font-weight: 700; color: var(--ink-faint);
+  }
+  .setup-outcome {
+    margin-top: 30px; background: var(--ink); color: #fff;
+    border-radius: 13px; padding: 24px 28px;
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  }
+  .setup-outcome-big { font-family: 'Anton', sans-serif; font-size: 30px; line-height: 1; }
+  .setup-outcome p { color: rgba(255,255,255,0.72); font-size: 14.5px; margin: 0; flex: 1; min-width: 240px; }
+  .setup-legend { margin-top: 16px; font-size: 12.5px; color: var(--ink-faint); display: flex; align-items: center; gap: 7px; }
+  .setup-legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--green); display: inline-block; }
+
+  @media (max-width: 860px) {
+    .setup { grid-template-columns: 1fr; gap: 22px; }
+    .setup-step { padding: 0 0 0 48px; }
+    /* Vertical on mobile: the connector runs down the left gutter instead. */
+    .setup-step::after {
+      top: 38px; bottom: -22px; left: 16px; right: auto;
+      width: 2px; height: auto;
+    }
+    .setup-num { position: absolute; left: 0; top: 0; margin-bottom: 0; }
+  }
+
+
+  /* closing */
+  .closing{background:var(--ink);color:#fff;text-align:center;padding:76px 0}
+  .closing h2{color:#fff}
+  .closing p{margin-top:14px;color:rgba(255,255,255,0.72);font-size:16px}
+  .closing .btn{margin-top:26px}
+
+  /* contact */
+  .contact-card{max-width:560px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:15px;padding:32px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}
+  .field input,.field textarea{
+    width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;
+    font-family:'Inter',sans-serif;font-size:15px;color:var(--ink);background:#fff}
+  .field input:focus,.field textarea:focus{outline:none;border-color:var(--green)}
+  .field textarea{min-height:104px;resize:vertical}
+  .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+  .form-msg{min-height:20px;font-size:13.5px;margin:4px 0 12px}
+
+  /* Point-of-collection notice. Sits with the form rather than only in the
+     policy, because a link to a document nobody opens is not a notice. */
+  .form-notice { font-size: 12.5px; line-height: 1.5; color: var(--ink-faint); margin: 2px 0 14px; }
+  .form-notice a { color: var(--ink-soft); }
+
+  /* footer */
+  footer{border-top:1px solid var(--line);padding:46px 0 30px}
+  .foot-top{display:flex;gap:40px;flex-wrap:wrap}
+  .foot-brand{flex:1;min-width:260px}
+  .foot-brand p{margin-top:10px;font-size:13.5px;color:var(--ink-soft);max-width:300px}
+  .foot-col{min-width:150px}
+  .foot-col div:first-child{font-size:12px;font-weight:700;color:var(--ink-faint);margin-bottom:11px}
+  .foot-col a{display:block;font-size:14px;color:var(--ink-soft);text-decoration:none;padding:3px 0}
+  .foot-col a:hover{color:var(--ink)}
+  .foot-bottom{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);
+               font-size:12.5px;color:var(--ink-faint)}
+
+  /* A 16:9 frame is only ~210px tall on a phone, so the pill has to shrink
+     and sit lower or it lands on top of the payout card. */
+  @media (max-width:640px){
+    .player-play{padding:0 0 4% 0}
+    .player-pill{gap:9px;padding:9px 17px 9px 10px}
+    .player-play svg{width:26px;height:26px}
+    .player-play-label{font-size:13px}
+    .player-play-dur{font-size:11px}
+  }
+
+  @media (max-width:900px){
+    .nav-links{display:none}
+    .trow{grid-template-columns:1fr;gap:6px}
+    .thead{display:none}
+    .trow .quo::before{content:'Status quo: ';font-weight:600}
+    .trow .pf::before{content:'PlayFund: ';font-weight:600;color:var(--ink-soft)}
+  }
+  @media (max-width:640px){ .grid-4{grid-template-columns:1fr} }
+
+  /* ── Vision page ──────────────────────────────────────────────────────────
+     The status marker is a kicker, not a badge: a rule and a word in the body
+     face, no colour of its own. With the notice bar gone, the disclosure rests
+     on the hero line, these kickers and the note on each mock. Keep all three. */
+  .exploring{display:inline-flex;align-items:center;gap:11px;font-size:13px;
+             color:var(--ink-faint);font-weight:500}
+  .exploring::before{content:"";width:24px;height:1px;background:var(--ink-faint);flex-shrink:0}
+
+  .v-hero{padding-block:clamp(58px,7vw,92px);text-align:center}
+  .v-hero h1{margin:0 auto 16px;max-width:17ch}
+  .v-lede{font-size:clamp(16.5px,1.8vw,19px);color:var(--ink-soft);max-width:60ch;margin:0 auto;line-height:1.65}
+
+  .v-sec{display:grid;grid-template-columns:1fr;gap:30px;align-items:start}
+  @media(min-width:900px){.v-sec{grid-template-columns:.95fr 1.05fr;gap:54px}}
+  .v-copy{min-width:0;display:flex;flex-direction:column;gap:17px}
+  .v-art{min-width:0}
+  .v-prob{color:var(--ink-soft);font-size:16.5px;line-height:1.6;max-width:50ch}
+  .v-prob b{color:var(--ink);font-weight:600}
+  .v-points{display:flex;flex-direction:column;gap:13px;margin:0;padding:0;list-style:none}
+  .v-points li{display:flex;gap:11px;font-size:15.5px;line-height:1.55}
+  .v-points li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);
+                       flex-shrink:0;margin-top:9px}
+
+  .card{border:1px solid var(--line);border-radius:14px;background:var(--paper);overflow:hidden;
+        box-shadow:0 18px 50px rgba(0,70,67,.08)}
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+             padding:14px 20px;background:var(--paper-dim);border-bottom:1px solid var(--line)}
+  .card-title{font-size:12.5px;font-weight:700;letter-spacing:.04em;color:var(--ink-faint)}
+  .card-body{padding:20px}
+  .card-note{font-size:12.5px;color:var(--ink-faint);margin-top:15px;line-height:1.55}
+
+  .amt{font-family:'Anton',sans-serif;font-size:clamp(32px,4.2vw,42px);line-height:1;
+       font-variant-numeric:tabular-nums}
+  .amt-sub{font-size:13.5px;color:var(--ink-soft);margin-top:5px}
+  .rows{margin-top:18px}
+  .row{display:flex;align-items:center;gap:13px;padding:12px 0;border-top:1px solid var(--line)}
+  .row-bar{height:7px;border-radius:999px;background:var(--green);flex-shrink:0}
+  .row-name{font-size:14.5px;font-weight:500;flex:1;min-width:0}
+  .row-amt{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  /* The rewards mock shows a card and what it takes off next season. It shows
+     no spend figure anywhere, deliberately: an amount earned beside an amount
+     spent states a rate, and there is no rate to state. */
+  .pfcard{background:linear-gradient(135deg,var(--ink) 0%,#0A5F59 100%);border-radius:13px;
+          padding:17px 19px 15px;color:#fff;max-width:320px;aspect-ratio:1.586;
+          display:flex;flex-direction:column;justify-content:space-between;
+          box-shadow:0 10px 26px rgba(0,70,67,.22)}
+  .pfcard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .pfcard-mark{font-family:'Anton',sans-serif;font-size:17px;letter-spacing:.015em;line-height:1}
+  .pfcard-mark span{color:var(--green)}
+  .pfcard-chip{width:33px;height:25px;border-radius:5px;background:rgba(255,255,255,.26);
+               border:1px solid rgba(255,255,255,.22);flex-shrink:0}
+  .pfcard-num{font-size:15px;letter-spacing:.17em;color:rgba(255,255,255,.74)}
+  .pfcard-foot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+               font-size:10.5px;letter-spacing:.07em;color:rgba(255,255,255,.58)}
+
+  .ledger{margin-top:21px;border-top:1px solid var(--line)}
+  .ledger-row{display:flex;align-items:center;gap:11px;padding:11px 0;
+              border-bottom:1px solid var(--line);font-size:15px}
+  .ledger-row::before{content:"";width:7px;height:7px;border-radius:50%;
+                      background:var(--line);flex-shrink:0}
+  .ledger-row--earn{font-weight:600;border-bottom:0}
+  .ledger-row--earn::before{background:var(--green)}
+</style>
+</head>
+<body>
+<div id="top"></div>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="logo" href="/">PLAY<span>FUND</span></a>
+    <div class="nav-links">
+      <a href="/#contact" class="nav-aud">For clubs</a>
+      <a href="/for-parents" class="nav-aud">For parents</a>
+      <a href="/#platform">Why PlayFund</a>
+      <a href="/vision">Vision</a>
+    </div>
+    <div class="nav-right">
+      <a class="nav-signin" href="/app/">Sign in</a>
+      <a class="btn btn-primary btn-sm nav-cta" href="/#contact"><span class="cta-long">Explore a Club Pilot</span><span class="cta-short">Club Pilot</span></a>
+    </div>
+  </div>
+</nav>
+
+<section class="v-hero">
+  <div class="wrap">
+    <h1>On the roadmap.</h1>
+    <p class="v-lede">
+      Two things we want to build after registration and payments.
+      Neither is live today.
+    </p>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap v-sec">
+    <div class="v-copy">
+      <span class="exploring">Exploring</span>
+      <h2>One card for everything a season costs.</h2>
+      <p class="v-prob">
+        Dues are the part PlayFund handles today. <b>A sports card would cover the
+        rest of the year and earn on it.</b>
+      </p>
+      <ul class="v-points">
+        <li>Gear, travel, gas, hotels, events and next season&rsquo;s registration.</li>
+        <li>Rewards funded by partners rather than by the club.</li>
+        <li>It follows the financing product. It does not come first.</li>
+      </ul>
+    </div>
+
+    <div class="v-art">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">WHAT THE CARD WOULD COVER</span>
+          <span class="exploring">Exploring</span>
+        </div>
+        <div class="card-body">
+          <div class="pfcard">
+            <div class="pfcard-top">
+              <span class="pfcard-mark">PLAY<span>FUND</span></span>
+              <span class="pfcard-chip"></span>
+            </div>
+            <div>
+              <div class="pfcard-num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
+              <div class="pfcard-foot" style="margin-top:9px">
+                <span>SEASON REWARDS CARD</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ledger">
+            <div class="ledger-row"><span>Gear and equipment</span></div>
+            <div class="ledger-row"><span>Travel, gas and hotels</span></div>
+            <div class="ledger-row"><span>Tournaments and events</span></div>
+            <div class="ledger-row ledger-row--earn"><span>Next season&rsquo;s registration</span></div>
+          </div>
+
+          <p class="card-note">
+            There is no card, no issuer and no rate. How rewards would come back to a
+            family is not decided, and they would be funded by partners we have not
+            signed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap v-sec">
+    <div class="v-copy">
+      <span class="exploring">Exploring</span>
+      <h2>Proof the money reached the families who needed it.</h2>
+      <p class="v-prob">
+        Aid decisions today are manual and hard to audit.
+        <b>A sponsor has to take the club&rsquo;s word for it.</b>
+      </p>
+      <ul class="v-points">
+        <li>The club decides who qualifies. That decision is recorded as it is made.</li>
+        <li>Each dollar tied to the registration it paid for, because PlayFund settles it.</li>
+        <li>Proof the club can send without building a report.</li>
+      </ul>
+    </div>
+
+    <div class="v-art">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">WHERE A SPONSOR&rsquo;S MONEY WENT</span>
+          <span class="exploring">Exploring</span>
+        </div>
+        <div class="card-body">
+          <div class="amt">$2,500</div>
+          <div class="amt-sub">Fall season &middot; fully spent &middot; 9 families helped</div>
+          <div class="rows">
+            <div class="row">
+              <span class="row-bar" style="width:58px"></span>
+              <span class="row-name">6 registrations covered in full</span>
+              <span class="row-amt">$1,450</span>
+            </div>
+            <div class="row">
+              <span class="row-bar" style="width:30px"></span>
+              <span class="row-name">3 families, tournament travel</span>
+              <span class="row-amt">$750</span>
+            </div>
+            <div class="row">
+              <span class="row-bar" style="width:12px"></span>
+              <span class="row-name">Gear for the same 9 players</span>
+              <span class="row-amt">$300</span>
+            </div>
+          </div>
+          <p class="card-note">
+            An illustration, not a real club. The club decides who qualifies for help.
+            A sponsor sees counts and categories only, never a named athlete.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="closing">
+  <div class="wrap">
+    <h2 style="color:#fff">The pilot decides what gets built.</h2>
+    <p style="color:rgba(255,255,255,.78);max-width:52ch;margin-top:14px;font-size:16.5px;line-height:1.65">
+      Neither is scheduled. The clubs running the pilot pick what comes first.
+    </p>
+    <a class="btn btn-light" style="margin-top:24px" href="/#contact">Explore a Club Pilot</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <div class="foot-brand">
+        <a class="logo" href="/">PLAY<span>FUND</span></a>
+      </div>
+      <div class="foot-col">
+        <div>For clubs</div>
+        <a href="/#platform">Why PlayFund</a>
+        <a href="/#contact">Explore a pilot</a>
+      </div>
+      <div class="foot-col">
+        <div>For parents</div>
+        <a href="/for-parents">Ask your club about PlayFund</a>
+        <a href="/app/">Pay your season dues</a>
+      </div>
+      <div class="foot-col">
+        <div>Company</div>
+        <a href="/vision">Vision</a>
+        <a href="mailto:admin@playfundai.com">admin@playfundai.com</a>
+        <a href="/privacy-policy.html">Privacy</a>
+        <a href="/terms-of-service.html">Terms</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      &copy; 2026 PlayFund. Payments processed securely. Some payment options may affect your credit.
+      Features described on this page are not available and may never be.
+    </div>
+  </div>
+</footer>
+
+<script>
+  var WORKER_URL = 'https://playfund-worker.playfund.workers.dev';
+
+  // ---------- site analytics ----------
+  // First party: posts to our own /events endpoint, the same one the app has
+  // used since September, so the marketing pages and the app land in one table
+  // and can be joined on session_id. No third party, and nothing here is
+  // persistent: sessionStorage is cleared when the tab closes, which is why
+  // this needs no cookie banner.
+  //
+  // Deliberately not recorded: no cursor positions, no scroll heatmap, no form
+  // field contents. Click tracking is which control was pressed, not what was
+  // typed into the form beside it. These pages collect a parent's name, email
+  // and club, and none of that should ever reach an analytics table.
+  (function(){
+    var KEY = 'pf_site_session';
+    function sessionId(){
+      try {
+        var id = sessionStorage.getItem(KEY);
+        if(!id){
+          id = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+          sessionStorage.setItem(KEY, id);
+        }
+        return id;
+      } catch(e){ return null; }
+    }
+    function track(name, props){
+      try {
+        var payload = JSON.stringify({
+          event_name: name,
+          session_id: sessionId(),
+          properties: props || {}
+        });
+        // sendBeacon survives the page unloading, which a fetch on a link click
+        // does not. Without it every outbound click would be lost in the race
+        // between the request and the navigation.
+        //
+        // text/plain, not application/json, and that is not cosmetic. sendBeacon
+        // always sends with credentials, and a credentialed cross-origin request
+        // cannot be answered with Access-Control-Allow-Origin: *, which is what
+        // the Worker returns. Declaring JSON made it a preflighted request and
+        // the browser rejected every single beacon. text/plain is CORS-safelisted,
+        // so it is a simple request: no preflight, response discarded. The
+        // Worker parses the body with request.json() either way.
+        if(navigator.sendBeacon){
+          navigator.sendBeacon(WORKER_URL + '/events', new Blob([payload], {type:'text/plain'}));
+        } else {
+          fetch(WORKER_URL + '/events', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: payload, keepalive: true
+          }).catch(function(){});
+        }
+      } catch(e){}
+    }
+
+    track('site_page_view', {
+      path: location.pathname,
+      // Referrer host only. The full URL can carry someone else's query string.
+      referrer: document.referrer ? (function(){ try { return new URL(document.referrer).host; } catch(e){ return null; } })() : null
+    });
+
+    // One listener on the document rather than one per control, so anything
+    // added to the page later is covered without remembering to wire it up.
+    document.addEventListener('click', function(e){
+      var el = e.target.closest('a, button');
+      if(!el) return;
+      var label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g,' ').slice(0, 60);
+      track('site_click', {
+        path: location.pathname,
+        label: label,
+        href: el.tagName === 'A' ? (el.getAttribute('href') || null) : null,
+        kind: el.tagName.toLowerCase()
+      });
+    }, true);
+  })();
+</script>
+</body>
+</html>

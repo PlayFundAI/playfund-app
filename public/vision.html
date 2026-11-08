@@ -360,19 +360,30 @@
   .row-name{font-size:14.5px;font-weight:500;flex:1;min-width:0}
   .row-amt{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 
-  /* The season-cost picture is deliberately proportional and unlabelled by
-     amount. A number here would read as an offer. */
-  .cost{display:flex;flex-direction:column;gap:14px}
-  .cost-item{display:flex;align-items:center;gap:14px}
-  .cost-label{width:132px;flex-shrink:0;font-size:14px;font-weight:600}
-  .cost-track{flex:1;min-width:0;height:30px;border-radius:8px;background:var(--paper-dim);
-              position:relative;overflow:hidden}
-  .cost-fill{position:absolute;inset:0 auto 0 0;border-radius:8px}
-  .cost-fill--now{background:var(--ink)}
-  .cost-fill--rest{background:repeating-linear-gradient(135deg,#E6EEEB 0 7px,#F4F7F6 7px 14px)}
-  .cost-key{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;font-size:13px;color:var(--ink-soft)}
-  .cost-key span{display:inline-flex;align-items:center;gap:7px}
-  .cost-key i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  /* The rewards mock shows a card and what it takes off next season. It shows
+     no spend figure anywhere, deliberately: an amount earned beside an amount
+     spent states a rate, and there is no rate to state. */
+  .pfcard{background:linear-gradient(135deg,var(--ink) 0%,#0A5F59 100%);border-radius:13px;
+          padding:17px 19px 15px;color:#fff;max-width:320px;aspect-ratio:1.586;
+          display:flex;flex-direction:column;justify-content:space-between;
+          box-shadow:0 10px 26px rgba(0,70,67,.22)}
+  .pfcard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .pfcard-mark{font-family:'Anton',sans-serif;font-size:17px;letter-spacing:.015em;line-height:1}
+  .pfcard-mark span{color:var(--green)}
+  .pfcard-chip{width:33px;height:25px;border-radius:5px;background:rgba(255,255,255,.26);
+               border:1px solid rgba(255,255,255,.22);flex-shrink:0}
+  .pfcard-num{font-size:15px;letter-spacing:.17em;color:rgba(255,255,255,.74)}
+  .pfcard-foot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+               font-size:10.5px;letter-spacing:.07em;color:rgba(255,255,255,.58)}
+
+  .ledger{margin-top:22px;border-top:1px solid var(--line)}
+  .ledger-row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+              padding:11px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+  .ledger-row b{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ledger-row--earn b{color:var(--green-dk)}
+  .ledger-row--total{border-bottom:0;padding-top:14px}
+  .ledger-row--total span{font-weight:600}
+  .ledger-row--total b{font-family:'Anton',sans-serif;font-size:27px;line-height:1}
 </style>
 </head>
 <body>
@@ -396,7 +407,7 @@
 
 <section class="v-hero">
   <div class="wrap">
-    <h1>Coming soon.</h1>
+    <h1>On the roadmap.</h1>
     <p class="v-lede">
       Two things we want to build after registration and payments.
       Neither is live today.
@@ -408,54 +419,53 @@
   <div class="wrap v-sec">
     <div class="v-copy">
       <span class="exploring">Exploring</span>
-      <h2>Rewards on everything a season costs.</h2>
+      <h2>A card that pays for next season.</h2>
       <p class="v-prob">
         Families earn on youth sports spending. <b>What they earn comes off next
         season&rsquo;s registration.</b>
       </p>
       <ul class="v-points">
         <li>Earns on travel, hotels, gear and entry fees, not just dues.</li>
-        <li>Credit applies to next season&rsquo;s registration, paid to the club.</li>
-        <li>No points balance and no expiry.</li>
+        <li>Rewards arrive as registration credit, paid straight to the club.</li>
+        <li>No points balance, no expiry, nothing to redeem.</li>
       </ul>
     </div>
 
     <div class="v-art">
       <div class="card">
         <div class="card-head">
-          <span class="card-title">WHAT A SEASON ACTUALLY COSTS</span>
+          <span class="card-title">HOW THE CARD WOULD WORK</span>
           <span class="exploring">Exploring</span>
         </div>
         <div class="card-body">
-          <div class="cost">
-            <div class="cost-item">
-              <span class="cost-label">Registration</span>
-              <span class="cost-track"><span class="cost-fill cost-fill--now" style="width:34%"></span></span>
+          <div class="pfcard">
+            <div class="pfcard-top">
+              <span class="pfcard-mark">PLAY<span>FUND</span></span>
+              <span class="pfcard-chip"></span>
             </div>
-            <div class="cost-item">
-              <span class="cost-label">Travel and fuel</span>
-              <span class="cost-track"><span class="cost-fill cost-fill--rest" style="width:26%"></span></span>
-            </div>
-            <div class="cost-item">
-              <span class="cost-label">Hotels</span>
-              <span class="cost-track"><span class="cost-fill cost-fill--rest" style="width:22%"></span></span>
-            </div>
-            <div class="cost-item">
-              <span class="cost-label">Gear and kit</span>
-              <span class="cost-track"><span class="cost-fill cost-fill--rest" style="width:11%"></span></span>
-            </div>
-            <div class="cost-item">
-              <span class="cost-label">Entry fees</span>
-              <span class="cost-track"><span class="cost-fill cost-fill--rest" style="width:7%"></span></span>
+            <div>
+              <div class="pfcard-num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
+              <div class="pfcard-foot" style="margin-top:9px">
+                <span>SEASON REWARDS CARD</span>
+              </div>
             </div>
           </div>
-          <div class="cost-key">
-            <span><i style="background:var(--ink)"></i>What PlayFund covers today</span>
-            <span><i style="background:repeating-linear-gradient(135deg,#E6EEEB 0 5px,#F4F7F6 5px 10px);border:1px solid var(--line)"></i>What it does not</span>
+
+          <div class="ledger">
+            <div class="ledger-row ledger-row--earn">
+              <span>Earned across the season</span><b>+$312</b>
+            </div>
+            <div class="ledger-row">
+              <span>Next season&rsquo;s registration</span><b>$1,000</b>
+            </div>
+            <div class="ledger-row ledger-row--total">
+              <span>The family pays</span><b>$688</b>
+            </div>
           </div>
+
           <p class="card-note">
-            Illustrative proportions. No rate, no program, nothing to sign up for.
-          </p>
+            Illustrative amounts. There is no card, no issuer, no rate and nothing to
+            apply for.</p>
         </div>
       </div>
     </div>
@@ -466,12 +476,13 @@
   <div class="wrap v-sec">
     <div class="v-copy">
       <span class="exploring">Exploring</span>
-      <h2>Sponsorship with a receipt.</h2>
+      <h2>Sponsorship that reaches the families who need it.</h2>
       <p class="v-prob">
-        A sponsor picks what to fund. <b>The club sends back where it went.</b>
+        A sponsor funds the families a club has flagged for help.
+        <b>Afterwards they see what the money actually covered.</b>
       </p>
       <ul class="v-points">
-        <li>Sponsors fund line items: scholarship places, tournament travel, referee fees.</li>
+        <li>Money goes to families the club has already approved for assistance.</li>
         <li>Each dollar tied to what it paid for, because PlayFund settles those payments.</li>
         <li>A report the club can send without building one.</li>
       </ul>
@@ -480,32 +491,32 @@
     <div class="v-art">
       <div class="card">
         <div class="card-head">
-          <span class="card-title">HOW A SPONSOR VIEW MIGHT LOOK</span>
+          <span class="card-title">WHERE A SPONSOR&rsquo;S MONEY WENT</span>
           <span class="exploring">Exploring</span>
         </div>
         <div class="card-body">
           <div class="amt">$2,500</div>
-          <div class="amt-sub">Committed for the fall season &middot; fully allocated</div>
+          <div class="amt-sub">Fall season &middot; fully spent &middot; 9 families helped</div>
           <div class="rows">
             <div class="row">
               <span class="row-bar" style="width:58px"></span>
-              <span class="row-name">4 scholarship places</span>
+              <span class="row-name">6 registrations covered in full</span>
               <span class="row-amt">$1,450</span>
             </div>
             <div class="row">
               <span class="row-bar" style="width:30px"></span>
-              <span class="row-name">12U tournament travel</span>
+              <span class="row-name">3 families, tournament travel</span>
               <span class="row-amt">$750</span>
             </div>
             <div class="row">
               <span class="row-bar" style="width:12px"></span>
-              <span class="row-name">Referee fees, September</span>
+              <span class="row-name">Gear for the same 9 players</span>
               <span class="row-amt">$300</span>
             </div>
           </div>
           <p class="card-note">
-            An illustration, not a real club. Counts and categories only.
-            Athletes are never named to a sponsor.
+            An illustration, not a real club. The club decides who qualifies for help.
+            A sponsor sees counts and categories only, never a named athlete.
           </p>
         </div>
       </div>

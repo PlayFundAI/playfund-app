@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
 <title>PlayFund</title>
+<script>
+  // Demo mode. Fetched only when the URL asks for it, so nothing about the
+  // stand-in layer ships to a real parent or club. See public/app/demo.js.
+  if (new URLSearchParams(window.location.search).get('demo')) {
+    document.head.appendChild(Object.assign(document.createElement('script'), {
+      src: 'demo.js', async: false
+    }));
+  }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -4937,7 +4946,11 @@ var usStates = ["Virginia"];
     }
   }
 
-  function safeFmtDate(d){ try { var dt = d instanceof Date ? d : new Date(d); if(isNaN(dt.getTime())) return String(d||''); return dt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); } catch(e){ return String(d||''); } }
+  // A schedule row with no date is deliberate, not missing data: the Klarna
+  // line says only that Klarna owns the dates, because we are never told them.
+  // new Date(null) is the epoch, not an invalid date, so this used to print
+  // "December 31, 1969" under every installment confirmation.
+  function safeFmtDate(d){ if(d == null || d === '') return ''; try { var dt = d instanceof Date ? d : new Date(d); if(isNaN(dt.getTime())) return String(d||''); return dt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); } catch(e){ return String(d||''); } }
 
   function renderScheduleRow(item){
     var isPaid = item.status === 'paid';
@@ -4946,7 +4959,7 @@ var usStates = ["Virginia"];
     return '<div class="payment-schedule-row">' +
       '<div class="payment-schedule-dot payment-schedule-dot--' + (isPaid ? 'paid' : 'upcoming') + '"></div>' +
       '<div class="payment-schedule-info">' +
-        '<div class="payment-schedule-date">' + dateStr + '</div>' +
+        (dateStr ? '<div class="payment-schedule-date">' + dateStr + '</div>' : '') +
         '<div class="payment-schedule-label">' + item.label + '</div>' +
         (item.txnId ? '<div class="payment-schedule-date" style="font-family:monospace;">Reference: ' + item.txnId + '</div>' : '') +
       '</div>' +

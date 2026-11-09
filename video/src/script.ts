@@ -14,28 +14,47 @@ export const FPS = 30;
 
 export const sec = (s: number) => Math.round(s * FPS);
 
+// ── Overrides, for a cut made for one club ───────────────────────────────────
+// The defaults below are the film on the homepage and should stay as they are.
+// A club-specific cut sets these instead of editing the file, which is what
+// scripts/render-for-club.mjs does:
+//
+//   node scripts/render-for-club.mjs --club "Northside Select" \
+//        --city "Charlotte, NC" --dues 1200 --athletes 64
+//
+// Remotion exposes any REMOTION_-prefixed variable to the bundle, so the
+// numbers below are still the only place the film reads a figure from. No
+// line is spoken with a figure in it, so a re-cut needs no new voiceover.
+const env = (typeof process === 'undefined' ? {} : process.env || {}) as Record<string, string | undefined>;
+const envNum = (name: string, dflt: number) => {
+  const n = Number(env[name]);
+  return Number.isFinite(n) && n > 0 ? n : dflt;
+};
+const envStr = (name: string, dflt: string) => (env[name] || '').trim() || dflt;
+
 // ── Numbers ──────────────────────────────────────────────────────────────────
 // All illustrative, in the same spirit as the marketing site's dashboard shot.
 // The payout is COMPUTED from dues and the fee rather than typed, so the
 // arithmetic on screen always holds: change duesPerAthlete and every figure in
 // the video follows.
-const duesPerAthlete = 1000;
-const serviceFeeBps = 800; // 8%, the default in migrations/2026-09-16-default-fee-bps-800.sql
+const duesPerAthlete = envNum('REMOTION_DUES', 1000);
+const serviceFeeBps = envNum('REMOTION_FEE_BPS', 800); // 8%, the default in migrations/2026-09-16-default-fee-bps-800.sql
 
 // Sized to a real club rather than a league. A treasurer at a 60-athlete club
 // does not see themselves in a 312-athlete roster, and eight names on screen
 // read as a sample of 58 but as a rounding error out of 312.
-const funded = 50;
-const deciding = 6;
-const needsOption = 2;
+const athletesTotal = Math.round(envNum('REMOTION_ATHLETES', 58));
+const needsOption = Math.max(1, Math.round((athletesTotal * 2) / 58));
+const deciding = Math.max(1, Math.round((athletesTotal * 6) / 58));
+const funded = Math.max(1, athletesTotal - deciding - needsOption);
 
 const gross = funded * duesPerAthlete;
 const payout = Math.round(gross * (1 - serviceFeeBps / 10000));
 
 export const data = {
   club: {
-    name: 'Riverside Soccer Club',
-    location: 'Richmond, VA',
+    name: envStr('REMOTION_CLUB_NAME', 'Riverside Soccer Club'),
+    location: envStr('REMOTION_CLUB_CITY', 'Richmond, VA'),
     duesPerAthlete,
     funded,
     deciding,
@@ -54,12 +73,22 @@ export const data = {
 
   // Shown inside the Act 1 phone, as the app's "What this covers" panel.
   // Must add up to duesPerAthlete.
-  duesBreakdown: [
-    {label: 'League registration', amount: 420},
-    {label: 'Coaching', amount: 280},
-    {label: 'Uniform and kit', amount: 180},
-    {label: 'Tournament travel', amount: 120},
-  ],
+  duesBreakdown: (() => {
+    const shares = [
+      {label: 'League registration', share: 0.42},
+      {label: 'Coaching', share: 0.28},
+      {label: 'Uniform and kit', share: 0.18},
+      {label: 'Tournament travel', share: 0.12},
+    ];
+    const rows = shares.map((s) => ({
+      label: s.label,
+      amount: Math.round(duesPerAthlete * s.share),
+    }));
+    // The rounding remainder goes on the first line, so the four always sum
+    // to dues however the dues are set.
+    rows[0].amount += duesPerAthlete - rows.reduce((n, r) => n + r.amount, 0);
+    return rows;
+  })(),
 
   // The club's own bills, which is the whole reason waiting on dues hurts.
   expenses: [
@@ -115,7 +144,7 @@ export const copy = {
     voice: 'Families should be able to spread the cost of a season.',
     caption: 'A whole season,\ndue in one payment.',
     eyebrow: 'What a family sees',
-    label: 'Riverside Soccer Club · Fall season',
+    label: `${data.club.name} · Fall season`,
     amountLabel: 'Season dues',
     due: 'Due in full, March 1',
   },

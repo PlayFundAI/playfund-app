@@ -7,13 +7,14 @@
    its own copy of one. Change the app and re-run this: the deck follows.
 
      node demo/capture.mjs                     Riverside Soccer Club
+     node demo/capture.mjs --deck-only         rebuild the deck, reuse the PNGs
      node demo/capture.mjs --club "Northside Select" --city "Charlotte, NC" \
                            --dues 1200 --athletes 64
 
    Output lands in demo/out/ (git-ignored): one PNG per screen, plus
    playfund-demo.pdf, which is the thing to email or present with no wifi.
 
-   Needs the preview server running on :4173 —
+   Needs the preview server running on :4173  
      npx serve -l 4173 public
    or the "marketing" configuration in .claude/launch.json.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -65,14 +66,15 @@ const slides = [
   {
     file: 'club-payout',
     screen: 'club-overview',
+    max: 1180,
     title: 'What lands in your account',
     say: 'One number, before the season starts. And underneath it, who has not paid.',
-    note: 'Our partner approves the installments, so some families are declined — the ones who needed flexibility most. A club that finds that out in March is a club we lose, so it is on the front page from day one.'
+    note: 'Our partner approves the installments, so some families are declined, and they are the ones who needed flexibility most. A club that finds that out in March is a club we lose, so it is on the front page from day one.'
   },
   {
     file: 'club-roster',
     screen: 'roster',
-    max: 1500,
+    max: 1240,
     title: 'Every athlete, in club language',
     say: '“Awaiting payment”, not “In Progress - Checkout”.',
     note: 'Card or installments, the club is paid the same either way. Reminders go out before every charge without anyone pressing anything.'
@@ -80,7 +82,7 @@ const slides = [
   {
     file: 'parent-dues',
     screen: 'athlete-detail',
-    max: 1500,
+    max: 1240,
     title: 'What a family sees',
     say: 'The true-cost receipt leads. No account, no app.',
     note: 'Hidden cost was the second-biggest theme in 514 free-text survey answers; travel was the most-named at 42%. A quarter of people abandon at forced registration.'
@@ -123,7 +125,7 @@ const slides = [
   {
     file: 'club-onboarding',
     screen: 'club-register-1',
-    max: 1400,
+    max: 1200,
     title: 'Set up in one sitting',
     say: 'And you can stop halfway and come back.',
     note: 'The payout number appears before we ask for bank details. Most volunteer treasurers will not have the EIN to hand.'
@@ -184,7 +186,9 @@ async function shoot(slide) {
     u
   ]);
   console.log(`  ${slide.file}.png  ${width}x${h}`);
-  return { ...slide, h };
+  // A capped capture stops mid-card. Marked so the deck can fade its bottom
+  // edge rather than show a hard cut that reads as a broken image.
+  return { ...slide, h, cropped: !!slide.max && h >= slide.max };
 }
 
 // ── deck ────────────────────────────────────────────────────────────────────
@@ -203,7 +207,7 @@ function deckHtml(shots) {
 
   const body = shots.map((s, i) => `
   <section class="slide">
-    <div class="shot"><img src="${s.file}.png" alt="${esc(s.title)}"></div>
+    <div class="shot${s.cropped ? ' is-cropped' : ''}"><img src="${s.file}.png" alt="${esc(s.title)}"></div>
     <div class="words">
       <div class="num">${String(i + 1).padStart(2, '0')}</div>
       <h2>${esc(s.title)}</h2>
@@ -227,7 +231,7 @@ function deckHtml(shots) {
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>PlayFund — ${esc(club.club)}</title>
+<title>PlayFund &middot; ${esc(club.club)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -235,9 +239,13 @@ function deckHtml(shots) {
   *{box-sizing:border-box}
   body{margin:0;font-family:Inter,-apple-system,sans-serif;color:var(--ink);background:#f3f6f5}
   .slide{width:1280px;height:720px;margin:0 auto 20px;background:var(--paper);display:flex;
-    align-items:center;gap:56px;padding:56px 64px;page-break-after:always;break-after:page;overflow:hidden}
-  .shot{flex:0 0 420px;display:flex;justify-content:center;align-items:center;height:100%}
+    align-items:center;gap:48px;padding:48px 56px;page-break-after:always;break-after:page;overflow:hidden}
+  .shot{flex:0 0 470px;display:flex;justify-content:center;align-items:center;height:100%}
   .shot img{max-height:100%;max-width:100%;border-radius:18px;box-shadow:0 18px 50px rgba(0,70,67,.14)}
+  /* A capped capture ends mid-card. Fading it says "continues below"; a hard
+     edge says the image is broken. */
+  .shot.is-cropped img{box-shadow:none;border-radius:18px 18px 0 0;
+    -webkit-mask-image:linear-gradient(#000 88%,rgba(0,0,0,0));mask-image:linear-gradient(#000 88%,rgba(0,0,0,0))}
   .words{flex:1}
   .num{font:700 11px/1 Inter;letter-spacing:.14em;color:var(--green);margin-bottom:14px}
   h2{font-family:Anton,sans-serif;font-weight:400;font-size:46px;line-height:1.06;margin:0 0 18px}
@@ -259,8 +267,15 @@ function deckHtml(shots) {
 console.log(`Capturing ${club.club} from ${base}`);
 await mkdir(outDir, { recursive: true });
 
+// --deck-only rebuilds deck.html and the PDF from the screenshots already in
+// demo/out, which is what you want when only the words changed.
+const deckOnly = args.includes('--deck-only');
 const shots = [];
-for (const slide of slides) shots.push(await shoot(slide));
+for (const slide of slides) {
+  shots.push(deckOnly
+    ? { ...slide, cropped: !!slide.max }
+    : await shoot(slide));
+}
 
 const deck = path.join(outDir, 'deck.html');
 await writeFile(deck, deckHtml(shots), 'utf8');

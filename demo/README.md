@@ -136,7 +136,8 @@ node scripts/render-for-club.mjs --club "Northside Select" --city "Charlotte, NC
 ```
 
 Lands at `video/out/playfund-<slug>.mp4` and leaves the homepage film alone.
-It takes about four minutes.
+It takes about four minutes. There is one already rendered to look at:
+`video/out/playfund-northside-select.mp4`, 64 athletes at $1,200.
 
 No line of the voiceover contains a figure or a club name, which is why this
 works without re-recording anything. Every number on screen is computed from

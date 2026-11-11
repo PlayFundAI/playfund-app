@@ -3853,9 +3853,19 @@ var usStates = ["Virginia"];
     document.getElementById('overviewClubName').textContent = c.name;
     document.getElementById('overviewLocation').textContent = c.city || '';
 
-    // Aggregate stats across all teams
+    // Aggregate stats across all teams.
+    //
+    // payoutCents and fundedCents answer two different questions and are kept
+    // apart for that reason. The hero is what reaches the club's account, so
+    // it is net of the club's rate. The three buckets below it split the
+    // season's dues by where each family has got to, so they are gross, and
+    // they therefore sum to the dues figure stated in the hero's own subline.
+    // They used to share one total: Funded carried the net advance while the
+    // other two carried gross dues, so the column did not add up to the
+    // number directly above it and a treasurer doing the arithmetic found
+    // $4,000 missing.
     var totalAthletes = 0, totalFunded = 0, totalPending = 0, totalDefaulted = 0;
-    var totalDuesCents = 0, fundedCents = 0, pendingCents = 0, defaultedCents = 0;
+    var totalDuesCents = 0, payoutCents = 0, fundedCents = 0, pendingCents = 0, defaultedCents = 0;
 
     var teamListEl = document.getElementById('teamList');
     teamListEl.innerHTML = '';
@@ -3896,7 +3906,8 @@ var usStates = ["Virginia"];
         totalDuesCents += dues * 100;
         if(s === 'paid_full' || s === 'bnpl_active' || s === 'bnpl_complete'){
           totalFunded++; teamFunded++;
-          fundedCents += advanceCents;
+          payoutCents += advanceCents;
+          fundedCents += Math.round(dues * 100);
         } else if(s === 'defaulted'){
           totalDefaulted++;
           defaultedCents += Math.round(dues * 100);
@@ -3926,7 +3937,7 @@ var usStates = ["Virginia"];
     });
 
     // Payout hero — advance for all funded athletes, net of this club's own rate
-    var payoutDollars = Math.round(fundedCents / 100);
+    var payoutDollars = Math.round(payoutCents / 100);
     document.getElementById('overviewPayoutAmt').textContent = '$' + payoutDollars.toLocaleString();
     document.getElementById('overviewFundedCount').textContent = totalFunded;
     document.getElementById('overviewAthleteCount').textContent = totalAthletes;

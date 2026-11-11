@@ -157,30 +157,36 @@ Advances itself every 5.2 seconds. `&hold=3000` to speed it up. Record the
 window and you have a shareable walkthrough; it survives the app changing,
 because it is the app.
 
-## Three things to decide before Wednesday
+## Fixed: the club dashboard's three buckets now sum
 
-### 1. The club dashboard's three buckets do not sum to the dues figure above them
+They used to add to $54,000 under a hero that said `$58,000 in dues`, because
+Funded carried the net advance while Still deciding and Needs another option
+carried gross dues. A treasurer does that arithmetic.
 
-On screen today: `$46,000` landing, `50 of 58 athletes · $58,000 in dues`, then
-Funded `$46,000`, Still deciding `$6,000`, Needs another option `$2,000`. Those
-three add to $54,000, not $58,000, because Funded is shown net of the 8% rate
-while the other two are gross dues.
+The hero and the buckets answer two different questions, so they now hold two
+different totals rather than sharing one:
 
-A treasurer does this arithmetic. The film has the same seam from the other
-direction: its payout card says "$50,000 in dues" where the app would say
-"$58,000", because the film counts funded dues and the app counts all dues.
+| | |
+|---|---|
+| `$46,000` landing in your account | net of the club's rate, because that is what reaches the bank |
+| Funded `$50,000` · Still deciding `$6,000` · Needs another option `$2,000` | gross dues, because the three split the season by where each family has got to |
 
-I have not touched it, because which number "Funded" should show is a product
-decision rather than a bug with one right answer:
+$50,000 + $6,000 + $2,000 is $58,000, which is the dues figure in the hero's
+own subline. Verified at two club sizes, and the payment still moves both
+numbers live: the hero goes to $46,920 and Funded to $51,000 when the demo
+family pays.
 
-- show gross dues in all three buckets, and the payout hero stays the only net
-  number on the screen (the buckets then sum, and matches the film's intent)
-- or keep Funded net and relabel it, so it is clearly the payout and not a
-  share of the dues
+**Still open, and not something I'd touch before Wednesday:** the film's
+payout card says `50 of 58 athletes · $50,000 in dues` where the app now says
+`$58,000`, because the film counts funded dues and the app counts all dues.
+One line in `video/src/script.ts`, but fixing it means re-rendering and
+replacing the film on the homepage, so it is your call rather than a tidy-up.
+It only matters if you play the film and open the dashboard in the same
+meeting, which the run of show below does.
 
-Either is a small change. Say which and I'll do it.
+## Two things to decide before Wednesday
 
-### 2. The sibling panel promises something the next screen takes away
+### 1. The sibling panel promises something the next screen takes away
 
 On "Your athletes", the dark panel says **"Pay for all your athletes at
 Riverside Soccer Club together in one checkout."** Tap through and the
@@ -203,7 +209,7 @@ Resolving it is either a copy change on the panel or a real combined Checkout
 Session in the Worker. The second is the one that matches the locked decision.
 Not something to start before Wednesday either way.
 
-### 3. Whether `demo.js` ships to production
+### 2. Whether `demo.js` ships to production
 
 For: it unlocks option 3, and it means you can send a club a link after the
 meeting that is not a slide deck.
@@ -243,9 +249,12 @@ mode it is wrong in production too.
 
 ## What I changed in the app itself
 
-Three things, all small:
+Four things, all small:
 
 - `public/app/index.html`: the demo mode injector in `<head>`.
+- `public/app/index.html`: the club dashboard's three status buckets now all
+  carry gross dues, so they sum to the dues figure in the payout hero's
+  subline. The hero keeps its own net total. See the section above.
 - `public/app/index.html`: `safeFmtDate(null)` returned `new Date(null)`,
   which is the epoch rather than an invalid date, so every installment
   confirmation printed **"December 31, 1969"** under the Klarna schedule line.

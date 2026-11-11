@@ -1060,20 +1060,58 @@
   function shotMode() {
     var s = document.createElement('style');
     s.textContent =
-      '#app{min-height:0 !important;border-radius:22px !important}' +
+      '#app{min-height:0 !important;border-radius:22px !important;opacity:1 !important}' +
       'body{padding:26px 22px !important;align-items:flex-start !important;background:#E8EEEE !important}' +
       '#splash{display:none !important}' +
-      '.screen{overflow:visible !important}' +
-      '.footer-spacer{flex:0 0 18px !important}';
+      // Nothing may be mid-flight when the shutter opens.
+      //
+      // The app fades its header in and rises each screen from opacity 0.
+      // Those are compositor-driven, and a headless Chrome running with
+      // --disable-gpu does not always tick them: the transition sits at its
+      // start value for the whole life of the page. An `opacity: 1
+      // !important` does not rescue it either, because the running
+      // transition is what getComputedStyle reports.
+      //
+      // The symptom was a phone with an empty header, no wordmark and no
+      // back arrow, which reads as a broken export rather than a timing
+      // problem. Turning transitions and animations off removes the
+      // mechanism rather than fighting its result.
+      '*,*::before,*::after{transition:none !important;animation:none !important}' +
+      '#header{opacity:1 !important;transform:none !important}' +
+      '.screen{overflow:visible !important;opacity:1 !important}' +
+      '.footer-spacer{flex:0 0 18px !important}' +
+      // Nothing is painted until the page says it is ready. The screenshot
+      // pass runs no JavaScript of its own, so this is the only way to stop
+      // it photographing a half-painted frame, which is what produced a
+      // header with no wordmark and no back arrow.
+      'html{visibility:hidden}html.pfd-shot-ready{visibility:visible}';
     document.head.appendChild(s);
-    setTimeout(function () {
+
+    function report() {
       // The card, not the body: body keeps a 100vh floor, so measuring it
       // reports the window rather than the content and leaves a band of
       // empty background under every short screen.
       var app = document.getElementById('app');
       var h = app ? app.getBoundingClientRect().height : document.body.scrollHeight;
       document.title = 'shot:' + Math.ceil(h + 52);
-    }, 2000);
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          document.documentElement.classList.add('pfd-shot-ready');
+        });
+      });
+    }
+
+    // Wait for Anton and Inter before reporting a height or being
+    // photographed. A webfont in its block period paints nothing at all, and
+    // a capture that lands there comes out with an empty header and a height
+    // measured from text that was not there. Intermittent, and it only shows
+    // up on a cold profile, which is every run of demo/capture.mjs.
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { setTimeout(report, 500); });
+      setTimeout(report, 4000);                 // fonts blocked entirely
+    } else {
+      setTimeout(report, 2000);
+    }
   }
 
   window.addEventListener('load', function () {

@@ -158,6 +158,10 @@ async function chrome(flags) {
     '--disable-gpu',
     '--hide-scrollbars',
     '--force-device-scale-factor=2',
+    // Draw only once every compositor stage has run. Without it a capture can
+    // land before the webfonts paint, which gives you a phone with an empty
+    // header and nothing in the logo.
+    '--run-all-compositor-stages-before-draw',
     '--no-first-run',
     '--no-default-browser-check',
     `--user-data-dir=${profile}`,

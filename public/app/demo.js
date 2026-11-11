@@ -1115,7 +1115,7 @@
   }
 
   window.addEventListener('load', function () {
-    document.title = 'PlayFund — demo';
+    document.title = 'PlayFund \u00b7 demo';
     setTimeout(function () {
       mountGuide();
       if (flag('shot', false)) setTimeout(shotMode, 500);

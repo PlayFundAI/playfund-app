@@ -122,8 +122,14 @@ Deploy the branch, then the same URLs work on `www.playfundai.com/app/?demo=1`.
 Put a QR to the parent link on screen and let them register their own child:
 
 ```
-https://www.playfundai.com/app/?demo=1&clubcode=RIVER26&athlete=a-marcus-bell
+https://www.playfundai.com/app/?demo=1&code=RIVER26&athlete=a-marcus-bell
 ```
+
+`code` there is the app's own parameter, the club code a parent would type,
+and it is what makes the link open on the child rather than on the home
+screen. `clubcode` is demo mode's, and it only renames the fixture. If you
+rename the club you have to change both and keep them identical:
+`&clubcode=NSS26&code=NSS26`.
 
 Demo mode makes no network calls, so nothing they do reaches the Worker, the
 database or Stripe.

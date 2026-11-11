@@ -136,10 +136,22 @@ Full parameter list is in the header comment of `public/app/demo.js`.
 cd "$(git rev-parse --show-toplevel)" && node demo/capture.mjs
 ```
 
-Twelve pages land at `demo/out/playfund-demo.pdf`: a cover, ten screens with
-the line to say and the evidence behind it, and a closing slide on what a
-pilot is. The screenshots are taken from the running app, not drawn, so the
-deck cannot drift from the product. Re-run it after any screen changes.
+Eleven pages land at `demo/out/playfund-demo.pdf`: a cover, the nine steps a
+club goes through in the order they live them, and a closing slide on what a
+pilot is. One line per slide. The screenshots are taken from the running app,
+not drawn, so the deck cannot drift from the product. Re-run it after any
+screen changes, or `--only club-send` to re-shoot a single slide.
+
+The nine are: create the account, connect the bank, enter the families, we
+email the links, families sign up and pay, families choose how to pay, the
+club is paid up front either way, a family who does not qualify, and checking
+progress.
+
+**One claim the deck does not make: text messages.** The app collects a parent
+phone number on the add-athlete form, and nothing sends to it. There is no
+SMS anywhere in the Worker or the app, no Twilio, nothing. Slide 4 says email,
+because that is what happens. Worth knowing before the room, since "or text"
+is the kind of thing that gets asked about twice.
 
 For their club:
 

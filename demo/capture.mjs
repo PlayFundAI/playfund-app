@@ -72,84 +72,66 @@ try {
   process.exit(1);
 }
 
-// ── the deck ────────────────────────────────────────────────────────────────
-// `say` is the line to say over the slide. `note` is the evidence behind it,
-// for the back pocket rather than the screen. Both are the presenter guide's,
-// so the deck and the live demo never tell different stories.
+// ── the deck ─────────────────────────────────────────────────
+// Nine steps in the order a club lives them, start to finish. `title` is the
+// whole slide. `say` is there only where a club would otherwise ask the
+// question out loud, and most slides do not have one.
 const slides = [
   {
-    file: 'club-payout',
-    screen: 'club-overview',
-    max: 1180,
-    title: 'What lands in your account',
-    say: 'One number, before the season starts. And underneath it, who has not paid.',
-    note: 'Our partner approves the installments, so some families are declined, and they are the ones who needed flexibility most. A club that finds that out in March is a club we lose, so it is on the front page from day one.'
+    file: 'club-account',
+    screen: 'club-register-1',
+    max: 1200,
+    title: 'You create a PlayFund account for your club'
   },
   {
-    file: 'club-roster',
-    screen: 'roster',
-    max: 1240,
-    title: 'Every athlete, in club language',
-    say: '“Awaiting payment”, not “In Progress - Checkout”.',
-    note: 'Card or installments, the club is paid the same either way. Reminders go out before every charge without anyone pressing anything.'
+    file: 'club-bank',
+    screen: 'club-stripe-onboarding',
+    title: 'You connect the bank account where the money lands',
+    say: 'Bank details go to our payment partner, never to PlayFund.'
+  },
+  {
+    file: 'club-athletes',
+    screen: 'add-athlete-admin',
+    title: 'You enter your families\u2019 information'
+  },
+  {
+    file: 'club-send',
+    screen: 'send-links',
+    max: 900,
+    title: 'We email every family a link',
+    say: 'No account to create, nothing to install.'
   },
   {
     file: 'parent-dues',
     screen: 'athlete-detail',
     max: 1240,
-    title: 'What a family sees',
-    say: 'The true-cost receipt leads. No account, no app.',
-    note: 'Hidden cost was the second-biggest theme in 514 free-text survey answers; travel was the most-named at 42%. A quarter of people abandon at forced registration.'
+    title: 'Families sign up and pay'
   },
   {
-    file: 'parent-installments',
+    file: 'parent-options',
     screen: 'embedded-checkout',
-    title: 'Or spread it',
-    say: 'Four payments, two weeks apart, shown at the price.',
-    note: 'Terms are set by our payment partner, not PlayFund, and some plans may affect credit. The screen says so.'
+    title: 'Families choose how to pay',
+    say: 'In full today, or spread over time.'
   },
   {
-    file: 'parent-confirmed',
-    screen: 'confirm-terms',
-    title: 'Confirmed',
-    say: 'The family is on a schedule. The club was paid in full today.',
-    note: 'Our partner carries the credit risk in the pilot. PlayFund does not underwrite and fronts no capital of its own.'
-  },
-  {
-    file: 'parent-siblings',
-    screen: 'parent-home',
-    title: 'Every child in one place',
-    say: 'A second kid does not mean starting again.',
-    note: '66% of surveyed parents have two or more kids playing. Incumbent installment plans switch off below $5 a payment and cap at $10,000, so multi-kid families lose the plan exactly when they need it.'
-  },
-  {
-    file: 'parent-combined',
-    screen: 'combined-plan',
-    title: 'The season, totalled',
-    say: 'Both children, both teams, one running total.',
-    note: 'Each athlete is paid for on their own, with the season total in front of the family the whole way. No cap on how many children, and no minimum payment that quietly switches the plan off.'
+    file: 'club-payout',
+    screen: 'club-overview',
+    max: 1180,
+    title: 'You get paid up front either way',
+    say: 'Our payment partner collects the installments. You are paid at the start of the season.'
   },
   {
     file: 'parent-declined',
     screen: 'decline',
-    title: 'A decline is a fork, not a wall',
-    say: 'Pay in full, or the club’s own plan, and the club can see they tried.',
-    note: 'Flywire’s authorised-payer feature took payment-plan defaults from 34% to under 1%. Nobody in youth sports offers it.'
+    title: 'If a family does not qualify, we work with you',
+    say: 'Pay in full, a smaller deposit, or your club\u2019s own plan.'
   },
   {
-    file: 'club-onboarding',
-    screen: 'club-register-1',
-    max: 1200,
-    title: 'Set up in one sitting',
-    say: 'And you can stop halfway and come back.',
-    note: 'The payout number appears before we ask for bank details. Most volunteer treasurers will not have the EIN to hand.'
-  },
-  {
-    file: 'club-bank',
-    screen: 'club-stripe-onboarding',
-    title: 'Where the money lands',
-    say: 'Bank details go to our payment partner, never to PlayFund.',
-    note: 'Anyone owning 25% or more is verified, or, for a 501(c)(3), directors and officers. Worth warning a treasurer before they start.'
+    file: 'club-roster',
+    screen: 'roster',
+    max: 1240,
+    title: 'Check progress whenever you want',
+    say: 'You will not need to.'
   }
 ];
 
@@ -229,8 +211,7 @@ function deckHtml(shots) {
     <div class="words">
       <div class="num">${String(i + 1).padStart(2, '0')}</div>
       <h2>${esc(s.title)}</h2>
-      <p class="say">${esc(s.say)}</p>
-      <p class="note">${esc(s.note)}</p>
+      ${s.say ? `<p class="say">${esc(s.say)}</p>` : ''}
     </div>
   </section>`).join('');
 
@@ -239,10 +220,10 @@ function deckHtml(shots) {
     <div class="mark">PLAY<span>FUND</span></div>
     <h1>What a pilot looks like</h1>
     <ul class="ask">
-      <li>You keep your registration, rosters and messaging exactly as they are.</li>
-      <li>We run how families pay, for one season.</li>
-      <li>You are paid up front for every approved athlete, net of our rate.</li>
-      <li>No cost to set up, no commitment past the season.</li>
+      <li>One season.</li>
+      <li>You keep registration, rosters and messaging.</li>
+      <li>We run how families pay.</li>
+      <li>No setup cost. No commitment after the season.</li>
     </ul>
     <p class="sub">admin@playfundai.com &middot; playfundai.com</p>
   </section>`;
@@ -266,9 +247,8 @@ function deckHtml(shots) {
     -webkit-mask-image:linear-gradient(#000 88%,rgba(0,0,0,0));mask-image:linear-gradient(#000 88%,rgba(0,0,0,0))}
   .words{flex:1}
   .num{font:700 11px/1 Inter;letter-spacing:.14em;color:var(--green);margin-bottom:14px}
-  h2{font-family:Anton,sans-serif;font-weight:400;font-size:46px;line-height:1.06;margin:0 0 18px}
-  .say{font-size:21px;line-height:1.45;font-weight:600;margin:0 0 18px}
-  .note{font-size:15.5px;line-height:1.65;color:var(--ink-soft);margin:0;max-width:46ch}
+  h2{font-family:Anton,sans-serif;font-weight:400;font-size:52px;line-height:1.04;margin:0 0 20px}
+  .say{font-size:21px;line-height:1.5;font-weight:500;color:var(--ink-soft);margin:0;max-width:40ch}
   .cover{flex-direction:column;justify-content:center;align-items:flex-start;background:var(--ink);color:#fff}
   .cover .mark{font-family:Anton,sans-serif;font-size:30px;letter-spacing:.01em;margin-bottom:40px}
   .cover .mark span{color:var(--green)}
@@ -288,9 +268,14 @@ await mkdir(outDir, { recursive: true });
 // --deck-only rebuilds deck.html and the PDF from the screenshots already in
 // demo/out, which is what you want when only the words changed.
 const deckOnly = args.includes('--deck-only');
+// --only club-send re-shoots one slide and reuses the PNGs already on disk for
+// the rest, which is the difference between a six-second loop and a two-minute
+// one when a single screen is being fiddled with.
+const only = arg('only', null);
 const shots = [];
 for (const slide of slides) {
-  shots.push(deckOnly
+  const skip = deckOnly || (only && slide.file !== only);
+  shots.push(skip
     ? { ...slide, cropped: !!slide.max }
     : await shoot(slide));
 }

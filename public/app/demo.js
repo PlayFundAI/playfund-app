@@ -1125,11 +1125,35 @@
 
       if (screen) {
         // Some screens need their data put in place before they are shown.
-        if (/^(club-overview|roster|add-team|add-athlete-admin|club-settings|invite-admin|club-stripe-onboarding)$/.test(screen)) {
+        if (/^(club-overview|roster|send-links|add-team|add-athlete-admin|club-settings|invite-admin|club-stripe-onboarding)$/.test(screen)) {
           window.state.club = authorizedClub();
           try { sessionStorage.setItem('pf_club_session', JSON.stringify(session())); } catch (e) {}
           if (screen === 'club-overview') { window.openClubOverview(); return; }
           if (screen === 'roster') { window.state.team = teams[1]; window.openRoster(); return; }
+          if (screen === 'add-athlete-admin') { window.state.team = teams[1]; window.showAddAthleteScreen(); return; }
+          // The roster with the send-links confirmation over it. The dialog's
+          // words are the app's own, which is the point: it is the product
+          // that says families are emailed, not the deck.
+          if (screen === 'send-links') {
+            window.state.team = teams[1];
+            window.openRoster();
+            setTimeout(function () {
+              // The backdrop is absolute, so on a phone, where the viewport is
+              // the whole screen, the sheet sits over what you are looking at.
+              // A screenshot window is as tall as the roster, which parks the
+              // sheet 2,000px below the fold. Pinning it to the viewport is
+              // what the club actually sees, not a liberty taken for the photo.
+              var st = document.createElement('style');
+              st.textContent = '#askBackdrop{position:fixed !important}';
+              document.head.appendChild(st);
+              window.ask({
+                title: 'Send payment links?',
+                body: "Every approved family who hasn't paid yet gets an email with a link to this team's dues.",
+                confirmLabel: 'Send links'
+              });
+            }, 260);
+            return;
+          }
           if (screen === 'club-stripe-onboarding') { window.startStripeOnboarding(); return; }
         }
         if (/^(athlete-detail|confirm-now|confirm-terms|payment-history|payment-mgmt|decline|parent-home|combined-plan|scholarship-apply|embedded-checkout)$/.test(screen)) {

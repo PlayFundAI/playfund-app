@@ -58,6 +58,20 @@ const club = {
 };
 const width = Number(arg('width', 640));
 
+// Fail loudly if the preview server is not up. Without this check Chrome
+// happily photographs its own "This site can't be reached" page twelve times
+// and you get a complete, plausible-looking deck of error screens.
+try {
+  await fetch(base + '/app/', { method: 'HEAD' });
+} catch {
+  console.error(
+    `\nNothing is serving ${base}.\n\n` +
+    `  npx -y serve -l 4173 public\n\n` +
+    `Run that from the repository root, in another terminal, then try again.\n`
+  );
+  process.exit(1);
+}
+
 // ── the deck ────────────────────────────────────────────────────────────────
 // `say` is the line to say over the slide. `note` is the evidence behind it,
 // for the back pocket rather than the screen. Both are the presenter guide's,

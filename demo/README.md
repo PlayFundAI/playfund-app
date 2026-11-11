@@ -54,7 +54,7 @@ is a different kind of meeting from watching your screen. It needs
 ## Option 1: the clickable demo
 
 ```bash
-npx serve -l 4173 public
+cd "$(git rev-parse --show-toplevel)" && npx -y serve -l 4173 public
 ```
 
 Then open:
@@ -100,7 +100,7 @@ Full parameter list is in the header comment of `public/app/demo.js`.
 ## Option 2: the PDF deck
 
 ```bash
-node demo/capture.mjs
+cd "$(git rev-parse --show-toplevel)" && node demo/capture.mjs
 ```
 
 Twelve pages land at `demo/out/playfund-demo.pdf`: a cover, ten screens with
@@ -111,7 +111,7 @@ deck cannot drift from the product. Re-run it after any screen changes.
 For their club:
 
 ```bash
-node demo/capture.mjs --club "Northside Select" --city "Charlotte, NC" --dues 1200 --athletes 64
+cd "$(git rev-parse --show-toplevel)" && node demo/capture.mjs --club "Northside Select" --city "Charlotte, NC" --dues 1200 --athletes 64
 ```
 
 This is the no wifi fallback and the thing to email afterwards.
@@ -137,8 +137,7 @@ database or Stripe.
 ## Option 4: the film, cut for them
 
 ```bash
-cd video
-node scripts/render-for-club.mjs --club "Northside Select" --city "Charlotte, NC" --dues 1200 --athletes 64
+cd "$(git rev-parse --show-toplevel)/video" && node scripts/render-for-club.mjs --club "Northside Select" --city "Charlotte, NC" --dues 1200 --athletes 64
 ```
 
 Lands at `video/out/playfund-<slug>.mp4` and leaves the homepage film alone.

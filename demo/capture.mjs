@@ -239,12 +239,24 @@ function deckHtml(shots) {
   body{margin:0;font-family:Inter,-apple-system,sans-serif;color:var(--ink);background:#f3f6f5}
   .slide{width:1280px;height:720px;margin:0 auto 20px;background:var(--paper);display:flex;
     align-items:center;gap:48px;padding:48px 56px;page-break-after:always;break-after:page;overflow:hidden}
-  .shot{flex:0 0 470px;display:flex;justify-content:center;align-items:center;height:100%}
-  .shot img{max-height:100%;max-width:100%;border-radius:18px;box-shadow:0 18px 50px rgba(0,70,67,.14)}
+  /* Both boxes are in pixels on purpose. A percentage max-height resolves
+     against a containing block that Chrome's paged layout does not give it,
+     so in the PDF, and only in the PDF, every screenshot drew at its natural
+     size and ran off the right-hand edge of the page. On screen it looked
+     perfect, which is why it survived several rebuilds. 624 is the slide's
+     720 less its 48px of padding top and bottom. */
+  .shot{flex:0 0 470px;display:flex;justify-content:center;align-items:center;
+    height:624px;position:relative}
+  .shot img{max-height:624px;max-width:470px;width:auto;height:auto;
+    border-radius:18px;box-shadow:0 18px 50px rgba(0,70,67,.14)}
   /* A capped capture ends mid-card. Fading it says "continues below"; a hard
-     edge says the image is broken. */
-  .shot.is-cropped img{box-shadow:none;border-radius:18px 18px 0 0;
-    -webkit-mask-image:linear-gradient(#000 88%,rgba(0,0,0,0));mask-image:linear-gradient(#000 88%,rgba(0,0,0,0))}
+     edge says the image is broken. The fade is a white gradient laid over the
+     image rather than a mask on it: a mask forces the image into its own
+     composited layer, which the PDF export rasterises separately and, often
+     enough to matter, at the wrong scale. */
+  .shot.is-cropped img{box-shadow:none;border-radius:18px 18px 0 0}
+  .shot.is-cropped::after{content:'';position:absolute;left:0;right:0;bottom:0;
+    height:86px;background:linear-gradient(rgba(255,255,255,0),#fff)}
   .words{flex:1}
   .num{font:700 11px/1 Inter;letter-spacing:.14em;color:var(--green);margin-bottom:14px}
   h2{font-family:Anton,sans-serif;font-weight:400;font-size:52px;line-height:1.04;margin:0 0 20px}

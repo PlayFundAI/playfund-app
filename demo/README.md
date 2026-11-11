@@ -234,6 +234,32 @@ replacing the film on the homepage, so it is your call rather than a tidy-up.
 It only matters if you play the film and open the dashboard in the same
 meeting, which the run of show below does.
 
+## Fixed: five of the eleven PDF pages were drawing wrong
+
+The slides whose capture is capped got a `mask-image` to fade the bottom
+edge, which looks right on screen and is right in `deck.html`. In the printed
+PDF it collapsed the image's draw matrix to **0 x 0**, so Chrome rasterised
+the masked layer separately and dropped it somewhere arbitrary on the page.
+On screen: a fade. In the PDF: a ghosted, half-drawn screenshot hanging off
+the edge of the slide, on pages 2, 5, 6, 8 and 10. The four uncropped slides
+were always correct, which is what made it look like a zoom problem.
+
+The fade is now a white gradient laid over the image instead of a mask on it.
+Verified by reading the draw matrices out of the PDF itself rather than by
+looking at it, since a PDF viewer showing a slide wrong and a PDF being wrong
+look identical:
+
+```
+BEFORE  page 2    0 x   0 px      AFTER  page 2  332 x 624 px at top 48
+BEFORE  page 5    0 x   0 px      AFTER  page 5  444 x 624 px at top 48
+BEFORE  page 6    0 x   0 px      AFTER  page 6  322 x 624 px at top 48
+BEFORE  page 8    0 x   0 px      AFTER  page 8  338 x 624 px at top 48
+BEFORE  page 10   0 x   0 px      AFTER  page 10 322 x 624 px at top 48
+```
+
+Worth keeping in mind for anything else that ends up in print: a CSS mask, a
+filter or a blend mode on an image is the first thing to suspect.
+
 ## Two things to decide before Wednesday
 
 ### 1. The sibling panel promises something the next screen takes away

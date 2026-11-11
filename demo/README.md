@@ -25,6 +25,7 @@ live keys.
 
 | | What it is | Build state | Risk in the room | Answers "what if?" |
 |---|---|---|---|---|
+| **0. Three files** | The three below as files you double-click, no terminal | Built | Low | Yes |
 | **1. Clickable demo** | The real app with a fixture instead of a backend | Built | Low | Yes |
 | **2. PDF deck** | 12 slides of real screenshots plus the talking points | Built | None | No |
 | **3. Their phone** | Same demo, opened by the club on their own phone from a QR | One merge away | Low | Yes |
@@ -36,6 +37,38 @@ the live demo or the film: it cannot answer a question, it cannot be paused at
 the interesting frame, and it goes stale the moment a screen changes. If you
 want a video file of the walkthrough, record option 5 with Cmd-Shift-5 and you
 have an mp4 in a minute, regenerated the same way whenever the app moves.
+
+## Option 0: three files, no terminal
+
+If you do not want to run anything, run this once and then forget it exists:
+
+```bash
+cd "$(git rev-parse --show-toplevel)" && node demo/build-walkthrough.mjs
+```
+
+That writes `demo/out/playfund-walkthrough.html`: the entire demo as one file
+you double-click. No server, no install, no localhost. It can be emailed, put
+on a USB stick, or opened on a laptop with the wifi off.
+
+It works because the app has no images, no local stylesheets and no local
+scripts of its own. The only thing it was fetching by relative path was
+`demo.js`, so the build inlines it and bakes the club settings in, since a
+double-click has no query string to read them from. Typing `?auto=1` on the
+end in the address bar still works.
+
+Verified with every DNS lookup blocked: the screens, the fixture and the
+presenter panel all render, and the arrow keys walk the twelve steps. The one
+visible difference offline is the wordmark, which falls back from Anton.
+
+For their club:
+
+```bash
+cd "$(git rev-parse --show-toplevel)" && node demo/build-walkthrough.mjs --club "Northside Select" --city "Charlotte, NC" --dues 1200 --athletes 64 --out northside.html
+```
+
+Together with `demo/out/playfund-demo.pdf` and `public/playfund-pilot.mp4`,
+that is a deck, a walkthrough and a film, all three openable by double-click
+and none of them needing this repository.
 
 ### What I'd do
 

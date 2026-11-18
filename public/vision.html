@@ -19,7 +19,7 @@
 <meta name="twitter:title" content="Our vision for youth sports">
 <meta name="twitter:description" content="Ideas we are exploring beyond registration and payments. Not available today.">
 <meta name="twitter:image" content="https://www.playfundai.com/share-club.png">
-<meta name="description" content="Where PlayFund wants to go after registration and payments: earning back on what a season really costs, and showing sponsors what their money funded. These are ideas we are exploring, not features we offer today.">
+<meta name="description" content="Where PlayFund wants to go after registration and payments: aid and sponsor money a club can account for, and one card for the rest of what a season costs. These are ideas we are exploring, not features we offer today.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -383,6 +383,48 @@
                       background:var(--line);flex-shrink:0}
   .ledger-row--earn{font-weight:600;border-bottom:0}
   .ledger-row--earn::before{background:var(--green)}
+
+  /* ── The path ─────────────────────────────────────────────────────────────
+     Three steps from what exists to what does not. The first is a solid ink
+     card and the other two are dashed outlines, so the difference between
+     built and not built is visible before a single status label is read.
+     Shared by the home page teaser and the vision page; keep the two copies
+     of this block identical. */
+  .path{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:980px;
+        margin:0 auto;text-align:left}
+  .path-step{display:flex;flex-direction:column;text-decoration:none;border-radius:13px;
+             padding:20px 22px 18px;background:#fff;border:1.5px dashed #C3CFCC;
+             color:var(--ink);transition:border-color .15s ease,transform .15s ease}
+  .path-step:hover{border-color:var(--green);transform:translateY(-2px)}
+  .path-step.is-live{background:var(--ink);border:1.5px solid var(--ink);color:#fff}
+  .path-n{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;color:var(--ink-faint)}
+  .is-live .path-n{color:var(--green)}
+  .path-t{font-weight:700;font-size:16.5px;line-height:1.35;margin:9px 0 14px}
+  .path-s{margin-top:auto;display:inline-flex;align-items:center;gap:8px;
+          font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+  .path-s::before{content:"";width:7px;height:7px;border-radius:50%;flex-shrink:0;
+                  border:1.5px solid var(--ink-faint)}
+  .is-live .path-s{color:rgba(255,255,255,.82)}
+  .is-live .path-s::before{background:var(--green);border-color:var(--green)}
+  @media (max-width:760px){ .path{grid-template-columns:1fr;max-width:460px;gap:12px} }
+
+  .v-kicker{display:block;font-size:13.5px;font-weight:600;color:var(--green-dk);margin-bottom:16px}
+  .v-hero .path{margin-top:44px}
+  .v-step{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;color:var(--ink-faint)}
+  .v-status{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--green-dk)}
+  .v-status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green)}
+  .v-meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .v-film{display:block;width:100%;aspect-ratio:16/9;background:var(--paper-dim)}
+  .v-copy .btn{align-self:flex-start;margin-top:4px}
+  section[id]{scroll-margin-top:84px}
+
+  /* What stays fixed. Four commitments that hold whatever gets built, so the
+     speculative sections above are read against something that is not. */
+  .keep{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;max-width:860px;margin:0 auto}
+  .keep-item{background:#fff;border:1px solid var(--line);border-radius:13px;padding:22px 24px}
+  .keep-item h3{font-size:16.5px}
+  .keep-item p{margin-top:7px;font-size:14.5px;color:var(--ink-soft);line-height:1.6}
+  @media (max-width:640px){ .keep{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -406,71 +448,68 @@
 
 <section class="v-hero">
   <div class="wrap">
-    <h1>On the roadmap.</h1>
+    <span class="v-kicker">Where PlayFund is going</span>
+    <h1>Dues are where we start.</h1>
     <p class="v-lede">
-      Two things we want to build after registration and payments.
-      Neither is live today.
+      A season costs a family far more than registration, and it costs a club
+      more hours than anyone sees. This is what we want to build next.
+      Only the first step exists today.
     </p>
+    <div class="path">
+      <a class="path-step is-live" href="#today">
+        <span class="path-n">01</span>
+        <span class="path-t">Registration and payments, with the club paid up front.</span>
+        <span class="path-s">Available to pilot clubs</span>
+      </a>
+      <a class="path-step" href="#aid">
+        <span class="path-n">02</span>
+        <span class="path-t">Aid and sponsor money a club can account for.</span>
+        <span class="path-s">Exploring</span>
+      </a>
+      <a class="path-step" href="#card">
+        <span class="path-n">03</span>
+        <span class="path-t">One card for everything else a season costs.</span>
+        <span class="path-s">Exploring</span>
+      </a>
+    </div>
   </div>
 </section>
 
-<section class="tint">
+<section class="tint" id="today">
   <div class="wrap v-sec">
     <div class="v-copy">
-      <span class="exploring">Exploring</span>
-      <h2>One card for everything a season costs.</h2>
+      <div class="v-meta"><span class="v-step">01</span><span class="v-status">Available to pilot clubs</span></div>
+      <h2>Registration and payments, with the club paid up front.</h2>
       <p class="v-prob">
-        Dues are the part PlayFund handles today. <b>A sports card would cover the
-        rest of the year and earn on it.</b>
+        This is the product. <b>Everything below is built on top of it,</b>
+        because it is where a season&rsquo;s money already passes through.
       </p>
       <ul class="v-points">
-        <li>Gear, travel, gas, hotels, events and next season&rsquo;s registration.</li>
-        <li>Rewards funded by partners rather than by the club.</li>
-        <li>It follows the financing product. It does not come first.</li>
+        <li>Families pay in full or in installments, without creating an account.</li>
+        <li>The club gets its money up front. Our payment partner handles the installments.</li>
+        <li>Installments are subject to approval by our payment partner.</li>
       </ul>
+      <a class="btn btn-ghost" href="/">See how it works</a>
     </div>
 
     <div class="v-art">
       <div class="card">
         <div class="card-head">
-          <span class="card-title">WHAT THE CARD WOULD COVER</span>
-          <span class="exploring">Exploring</span>
+          <span class="card-title">THE PRODUCT TODAY</span>
+          <span class="v-status">Built</span>
         </div>
-        <div class="card-body">
-          <div class="pfcard">
-            <div class="pfcard-top">
-              <span class="pfcard-mark">PLAY<span>FUND</span></span>
-              <span class="pfcard-chip"></span>
-            </div>
-            <div>
-              <div class="pfcard-num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
-              <div class="pfcard-foot" style="margin-top:9px">
-                <span>SEASON REWARDS CARD</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="ledger">
-            <div class="ledger-row"><span>Gear and equipment</span></div>
-            <div class="ledger-row"><span>Travel, gas and hotels</span></div>
-            <div class="ledger-row"><span>Tournaments and events</span></div>
-            <div class="ledger-row ledger-row--earn"><span>Next season&rsquo;s registration</span></div>
-          </div>
-
-          <p class="card-note">
-            There is no card, no issuer and no rate. How rewards would come back to a
-            family is not decided, and they would be funded by partners we have not
-            signed.</p>
-        </div>
+        <video class="v-film" src="/hero-loop.mp4" poster="/video-poster.jpg"
+               autoplay muted loop playsinline preload="metadata"
+               aria-label="A short silent clip of the PlayFund club dashboard"></video>
       </div>
     </div>
   </div>
 </section>
 
-<section>
+<section id="aid">
   <div class="wrap v-sec">
     <div class="v-copy">
-      <span class="exploring">Exploring</span>
+      <div class="v-meta"><span class="v-step">02</span><span class="exploring">Exploring</span></div>
       <h2>Proof the money reached the families who needed it.</h2>
       <p class="v-prob">
         Aid decisions today are manual and hard to audit.
@@ -519,11 +558,90 @@
   </div>
 </section>
 
+<section class="tint" id="card">
+  <div class="wrap v-sec">
+    <div class="v-copy">
+      <div class="v-meta"><span class="v-step">03</span><span class="exploring">Exploring</span></div>
+      <h2>One card for everything else a season costs.</h2>
+      <p class="v-prob">
+        Dues are the part PlayFund handles today. <b>A sports card would cover the
+        rest of the year and earn on it.</b>
+      </p>
+      <ul class="v-points">
+        <li>Gear, travel, gas, hotels, events and next season&rsquo;s registration.</li>
+        <li>Rewards funded by partners rather than by the club.</li>
+        <li>It comes last. Steps one and two have to work first.</li>
+      </ul>
+    </div>
+
+    <div class="v-art">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">WHAT THE CARD WOULD COVER</span>
+          <span class="exploring">Exploring</span>
+        </div>
+        <div class="card-body">
+          <div class="pfcard">
+            <div class="pfcard-top">
+              <span class="pfcard-mark">PLAY<span>FUND</span></span>
+              <span class="pfcard-chip"></span>
+            </div>
+            <div>
+              <div class="pfcard-num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
+              <div class="pfcard-foot" style="margin-top:9px">
+                <span>SEASON REWARDS CARD</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ledger">
+            <div class="ledger-row"><span>Gear and equipment</span></div>
+            <div class="ledger-row"><span>Travel, gas and hotels</span></div>
+            <div class="ledger-row"><span>Tournaments and events</span></div>
+            <div class="ledger-row ledger-row--earn"><span>Next season&rsquo;s registration</span></div>
+          </div>
+
+          <p class="card-note">
+            There is no card, no issuer and no rate. How rewards would come back to a
+            family is not decided, and they would be funded by partners we have not
+            signed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>What stays the same, whatever we build.</h2>
+    </div>
+    <div class="keep">
+      <div class="keep-item">
+        <h3>The parent is the customer. Never the child.</h3>
+        <p>No payment plan or card is ever in a minor&rsquo;s name.</p>
+      </div>
+      <div class="keep-item">
+        <h3>The club decides who gets help.</h3>
+        <p>We record the decision. We do not make it.</p>
+      </div>
+      <div class="keep-item">
+        <h3>We hold as little as we can about kids.</h3>
+        <p>A sponsor would see counts and categories, never a named athlete.</p>
+      </div>
+      <div class="keep-item">
+        <h3>Pilot clubs see it first.</h3>
+        <p>Nothing on this page reaches a family before the clubs in the pilot have asked for it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="closing">
   <div class="wrap">
     <h2 style="color:#fff">The pilot decides what gets built.</h2>
-    <p style="color:rgba(255,255,255,.78);max-width:52ch;margin-top:14px;font-size:16.5px;line-height:1.65">
-      Neither is scheduled. The clubs running the pilot pick what comes first.
+    <p style="color:rgba(255,255,255,.78);max-width:52ch;margin:14px auto 0;font-size:16.5px;line-height:1.65">
+      Steps two and three are not scheduled. The clubs running the pilot pick what comes first.
     </p>
     <a class="btn btn-light" style="margin-top:24px" href="/#contact">Explore a Club Pilot</a>
   </div>
@@ -555,7 +673,7 @@
     </div>
     <div class="foot-bottom">
       &copy; 2026 PlayFund. Payments processed securely. Some payment options may affect your credit.
-      Features described on this page are not available and may never be.
+      Anything marked Exploring on this page is not available and may never be.
     </div>
   </div>
 </footer>

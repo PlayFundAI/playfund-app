@@ -316,6 +316,31 @@
     .trow .pf::before{content:'PlayFund: ';font-weight:600;color:var(--ink-soft)}
   }
   @media (max-width:640px){ .grid-4{grid-template-columns:1fr} }
+
+  /* ── The path ─────────────────────────────────────────────────────────────
+     Three steps from what exists to what does not. The first is a solid ink
+     card and the other two are dashed outlines, so the difference between
+     built and not built is visible before a single status label is read.
+     Shared by the home page teaser and the vision page; keep the two copies
+     of this block identical. */
+  .path{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:980px;
+        margin:0 auto;text-align:left}
+  .path-step{display:flex;flex-direction:column;text-decoration:none;border-radius:13px;
+             padding:20px 22px 18px;background:#fff;border:1.5px dashed #C3CFCC;
+             color:var(--ink);transition:border-color .15s ease,transform .15s ease}
+  .path-step:hover{border-color:var(--green);transform:translateY(-2px)}
+  .path-step.is-live{background:var(--ink);border:1.5px solid var(--ink);color:#fff}
+  .path-n{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;color:var(--ink-faint)}
+  .is-live .path-n{color:var(--green)}
+  .path-t{font-weight:700;font-size:16.5px;line-height:1.35;margin:9px 0 14px}
+  .path-s{margin-top:auto;display:inline-flex;align-items:center;gap:8px;
+          font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+  .path-s::before{content:"";width:7px;height:7px;border-radius:50%;flex-shrink:0;
+                  border:1.5px solid var(--ink-faint)}
+  .is-live .path-s{color:rgba(255,255,255,.82)}
+  .is-live .path-s::before{background:var(--green);border-color:var(--green)}
+  @media (max-width:760px){ .path{grid-template-columns:1fr;max-width:460px;gap:12px} }
+  .footnote a{color:var(--ink-soft)}
 </style>
 </head>
 <body>
@@ -394,6 +419,33 @@
         <p>Families have the option to pay over time.</p>
       </div>
       
+  </div>
+</section>
+
+<section id="vision">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Dues are where we start.</h2>
+      <p>What exists today, and what we want to build on top of it.</p>
+    </div>
+    <div class="path">
+      <a class="path-step is-live" href="/vision#today">
+        <span class="path-n">01</span>
+        <span class="path-t">Registration and payments, with the club paid up front.</span>
+        <span class="path-s">Available to pilot clubs</span>
+      </a>
+      <a class="path-step" href="/vision#aid">
+        <span class="path-n">02</span>
+        <span class="path-t">Aid and sponsor money a club can account for.</span>
+        <span class="path-s">Exploring</span>
+      </a>
+      <a class="path-step" href="/vision#card">
+        <span class="path-n">03</span>
+        <span class="path-t">One card for everything else a season costs.</span>
+        <span class="path-s">Exploring</span>
+      </a>
+    </div>
+    <p class="footnote">Steps two and three are ideas we are exploring. They are not available today. <a href="/vision">Read where we are going</a></p>
   </div>
 </section>
 

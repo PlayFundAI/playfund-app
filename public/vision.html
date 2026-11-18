@@ -25,7 +25,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   /* The marketing site keeps its CSS per page rather than in a shared sheet,
-     so this is index.html's stylesheet verbatim. Rules for elements this page
+     so this is index.html's stylesheet, less one unused colour. Rules for elements this page
      does not have are inert; keeping the block whole means the nav, footer,
      bands and buttons cannot drift from the home page. */
 
@@ -322,11 +322,13 @@
 
   /* ── Vision page ──────────────────────────────────────────────────────────
      The status marker is a kicker, not a badge: a rule and a word in the body
-     face, no colour of its own. With the notice bar gone, the disclosure rests
+     face, no colour of its own. It is set in ink at full weight because it is
+     the disclosure: in faint grey it was the hardest thing on the page to read
+     (2.5:1), which is backwards. With the notice bar gone, the disclosure rests
      on the hero line, these kickers and the note on each mock. Keep all three. */
   .exploring{display:inline-flex;align-items:center;gap:11px;font-size:13px;
-             color:var(--ink-faint);font-weight:500}
-  .exploring::before{content:"";width:24px;height:1px;background:var(--ink-faint);flex-shrink:0}
+             color:var(--ink);font-weight:600}
+  .exploring::before{content:"";width:24px;height:1.5px;background:var(--ink);flex-shrink:0}
 
   .v-hero{padding-block:clamp(58px,7vw,92px);text-align:center}
   .v-hero h1{margin:0 auto 16px;max-width:17ch}
@@ -347,9 +349,11 @@
         box-shadow:0 18px 50px rgba(0,70,67,.08)}
   .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
              padding:14px 20px;background:var(--paper-dim);border-bottom:1px solid var(--line)}
-  .card-title{font-size:12.5px;font-weight:700;letter-spacing:.04em;color:var(--ink-faint)}
+  .card-title{font-size:13.5px;font-weight:700;color:var(--ink)}
   .card-body{padding:20px}
-  .card-note{font-size:12.5px;color:var(--ink-faint);margin-top:15px;line-height:1.55}
+  /* Two classes, because .card p above would otherwise win and this rule
+     would never apply. */
+  .card .card-note{font-size:14px;color:var(--ink-soft);margin-top:15px;line-height:1.55}
 
   .amt{font-family:'Anton',sans-serif;font-size:clamp(32px,4.2vw,42px);line-height:1;
        font-variant-numeric:tabular-nums}
@@ -360,8 +364,8 @@
   .row-name{font-size:14.5px;font-weight:500;flex:1;min-width:0}
   .row-amt{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 
-  /* The rewards mock shows a card and what it takes off next season. It shows
-     no spend figure anywhere, deliberately: an amount earned beside an amount
+  /* The rewards mock shows a card and the kinds of spending it would cover. It
+     shows no figure anywhere, deliberately: an amount earned beside an amount
      spent states a rate, and there is no rate to state. */
   .pfcard{background:linear-gradient(135deg,var(--ink) 0%,#0A5F59 100%);border-radius:13px;
           padding:17px 19px 15px;color:#fff;max-width:320px;aspect-ratio:1.586;
@@ -374,15 +378,14 @@
                border:1px solid rgba(255,255,255,.22);flex-shrink:0}
   .pfcard-num{font-size:15px;letter-spacing:.17em;color:rgba(255,255,255,.74)}
   .pfcard-foot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
-               font-size:10.5px;letter-spacing:.07em;color:rgba(255,255,255,.58)}
+               font-size:11.5px;letter-spacing:.02em;color:rgba(255,255,255,.72)}
 
   .ledger{margin-top:21px;border-top:1px solid var(--line)}
   .ledger-row{display:flex;align-items:center;gap:11px;padding:11px 0;
               border-bottom:1px solid var(--line);font-size:15px}
   .ledger-row::before{content:"";width:7px;height:7px;border-radius:50%;
                       background:var(--line);flex-shrink:0}
-  .ledger-row--earn{font-weight:600;border-bottom:0}
-  .ledger-row--earn::before{background:var(--green)}
+  .ledger-row:last-child{border-bottom:0}
 
   /* ── The path ─────────────────────────────────────────────────────────────
      Three steps from what exists to what does not. The first is a solid ink
@@ -408,13 +411,19 @@
   .is-live .path-s::before{background:var(--green);border-color:var(--green)}
   @media (max-width:760px){ .path{grid-template-columns:1fr;max-width:460px;gap:12px} }
 
-  .v-kicker{display:block;font-size:13.5px;font-weight:600;color:var(--green-dk);margin-bottom:16px}
+  .v-kicker{display:block;font-size:13.5px;font-weight:600;color:var(--ink-soft);margin-bottom:16px}
   .v-hero .path{margin-top:44px}
-  .v-step{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;color:var(--ink-faint)}
-  .v-status{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--green-dk)}
+  .v-step{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;color:var(--ink-soft)}
+  /* Ink, not green: --green-dk is 4.2:1 on white at this size and less on the
+     tinted band. The green lives in the dot. */
+  .v-status{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink)}
   .v-status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green)}
   .v-meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .v-film{display:block;width:100%;aspect-ratio:16/9;background:var(--paper-dim)}
+  /* The film card drops the card padding so the clip runs edge to edge. On a
+     phone that is the difference between a 277px and a 325px wide frame. */
+  .card.card--film{padding:0}
+  .card .v-film-note{margin:0;padding:12px 20px 14px;font-size:13px;color:var(--ink-soft)}
   .v-copy .btn{align-self:flex-start;margin-top:4px}
   section[id]{scroll-margin-top:84px}
 
@@ -459,7 +468,7 @@
       <a class="path-step is-live" href="#today">
         <span class="path-n">01</span>
         <span class="path-t">Registration and payments, with the club paid up front.</span>
-        <span class="path-s">Available to pilot clubs</span>
+        <span class="path-s">Opening to pilot clubs</span>
       </a>
       <a class="path-step" href="#aid">
         <span class="path-n">02</span>
@@ -478,11 +487,11 @@
 <section class="tint" id="today">
   <div class="wrap v-sec">
     <div class="v-copy">
-      <div class="v-meta"><span class="v-step">01</span><span class="v-status">Available to pilot clubs</span></div>
+      <div class="v-meta"><span class="v-step">01</span><span class="v-status">Opening to pilot clubs</span></div>
       <h2>Registration and payments, with the club paid up front.</h2>
       <p class="v-prob">
-        This is the product. <b>Everything below is built on top of it,</b>
-        because it is where a season&rsquo;s money already passes through.
+        This is the product, and the only step that exists.
+        <b>The two ideas below would build on it.</b>
       </p>
       <ul class="v-points">
         <li>Families pay in full or in installments, without creating an account.</li>
@@ -493,14 +502,15 @@
     </div>
 
     <div class="v-art">
-      <div class="card">
+      <div class="card card--film">
         <div class="card-head">
-          <span class="card-title">THE PRODUCT TODAY</span>
+          <span class="card-title">The product today</span>
           <span class="v-status">Built</span>
         </div>
         <video class="v-film" src="/hero-loop.mp4" poster="/video-poster.jpg"
                autoplay muted loop playsinline preload="metadata"
-               aria-label="A short silent clip of the PlayFund club dashboard"></video>
+               aria-label="A short silent animation of the payout figure on a club&rsquo;s dashboard"></video>
+        <p class="v-film-note">Figures shown are examples, not a real club.</p>
       </div>
     </div>
   </div>
@@ -516,16 +526,16 @@
         <b>A sponsor has to take the club&rsquo;s word for it.</b>
       </p>
       <ul class="v-points">
-        <li>The club decides who qualifies. That decision is recorded as it is made.</li>
-        <li>Each dollar tied to the registration it paid for, because PlayFund settles it.</li>
-        <li>Proof the club can send without building a report.</li>
+        <li>The club would decide who qualifies, and that decision would be recorded as it is made.</li>
+        <li>Each dollar of aid would be tied to what it paid for.</li>
+        <li>The club could send proof without building a report.</li>
       </ul>
     </div>
 
     <div class="v-art">
       <div class="card">
         <div class="card-head">
-          <span class="card-title">WHERE A SPONSOR&rsquo;S MONEY WENT</span>
+          <span class="card-title">What a sponsor would see</span>
           <span class="exploring">Exploring</span>
         </div>
         <div class="card-body">
@@ -549,8 +559,8 @@
             </div>
           </div>
           <p class="card-note">
-            An illustration, not a real club. The club decides who qualifies for help.
-            A sponsor sees counts and categories only, never a named athlete.
+            An illustration, not a real club. The club would decide who qualifies for help.
+            A sponsor would see counts and categories only, never a named athlete.
           </p>
         </div>
       </div>
@@ -569,15 +579,15 @@
       </p>
       <ul class="v-points">
         <li>Gear, travel, gas, hotels, events and next season&rsquo;s registration.</li>
-        <li>Rewards funded by partners rather than by the club.</li>
-        <li>It comes last. Steps one and two have to work first.</li>
+        <li>Rewards would be funded by partners, not by the club.</li>
+        <li>It would come after the first two steps.</li>
       </ul>
     </div>
 
     <div class="v-art">
       <div class="card">
         <div class="card-head">
-          <span class="card-title">WHAT THE CARD WOULD COVER</span>
+          <span class="card-title">What the card would cover</span>
           <span class="exploring">Exploring</span>
         </div>
         <div class="card-body">
@@ -589,7 +599,7 @@
             <div>
               <div class="pfcard-num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
               <div class="pfcard-foot" style="margin-top:9px">
-                <span>SEASON REWARDS CARD</span>
+                <span>Season rewards card</span>
               </div>
             </div>
           </div>
@@ -598,7 +608,7 @@
             <div class="ledger-row"><span>Gear and equipment</span></div>
             <div class="ledger-row"><span>Travel, gas and hotels</span></div>
             <div class="ledger-row"><span>Tournaments and events</span></div>
-            <div class="ledger-row ledger-row--earn"><span>Next season&rsquo;s registration</span></div>
+            <div class="ledger-row"><span>Next season&rsquo;s registration</span></div>
           </div>
 
           <p class="card-note">
@@ -615,15 +625,16 @@
   <div class="wrap">
     <div class="sec-head">
       <h2>What stays the same, whatever we build.</h2>
+      <p>These hold for the product today and for anything marked Exploring above.</p>
     </div>
     <div class="keep">
       <div class="keep-item">
         <h3>The parent is the customer. Never the child.</h3>
-        <p>No payment plan or card is ever in a minor&rsquo;s name.</p>
+        <p>No payment plan is in a minor&rsquo;s name, and no card ever would be.</p>
       </div>
       <div class="keep-item">
-        <h3>The club decides who gets help.</h3>
-        <p>We record the decision. We do not make it.</p>
+        <h3>The club would decide who gets help.</h3>
+        <p>If we build aid tools, they would record a club&rsquo;s decision. They would not make it.</p>
       </div>
       <div class="keep-item">
         <h3>We hold as little as we can about kids.</h3>
@@ -631,7 +642,7 @@
       </div>
       <div class="keep-item">
         <h3>Pilot clubs see it first.</h3>
-        <p>Nothing on this page reaches a family before the clubs in the pilot have asked for it.</p>
+        <p>Nothing marked Exploring would reach a family before pilot clubs have asked for it.</p>
       </div>
     </div>
   </div>
@@ -641,7 +652,7 @@
   <div class="wrap">
     <h2 style="color:#fff">The pilot decides what gets built.</h2>
     <p style="color:rgba(255,255,255,.78);max-width:52ch;margin:14px auto 0;font-size:16.5px;line-height:1.65">
-      Steps two and three are not scheduled. The clubs running the pilot pick what comes first.
+      Steps two and three are not scheduled. What pilot clubs tell us decides whether either gets built.
     </p>
     <a class="btn btn-light" style="margin-top:24px" href="/#contact">Explore a Club Pilot</a>
   </div>
@@ -680,6 +691,18 @@
 
 <script>
   var WORKER_URL = 'https://playfund-worker.playfund.workers.dev';
+
+  // Someone who has asked for less motion gets the poster, not a loop. Same
+  // rule as the home page, which plays this clip too.
+  (function(){
+    try {
+      var film = document.querySelector('.v-film');
+      if(film && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+        film.removeAttribute('autoplay');
+        film.pause();
+      }
+    } catch(e){}
+  })();
 
   // ---------- site analytics ----------
   // First party: posts to our own /events endpoint, the same one the app has

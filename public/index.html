@@ -340,7 +340,10 @@
   .is-live .path-s{color:rgba(255,255,255,.82)}
   .is-live .path-s::before{background:var(--green);border-color:var(--green)}
   @media (max-width:760px){ .path{grid-template-columns:1fr;max-width:460px;gap:12px} }
-  .footnote a{color:var(--ink-soft)}
+  /* The line under the path is the disclosure for steps two and three, so it
+     is body-sized and readable, not a footnote. */
+  .path-note{text-align:center;margin:22px auto 0;max-width:760px;font-size:14.5px;color:var(--ink-soft)}
+  .path-note a{color:var(--ink);font-weight:600}
 </style>
 </head>
 <body>
@@ -432,7 +435,7 @@
       <a class="path-step is-live" href="/vision#today">
         <span class="path-n">01</span>
         <span class="path-t">Registration and payments, with the club paid up front.</span>
-        <span class="path-s">Available to pilot clubs</span>
+        <span class="path-s">Opening to pilot clubs</span>
       </a>
       <a class="path-step" href="/vision#aid">
         <span class="path-n">02</span>
@@ -445,7 +448,7 @@
         <span class="path-s">Exploring</span>
       </a>
     </div>
-    <p class="footnote">Steps two and three are ideas we are exploring. They are not available today. <a href="/vision">Read where we are going</a></p>
+    <p class="path-note">Steps two and three are ideas we are exploring. They are not available today. <a href="/vision">Read where we are going</a></p>
   </div>
 </section>
 

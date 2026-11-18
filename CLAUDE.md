@@ -63,6 +63,15 @@ Don't invent answers to these in code. Flag them instead:
 - Whether the club or PlayFund contacts declined families
 - How scholarship/$0 athletes are handled
 
+## This repo is public
+
+Code only. Internal notes live in the private `PlayFundAI/playfund-ops` repo, normally cloned beside this one at `../playfund-ops` (from a worktree, `/Users/aj/playfund-ops`):
+
+- `notes/pilot-prep-punchlist.md`: the running record of decisions, findings and open items. Code comments that say "see pilot-prep-punchlist.md" mean that file.
+- `agent-system-blueprint.md`: the approved design for background agents. Read it before setting up any scheduled or unattended work.
+
+Because this repo is public, keep out of its files, commit messages and pull request text: prospect and club names, internal weaknesses and open risks, account identifiers, pricing floors, and anything about leads or outreach. Write those in `playfund-ops`. If that repo is not available in a session, say so and ask, rather than writing the note here.
+
 ## Working agreement
 
 - Work on a branch. Never commit directly to `main`.

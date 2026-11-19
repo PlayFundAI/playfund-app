@@ -2752,10 +2752,18 @@ var index_default = {
       // installment payment costs, and a pay-in-full payment does not use the
       // club's rate, so there is nothing for the floor to protect there. The
       // fee_agreed_at gate above still blocks both ways of paying.
+      //
+      // Pay in full still works for this club, so this is not a dead end. The
+      // reason code sends the parent to the same "another way forward" screen
+      // as an installment plan that could not be created, which offers pay in
+      // full and the club's own plan.
       const minFeeBpsAtCharge = parseInt(env.MIN_FEE_BPS, 10);
       if (payment_type === "bnpl" && Number.isInteger(minFeeBpsAtCharge) && feeBps < minFeeBpsAtCharge) {
         console.error(`Blocked installment checkout: club ${club.code} has fee_bps ${feeBps}, below floor ${minFeeBpsAtCharge}`);
-        return err("Installments aren't available for this club yet. Nothing has been charged. You can still pay in full, or contact your club.", 409);
+        return json({
+          error: "Installments aren't available for this club yet. Nothing has been charged. You can still pay in full, or contact your club.",
+          reason: "bnpl_unavailable"
+        }, 409);
       }
       // The club's rate on installments, card processing cost only on pay in
       // full. See fees.mjs. It throws on input it does not recognise instead

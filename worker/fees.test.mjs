@@ -206,3 +206,36 @@ test("the app page uses the same pay-in-full numbers as the Worker", () => {
   assert.equal(Number(bps[1]), PAY_IN_FULL_FEE_BPS);
   assert.equal(Number(fixed[1]), PAY_IN_FULL_FEE_FIXED_CENTS);
 });
+
+// Matching numbers are not enough if the page uses them differently. This
+// lifts the page's own payout helper out of the HTML, runs it, and compares
+// what it shows a club with what the Worker reports for the same athlete.
+test("the app page works out a funded athlete's payout the same way as the Worker", () => {
+  const page = readFileSync(new URL("../public/app/index.html", import.meta.url), "utf8");
+  const start = page.indexOf("function clubFeeRate(club){");
+  const end = page.indexOf("function openRoster()", start);
+  assert.ok(start > 0 && end > start, "clubFeeRate and clubPayoutFor not found where expected in public/app/index.html");
+  const source = page.slice(start, end);
+  assert.match(source, /function clubPayoutFor\(dues, paymentStatus, club\)/);
+  const clubPayoutFor = new Function("state", `${source}; return clubPayoutFor;`)({ club: null });
+
+  for (const duesCents of DUES_SWEEP) {
+    for (const feeBps of BPS_SWEEP) {
+      for (const paymentStatus of ["paid_full", "bnpl_active", "bnpl_complete"]) {
+        const pageCents = Math.round(clubPayoutFor(duesCents / 100, paymentStatus, { fee_bps: feeBps }) * 100);
+        const workerCents = payoutForStatusCents({ duesCents, paymentStatus, feeBps });
+        // Pay in full must agree to the cent. Installments may differ by one
+        // cent, because the page multiplies by the share the club keeps where
+        // the Worker subtracts a rounded fee. The page shows whole dollars.
+        const tolerance = paymentStatus === "paid_full" ? 0 : 1;
+        assert.ok(
+          Math.abs(pageCents - workerCents) <= tolerance,
+          `${paymentStatus} dues ${duesCents} at ${feeBps} bps: page ${pageCents}, Worker ${workerCents}`
+        );
+      }
+    }
+  }
+  // The headline case: $1,000 of dues at the standard rate.
+  assert.equal(clubPayoutFor(1000, "paid_full", { fee_bps: 800 }), 970.7);
+  assert.equal(clubPayoutFor(1000, "bnpl_active", { fee_bps: 800 }), 920);
+});

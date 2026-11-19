@@ -115,6 +115,10 @@ test("a club under the minimum rate: installments blocked, pay in full allowed",
   assert.equal(installments.status, 409);
   assert.equal(installments.created.length, 0);
   assert.match(installments.body.error, /Nothing has been charged/);
+  // The app sends a parent to its "another way forward" screen, which offers
+  // pay in full, only when it sees this reason. Without it the parent is left
+  // on an error message.
+  assert.equal(installments.body.reason, "bnpl_unavailable");
 
   const full = await startCheckout({ paymentType: "full", club: { fee_bps: 500 } });
   assert.equal(full.status, 200);
@@ -174,4 +178,38 @@ test("club dashboard: the payout figure follows how each family paid", async () 
   assert.equal(stats.funded_athletes, 3);
   // $970.70 for the family that paid in full, $920.00 for each family on installments.
   assert.equal(stats.fronted_cents, 97070 + 92000 + 92000);
+});
+
+test("admin view: each club's payout figure follows how each family paid, at that club's rate", async () => {
+  routes = [
+    [`${ENV.SUPABASE_URL}/auth/v1/user`, () => ({ data: { id: "user_1" } })],
+    [`${DB}/user_profiles?`, () => ({ data: [{ role: "playfund_admin" }] })],
+    [`${DB}/clubs?`, () => ({ data: [
+      { id: "club_1", name: "Standard Rate Club", code: "CLUBONE", fee_bps: 800, fee_agreed_at: "2026-11-01T00:00:00Z", stripe_account_id: "acct_placeholder" },
+      { id: "club_2", name: "Other Rate Club", code: "CLUBTWO", fee_bps: 650, fee_agreed_at: "2026-11-01T00:00:00Z", stripe_account_id: "acct_placeholder" }
+    ] })],
+    [`${DB}/teams?`, () => ({ data: [
+      { id: "team_1", club_id: "club_1", name: "12U", dues_cents: 100000 },
+      { id: "team_2", club_id: "club_2", name: "14U", dues_cents: 100000 }
+    ] })],
+    [`${DB}/athletes?`, () => ({ data: [
+      { id: "ath_1", team_id: "team_1", payment_status: "paid_full" },
+      { id: "ath_2", team_id: "team_1", payment_status: "bnpl_active" },
+      { id: "ath_3", team_id: "team_1", payment_status: "unpaid" },
+      { id: "ath_4", team_id: "team_2", payment_status: "paid_full" },
+      { id: "ath_5", team_id: "team_2", payment_status: "bnpl_complete" }
+    ] })],
+    [`${DB}/payments?`, () => ({ data: [] })]
+  ];
+  const res = await worker.fetch(
+    new Request("https://worker.invalid/admin/clubs", { headers: { Authorization: "Bearer placeholder-token" } }),
+    ENV
+  );
+  assert.equal(res.status, 200);
+  const { clubs, totals } = await res.json();
+  const byCode = Object.fromEntries(clubs.map((c) => [c.code, c]));
+  // Pay in full is $970.70 at both clubs. Installments follow each club's own rate.
+  assert.equal(byCode.CLUBONE.fronted_cents, 97070 + 92000);
+  assert.equal(byCode.CLUBTWO.fronted_cents, 97070 + 93500);
+  assert.equal(totals.fronted_cents, 97070 + 92000 + 97070 + 93500);
 });

@@ -2546,7 +2546,7 @@
         <div class="faq-question-text">How does the club advance work?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Each family's payment lands in your account (less PlayFund's service fee) as they pay, whether that's a card payment settling right away or a Klarna installment plan where Klarna pays your club upfront and collects from the family over time. Either way, your club gets paid in full regardless of how families choose to pay, you're never waiting on a family's installment schedule.</div>
+      <div class="faq-answer">Each family's payment lands in your account (less the fee for that payment) as they pay, whether that's a card payment settling right away or a Klarna installment plan where Klarna pays your club upfront and collects from the family over time. Either way, your club gets paid in full regardless of how families choose to pay, you're never waiting on a family's installment schedule.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -3408,7 +3408,7 @@ var usStates = ["Virginia"];
     var csub = document.getElementById('declineClubSub');
     if(el)   el.textContent   = '$' + dues.toLocaleString();
     if(sub)  sub.textContent  = (reason === 'unavailable'
-      ? "Installments aren't available for this amount, but there are still a few ways to get "
+      ? "Installments aren't available for this payment, but there are still a few ways to get "
       : "The installment plan couldn't be approved, but there are still a few ways to get ")
       + athleteName + " on the roster.";
     if(csub) csub.textContent = clubName + " offers their own payment plan. We'll pass your details along so you don't start over.";
@@ -4129,8 +4129,8 @@ var usStates = ["Virginia"];
     openClubOverview();
   }
 
-  // Mirrors clubFeeBps/clubPayoutCents in worker/index.js. The rate is per
-  // club (clubs.fee_bps, set by a PlayFund admin); 500 is only a fallback for
+  // Mirrors clubFeeBps in worker/fees.mjs. The rate is per
+  // club (clubs.fee_bps, set by a PlayFund admin); 800 is only a fallback for
   // a club whose rate was never set, never a published price. These screens
   // are shown after a club has signed up, so their real rate is the right
   // thing to use -- unlike the registration screens, which show dues rather

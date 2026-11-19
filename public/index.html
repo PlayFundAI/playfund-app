@@ -316,6 +316,13 @@
     .trow .pf::before{content:'PlayFund: ';font-weight:600;color:var(--ink-soft)}
   }
   @media (max-width:640px){ .grid-4{grid-template-columns:1fr} }
+  /* Confirm-email. The hint keeps its height when empty so the form does not
+     jump as it changes, and a disabled Send has to look disabled: the button
+     styles above set their own background, which hides the browser default.
+     The hint is ink-soft, not the faint grey of the other notices, because it
+     is the line that tells someone why they cannot send yet. */
+  .confirm-hint{margin:7px 0 0;min-height:19px;color:var(--ink-soft)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -423,6 +430,11 @@
         <div class="field">
           <label for="cEmail">Email</label>
           <input id="cEmail" name="email" type="email" autocomplete="email" placeholder="you@yourclub.com">
+        </div>
+        <div class="field">
+          <label for="cEmail2">Confirm email</label>
+          <input id="cEmail2" name="email_confirm" type="email" autocomplete="email" placeholder="Type it once more">
+          <p class="form-notice confirm-hint" id="cEmail2Hint" aria-live="polite"></p>
         </div>
         <div class="field">
           <label for="cOpens">When does your next registration open? <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
@@ -599,6 +611,48 @@
   });
 })();
 
+// ---------- confirm email ----------
+// A mistyped address is a request we can never answer, and nothing on the
+// server can tell a typo from a real address. So the email is asked for
+// twice and Send stays off until the two agree. The line above the button
+// says why, because a greyed-out button with no reason reads as a broken
+// form. The second field is checked here and never sent anywhere.
+(function(){
+  var a = document.getElementById('cEmail'), b = document.getElementById('cEmail2');
+  var hint = document.getElementById('cEmail2Hint');
+  var btn = document.getElementById('contactBtn'), msg = document.getElementById('contactMsg');
+  var WHY  = 'We ask twice so a typo doesn\u2019t lose your reply.';
+  var GATE = 'Enter your email twice to send.';
+  function norm(el){ return el.value.trim().toLowerCase(); }
+  function sync(done){
+    var x = norm(a), y = norm(b);
+    var match = x !== '' && x === y;
+    // Still typing the same address is not a mismatch yet. It only becomes
+    // one when the text stops being the start of the first field, or when
+    // they leave the field short.
+    var typing = !done && !match && y !== '' && x.indexOf(y) === 0;
+    if(!y || typing){ hint.textContent = WHY; hint.style.color = ''; }
+    else if(match){ hint.textContent = 'Emails match.'; hint.style.color = 'var(--ink)'; }
+    else { hint.textContent = 'These two emails don\u2019t match.'; hint.style.color = 'var(--red)'; }
+    btn.disabled = !match;
+    // Leave a real error from the last attempt alone. Only the gate line is
+    // ours to set and clear.
+    if(match){ if(msg.textContent === GATE) msg.textContent = ''; }
+    else if(!msg.textContent || msg.textContent === GATE){
+      msg.textContent = GATE; msg.style.color = 'var(--ink-soft)';
+    }
+  }
+  ['input','change'].forEach(function(ev){
+    a.addEventListener(ev, function(){ sync(false); });
+    b.addEventListener(ev, function(){ sync(false); });
+  });
+  b.addEventListener('blur', function(){ sync(true); });
+  // Browsers that fill both fields from a saved address do not always fire
+  // an event, so look once more after load.
+  sync(false);
+  window.addEventListener('pageshow', function(){ sync(true); });
+})();
+
 document.getElementById('contactForm').addEventListener('submit', async function(e){
     e.preventDefault();
     var msgEl = document.getElementById('contactMsg');
@@ -615,6 +669,13 @@ document.getElementById('contactForm').addEventListener('submit', async function
     if(!name){ return fail('Please add your name.'); }
     if(!club){ return fail('Please add your club name.'); }
     if(!email || email.indexOf('@') === -1){ return fail('Please add an email we can reply to.'); }
+    // Send is off until the two emails agree, so this only catches a submit
+    // that got past the button.
+    var email2 = document.getElementById('cEmail2').value.trim();
+    if(email.toLowerCase() !== email2.toLowerCase()){
+      document.getElementById('cEmail2').focus();
+      return fail('Those two emails don\u2019t match. Please check them.');
+    }
 
     msgEl.textContent = 'Sending…'; msgEl.style.color = 'var(--ink-soft)';
     btn.disabled = true;

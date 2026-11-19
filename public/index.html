@@ -317,11 +317,14 @@
   }
   @media (max-width:640px){ .grid-4{grid-template-columns:1fr} }
   /* Confirm-email. The hint keeps its height when empty so the form does not
-     jump as it changes, and a disabled Send has to look disabled: the button
-     styles above set their own background, which hides the browser default.
-     The hint is ink-soft, not the faint grey of the other notices, because it
-     is the line that tells someone why they cannot send yet. */
+     jump as it changes. It is ink-soft, not the faint grey of the other
+     notices, because it is the line that tells someone why they cannot send.
+     Send has two "off" looks. aria-disabled is the confirm check: the button
+     still works, so its label has to stay readable, hence a solid grey and
+     not a fade. :disabled is a request in flight, which is truly inert. */
   .confirm-hint{margin:7px 0 0;min-height:19px;color:var(--ink-soft)}
+  .btn-primary[aria-disabled="true"],
+  .btn-primary[aria-disabled="true"]:hover{background:var(--ink-soft);cursor:default}
   .btn:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
@@ -433,7 +436,7 @@
         </div>
         <div class="field">
           <label for="cEmail2">Confirm email</label>
-          <input id="cEmail2" name="email_confirm" type="email" autocomplete="email" placeholder="Type it once more">
+          <input id="cEmail2" type="email" autocomplete="email" placeholder="Enter it again" aria-describedby="cEmail2Hint">
           <p class="form-notice confirm-hint" id="cEmail2Hint" aria-live="polite"></p>
         </div>
         <div class="field">
@@ -448,8 +451,8 @@
         <div class="hp"><label for="cCompany">Company</label><input id="cCompany" name="company" type="text" tabindex="-1" autocomplete="off"></div>
         <p class="form-notice">We use this to reply to you about a pilot, and nothing else. See our
           <a href="privacy-policy.html">Privacy Policy</a>.</p>
-        <p class="form-msg" id="contactMsg"></p>
-        <button class="btn btn-primary" type="submit" id="contactBtn" style="width:100%">Send</button>
+        <p class="form-msg" id="contactMsg" aria-live="polite"></p>
+        <button class="btn btn-primary" type="submit" id="contactBtn" aria-describedby="contactMsg" style="width:100%">Send</button>
       </form>
     </div>
   </div>
@@ -614,47 +617,59 @@
 // ---------- confirm email ----------
 // A mistyped address is a request we can never answer, and nothing on the
 // server can tell a typo from a real address. So the email is asked for
-// twice and Send stays off until the two agree. The line above the button
-// says why, because a greyed-out button with no reason reads as a broken
-// form. The second field is checked here and never sent anywhere.
-(function(){
+// twice, and a send is refused until the two agree.
+//
+// This check never truly disables Send. The button only looks off
+// (aria-disabled) and the line above it says why. A press is always checked
+// against what the fields hold at that moment. So a browser that fills both
+// fields without telling the page cannot leave someone behind a dead button,
+// and a keyboard or screen-reader user can still reach it and hear the
+// reason. The real disabled state belongs to the submit handler alone, for
+// the moment a request is in flight, and nothing here touches it.
+// The second field is compared here and never sent anywhere.
+var confirmEmail = (function(){
   var a = document.getElementById('cEmail'), b = document.getElementById('cEmail2');
   var hint = document.getElementById('cEmail2Hint');
   var btn = document.getElementById('contactBtn'), msg = document.getElementById('contactMsg');
-  var WHY  = 'We ask twice so a typo doesn\u2019t lose your reply.';
-  var GATE = 'Enter your email twice to send.';
+  var WHY        = 'We ask twice so a typo doesn’t stop our reply reaching you.';
+  var GATE_EMPTY = 'Enter your email twice to send.';
+  var GATE_DIFF  = 'The two emails above don’t match yet.';
   function norm(el){ return el.value.trim().toLowerCase(); }
-  function sync(done){
-    var x = norm(a), y = norm(b);
-    var match = x !== '' && x === y;
-    // Still typing the same address is not a mismatch yet. It only becomes
-    // one when the text stops being the start of the first field, or when
-    // they leave the field short.
-    var typing = !done && !match && y !== '' && x.indexOf(y) === 0;
-    if(!y || typing){ hint.textContent = WHY; hint.style.color = ''; }
-    else if(match){ hint.textContent = 'Emails match.'; hint.style.color = 'var(--ink)'; }
-    else { hint.textContent = 'These two emails don\u2019t match.'; hint.style.color = 'var(--red)'; }
-    btn.disabled = !match;
-    // Leave a real error from the last attempt alone. Only the gate line is
-    // ours to set and clear.
-    if(match){ if(msg.textContent === GATE) msg.textContent = ''; }
-    else if(!msg.textContent || msg.textContent === GATE){
-      msg.textContent = GATE; msg.style.color = 'var(--ink-soft)';
+  function matches(){ var x = norm(a); return x !== '' && x === norm(b); }
+  // midTyping is true only for a keystroke in the confirm field. Typing the
+  // same address there is not a mismatch yet. It becomes one when the text
+  // stops being the start of the first field, or when they move on with it
+  // still short. Passed in by the listeners and not read from the focused
+  // element, because what counts as focused during a blur varies.
+  function sync(midTyping){
+    var x = norm(a), y = norm(b), ok = matches();
+    var typing = midTyping === true && !ok && y !== '' && x.indexOf(y) === 0;
+    var differ = !ok && x !== '' && y !== '' && !typing;
+    if(ok){ hint.textContent = 'Emails match.'; hint.style.color = 'var(--ink)'; }
+    else if(differ){ hint.textContent = 'These two emails don’t match.'; hint.style.color = 'var(--red)'; }
+    else { hint.textContent = WHY; hint.style.color = ''; }
+    btn.setAttribute('aria-disabled', ok ? 'false' : 'true');
+    // The line above the button is only ours to set while it is empty or
+    // already showing one of our two lines. A real error from the last
+    // attempt is left alone.
+    var t = msg.textContent;
+    if(!t || t === GATE_EMPTY || t === GATE_DIFF){
+      msg.textContent = ok ? '' : (differ ? GATE_DIFF : GATE_EMPTY);
+      msg.style.color = differ ? 'var(--red)' : 'var(--ink-soft)';
     }
   }
-  ['input','change'].forEach(function(ev){
-    a.addEventListener(ev, function(){ sync(false); });
-    b.addEventListener(ev, function(){ sync(false); });
-  });
-  b.addEventListener('blur', function(){ sync(true); });
-  // Browsers that fill both fields from a saved address do not always fire
-  // an event, so look once more after load.
+  b.addEventListener('input', function(){ sync(true); });
+  ['change','blur'].forEach(function(ev){ b.addEventListener(ev, function(){ sync(false); }); });
+  ['input','change','blur'].forEach(function(ev){ a.addEventListener(ev, function(){ sync(false); }); });
+  window.addEventListener('pageshow', function(){ sync(false); });
   sync(false);
-  window.addEventListener('pageshow', function(){ sync(true); });
+  return { matches: matches, sync: sync, DIFF: GATE_DIFF };
 })();
 
 document.getElementById('contactForm').addEventListener('submit', async function(e){
     e.preventDefault();
+    // A request is already in flight. Enter in a field must not start another.
+    if(document.getElementById('contactBtn').disabled) return;
     var msgEl = document.getElementById('contactMsg');
     var btn   = document.getElementById('contactBtn');
     var name  = document.getElementById('cName').value.trim();
@@ -669,12 +684,13 @@ document.getElementById('contactForm').addEventListener('submit', async function
     if(!name){ return fail('Please add your name.'); }
     if(!club){ return fail('Please add your club name.'); }
     if(!email || email.indexOf('@') === -1){ return fail('Please add an email we can reply to.'); }
-    // Send is off until the two emails agree, so this only catches a submit
-    // that got past the button.
-    var email2 = document.getElementById('cEmail2').value.trim();
-    if(email.toLowerCase() !== email2.toLowerCase()){
+    // The button only looks off until the emails agree, so this is the check
+    // that actually stops a mismatched send. It reads the fields as they are
+    // now, which also covers a browser that filled them without an event.
+    if(!confirmEmail.matches()){
+      fail(confirmEmail.DIFF);
       document.getElementById('cEmail2').focus();
-      return fail('Those two emails don\u2019t match. Please check them.');
+      return;
     }
 
     msgEl.textContent = 'Sending…'; msgEl.style.color = 'var(--ink-soft)';

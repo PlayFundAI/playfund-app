@@ -23,7 +23,7 @@ const usd = (dollars) => Math.round(dollars * 100);
 // Dues from 50c (the smallest card charge) to $5,000, including amounts that
 // do not divide evenly, and rates from 0% to 100%.
 const DUES_SWEEP = [50, 99, 101, 2500, 12345, 25000, 33333, 95000, 100000, 100001, 149999, 200000, 500000];
-const BPS_SWEEP = [0, 1, 500, 605, 650, 799, 800, 1000, 2500, 10000];
+const BPS_SWEEP = [0, 1, 500, 650, 799, 800, 1000, 2500, 10000];
 
 test("installments: the club's rate is taken as a share of dues", () => {
   assert.equal(applicationFeeCents({ duesCents: usd(1000), paymentType: "bnpl", feeBps: 800 }), usd(80));

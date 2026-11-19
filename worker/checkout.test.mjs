@@ -18,7 +18,7 @@ const ENV = {
   SUPABASE_ANON_KEY: "placeholder-not-a-key",
   STRIPE_SECRET_KEY: "placeholder-not-a-key",
   PAY_IN_FULL_PMC_ID: "pmc_placeholder",
-  MIN_FEE_BPS: "605",
+  MIN_FEE_BPS: "600",
   APP_URL: "https://app.invalid/app/"
 };
 const DB = `${ENV.SUPABASE_URL}/rest/v1`;

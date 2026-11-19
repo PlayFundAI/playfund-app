@@ -2562,7 +2562,7 @@
         <div class="faq-question-text">What does it cost the club?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">PlayFund charges a service fee on total season dues, deducted before funds land in your account. The exact percentage is set for your club during onboarding, there are no setup fees, monthly fees, or hidden costs, and families pay no extra fees.</div>
+      <div class="faq-answer">PlayFund's service fee applies when a family pays in installments. It is a percentage of that family's dues, set for your club during onboarding and taken from your payout. When a family pays in full, the club pays card processing cost only. There are no setup fees or monthly fees, and PlayFund adds nothing to what a family pays.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -3877,12 +3877,12 @@ var usStates = ["Virginia"];
     c.teams.forEach(function(team){
       var athletes = team.athletes || [];
       var dues = team.dues || (team.dues_cents ? team.dues_cents / 100 : 0);
-      var advanceCents = Math.round(dues * clubFeeRate() * 100);
 
       var teamFunded = 0, teamPending = 0;
       athletes.forEach(function(a){
         if(a.approval_status === 'pending') pendingApprovals.push({ athlete: a, team: team });
         var s = a.payment_status || 'unpaid';
+        var advanceCents = Math.round(clubPayoutFor(dues, s) * 100);
         totalAthletes++;
         totalDuesCents += dues * 100;
         if(s === 'paid_full' || s === 'bnpl_active' || s === 'bnpl_complete'){
@@ -4141,6 +4141,20 @@ var usStates = ["Virginia"];
     return 1 - (bps / 10000);
   }
 
+  // What one funded athlete's payment puts in the club's account, in dollars.
+  // Mirrors worker/fees.mjs: the club's rate applies to installments only, and
+  // a pay-in-full payment carries card processing cost only. The two numbers
+  // below must equal the pair in that file. worker/fees.test.mjs fails if they
+  // do not.
+  var PAY_IN_FULL_FEE_BPS = 290;
+  var PAY_IN_FULL_FEE_FIXED_CENTS = 30;
+  function clubPayoutFor(dues, paymentStatus, club){
+    if(paymentStatus !== 'paid_full') return dues * clubFeeRate(club);
+    var cents = Math.round(dues * 100);
+    var fee = Math.min(cents, Math.round(cents * PAY_IN_FULL_FEE_BPS / 10000) + PAY_IN_FULL_FEE_FIXED_CENTS);
+    return (cents - fee) / 100;
+  }
+
   function openRoster(){
     var c = state.club;
     var team = state.team;
@@ -4170,7 +4184,10 @@ var usStates = ["Virginia"];
       return s !== 'unpaid' && s !== 'defaulted';
     }).length;
     var totalCount = athletes.length;
-    var frontedAmt = Math.round(fundedCount * dues * clubFeeRate());
+    var frontedAmt = Math.round(athletes.reduce(function(sum, a){
+      var s = a.payment_status || 'unpaid';
+      return (s === 'unpaid' || s === 'defaulted') ? sum : sum + clubPayoutFor(dues, s);
+    }, 0));
     var pct = totalCount > 0 ? Math.round(fundedCount / totalCount * 100) : 0;
 
     var fracEl = document.getElementById('statFundedFraction');
@@ -6144,13 +6161,12 @@ var usStates = ["Virginia"];
 
       var athletes = liveTeam.athletes || [];
       var dues = liveTeam.dues_cents / 100;
-      var advanceAmt = Math.round(dues * clubFeeRate(data.club));
       var funded = 0, fronted = 0;
       athletes.forEach(function(a){
         var s = a.payment_status || 'unpaid';
         if(['paid_full','bnpl_active','bnpl_complete'].includes(s)){
           funded++;
-          fronted += advanceAmt;
+          fronted += Math.round(clubPayoutFor(dues, s, data.club));
         }
       });
 

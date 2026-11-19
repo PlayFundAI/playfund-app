@@ -1,6 +1,15 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
+// What a club is charged and what it receives. Kept in its own file so it can
+// be tested without a network: see fees.mjs and fees.test.mjs.
+import {
+  applicationFeeCents,
+  clubFeeBps,
+  payoutFloor,
+  payoutForStatusCents
+} from "./fees.mjs";
+
 // index.js
 // Stripe Payment Method Configuration scoped to "pay in full": card + bank
 // only, with Link and every BNPL method (Klarna, Affirm, Afterpay) turned
@@ -692,15 +701,12 @@ __name(sendPendingApprovalEmail, "sendPendingApprovalEmail");
 // MIN_FEE_BPS (the floor, 605): the floor is break-even against Klarna's
 // 5.99% + 30c, this is the price. A club can be discounted between the two
 // deliberately; nothing can go below the floor.
-var DEFAULT_FEE_BPS = 800;
-function clubFeeBps(club) {
-  return club && club.fee_bps != null ? club.fee_bps : DEFAULT_FEE_BPS;
-}
-__name(clubFeeBps, "clubFeeBps");
-function clubPayoutCents(duesCents, club) {
-  return Math.round(duesCents * (1 - clubFeeBps(club) / 1e4));
-}
-__name(clubPayoutCents, "clubPayoutCents");
+//
+// Since 2026-11-19 the club's rate applies to installment payments only. A
+// pay-in-full payment carries card processing cost only and does not use the
+// club's rate at all. DEFAULT_FEE_BPS, clubFeeBps and the fee and payout
+// arithmetic live in fees.mjs, imported at the top of this file.
+//
 // "Can this club actually take money right now?" Both halves matter: a rate
 // PlayFund has agreed (fee_agreed_at, see clubFeeBps) and a Stripe account
 // that can accept charges. Used to decide whether to send a family a payment
@@ -881,8 +887,24 @@ async function sendInternalClubAlert(env, club, inviteError) {
   const dues = club.fees_per_athlete || 0;
   const athletes = club.athlete_count || 0;
   const totalDues = dues * athletes;
-  const feeBps = clubFeeBps(club);
-  const payout = Math.round(totalDues * (1 - feeBps / 1e4));
+  // Nobody has paid yet, so the mix of pay-in-full and installment families is
+  // unknown. Show the lowest the payout can be and say which case that is, so
+  // the figure reads "at least" and stays true however families pay.
+  //
+  // Wrapped because this runs inside club registration: a figure in a staff
+  // email must never be the reason a club's signup fails.
+  let payout = 0;
+  let payoutAssumes = "";
+  try {
+    const duesCents = Math.round(dues * 100);
+    if (duesCents > 0 && athletes > 0) {
+      const floor = payoutFloor({ duesCents, feeBps: clubFeeBps(club) });
+      payout = Math.round(floor.cents * athletes / 100);
+      payoutAssumes = floor.paymentType === "bnpl" ? "Assumes every family pays in installments" : "Assumes every family pays in full";
+    }
+  } catch (e) {
+    console.error("Payout floor could not be computed for club alert:", e);
+  }
   const cityVal = club.city || "";
   const stateVal = club.state || "";
   const location = cityVal && stateVal && !cityVal.includes(stateVal) ? `${cityVal}, ${stateVal}` : cityVal || stateVal || "Not provided";
@@ -908,8 +930,9 @@ async function sendInternalClubAlert(env, club, inviteError) {
       <h2 style="margin:0 0 4px;font-size:22px;font-weight:800;color:#004643;">${club.name}</h2>
       <p style="margin:0 0 20px;font-size:14px;color:#6B7280;">Submitted ${(/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
       <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5BA888;">Estimated payout</p>
-      <div style="font-size:36px;font-weight:800;color:#004643;margin:8px 0 4px;">$${payout > 0 ? payout.toLocaleString() : "TBD"}</div>
-      <p style="font-size:13px;color:#9CA3AF;margin:0 0 20px;">${athletes} athletes &middot; ${payout > 0 ? "$" + totalDues.toLocaleString() : "TBD"} total dues</p>
+      <div style="font-size:36px;font-weight:800;color:#004643;margin:8px 0 4px;">${payout > 0 ? "At least $" + payout.toLocaleString() : "$TBD"}</div>
+      <p style="font-size:13px;color:#9CA3AF;margin:0 0 ${payout > 0 ? "4px" : "20px"};">${athletes} athletes &middot; ${payout > 0 ? "$" + totalDues.toLocaleString() : "TBD"} total dues</p>
+      ${payout > 0 ? `<p style="font-size:13px;color:#9CA3AF;margin:0 0 20px;">${payoutAssumes}</p>` : ""}
       <table>
         <tr><td>Contact</td><td>${club.admin_name || "unknown"} (${club.admin_email || "no email"})</td></tr>
         <tr><td>Sport</td><td>${club.sport || "unknown"}</td></tr>
@@ -935,7 +958,7 @@ async function sendInternalClubAlert(env, club, inviteError) {
         to: ["admin@playfundai.com"],
         subject: inviteError
           ? `ACTION NEEDED — setup link failed for ${club.name} (${location})`
-          : `New club: ${club.name} (${location}), est. $${payout > 0 ? payout.toLocaleString() : "TBD"} payout`,
+          : `New club: ${club.name} (${location}), est. payout ${payout > 0 ? "at least $" + payout.toLocaleString() : "$TBD"}`,
         html: inviteError
           ? `<p style="margin:0 0 16px;font-family:sans-serif;font-size:14px;color:#B42318;"><strong>Their welcome email went out with no setup link.</strong> They can't get into their account until someone sends them one. Error: ${inviteError}</p>${html}`
           : html
@@ -1778,7 +1801,7 @@ var index_default = {
         athletes.forEach((a) => {
           if (FUNDED_STATUSES.includes(a.payment_status)) {
             const team = teams.find((t) => t.id === a.team_id);
-            if (team) fronted_cents += clubPayoutCents(team.dues_cents, club);
+            if (team) fronted_cents += payoutForStatusCents({ duesCents: team.dues_cents, paymentStatus: a.payment_status, feeBps: clubFeeBps(club) });
           }
           collected_cents += collectedByAthlete.get(a.id) || 0;
         });
@@ -2042,7 +2065,7 @@ var index_default = {
       athletes.forEach((a) => {
         if (["paid_full", "bnpl_active", "bnpl_complete"].includes(a.payment_status)) {
           const team = teams.find((t) => t.id === a.team_id);
-          if (team) fronted_cents += clubPayoutCents(team.dues_cents, club);
+          if (team) fronted_cents += payoutForStatusCents({ duesCents: team.dues_cents, paymentStatus: a.payment_status, feeBps: clubFeeBps(club) });
         }
       });
       let collected_cents = 0;
@@ -2724,12 +2747,27 @@ var index_default = {
       // money actually moves. Deliberately does not block when MIN_FEE_BPS is
       // absent -- a missing var should not take every club's checkout down, and
       // the PATCH guard above already covers every newly agreed rate.
+      //
+      // Installments only. The floor compares the club's rate with what an
+      // installment payment costs, and a pay-in-full payment does not use the
+      // club's rate, so there is nothing for the floor to protect there. The
+      // fee_agreed_at gate above still blocks both ways of paying.
       const minFeeBpsAtCharge = parseInt(env.MIN_FEE_BPS, 10);
-      if (Number.isInteger(minFeeBpsAtCharge) && feeBps < minFeeBpsAtCharge) {
-        console.error(`Blocked checkout: club ${club.code} has fee_bps ${feeBps}, below floor ${minFeeBpsAtCharge}`);
-        return err("This club isn't set up to take payments yet. PlayFund is finalizing their account \u2014 nothing has been charged. Please check back shortly or contact your club.", 409);
+      if (payment_type === "bnpl" && Number.isInteger(minFeeBpsAtCharge) && feeBps < minFeeBpsAtCharge) {
+        console.error(`Blocked installment checkout: club ${club.code} has fee_bps ${feeBps}, below floor ${minFeeBpsAtCharge}`);
+        return err("Installments aren't available for this club yet. Nothing has been charged. You can still pay in full, or contact your club.", 409);
       }
-      const applicationFeeAmount = Math.round(duesCents * feeBps / 1e4);
+      // The club's rate on installments, card processing cost only on pay in
+      // full. See fees.mjs. It throws on input it does not recognise instead
+      // of guessing a fee, and "try again" would not change the outcome, so
+      // say that nothing was charged and send the parent to the club.
+      let applicationFeeAmount;
+      try {
+        applicationFeeAmount = applicationFeeCents({ duesCents, paymentType: payment_type, feeBps });
+      } catch (e) {
+        console.error(`Blocked checkout: fee could not be computed. athlete=${athleteId} club=${club.code} type=${payment_type} amount_cents=${duesCents} fee_bps=${feeBps} msg=${e.message}`);
+        return err("We couldn't start checkout for this team. Nothing has been charged. Please contact your club.", 500);
+      }
       const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
       // 'full' and 'bnpl' must never leak into each other. Naively restricting
       // payment_method_types isn't enough on its own: Stripe Link recognizes a

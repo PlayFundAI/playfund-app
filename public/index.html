@@ -636,6 +636,11 @@ var confirmEmail = (function(){
   var GATE_DIFF  = 'The two emails above don’t match yet.';
   function norm(el){ return el.value.trim().toLowerCase(); }
   function matches(){ var x = norm(a); return x !== '' && x === norm(b); }
+  // Which of our two lines fits the fields right now, for a refused press.
+  function reason(){ return (norm(a) === '' || norm(b) === '') ? GATE_EMPTY : GATE_DIFF; }
+  // Both lines are live regions. Writing the same text again makes some
+  // screen readers repeat it, so only write when it changes.
+  function setText(el, t){ if(el.textContent !== t) el.textContent = t; }
   // midTyping is true only for a keystroke in the confirm field. Typing the
   // same address there is not a mismatch yet. It becomes one when the text
   // stops being the start of the first field, or when they move on with it
@@ -645,16 +650,16 @@ var confirmEmail = (function(){
     var x = norm(a), y = norm(b), ok = matches();
     var typing = midTyping === true && !ok && y !== '' && x.indexOf(y) === 0;
     var differ = !ok && x !== '' && y !== '' && !typing;
-    if(ok){ hint.textContent = 'Emails match.'; hint.style.color = 'var(--ink)'; }
-    else if(differ){ hint.textContent = 'These two emails don’t match.'; hint.style.color = 'var(--red)'; }
-    else { hint.textContent = WHY; hint.style.color = ''; }
+    if(ok){ setText(hint, 'Emails match.'); hint.style.color = 'var(--ink)'; }
+    else if(differ){ setText(hint, 'These two emails don’t match.'); hint.style.color = 'var(--red)'; }
+    else { setText(hint, WHY); hint.style.color = ''; }
     btn.setAttribute('aria-disabled', ok ? 'false' : 'true');
     // The line above the button is only ours to set while it is empty or
     // already showing one of our two lines. A real error from the last
     // attempt is left alone.
     var t = msg.textContent;
     if(!t || t === GATE_EMPTY || t === GATE_DIFF){
-      msg.textContent = ok ? '' : (differ ? GATE_DIFF : GATE_EMPTY);
+      setText(msg, ok ? '' : (differ ? GATE_DIFF : GATE_EMPTY));
       msg.style.color = differ ? 'var(--red)' : 'var(--ink-soft)';
     }
   }
@@ -662,14 +667,22 @@ var confirmEmail = (function(){
   ['change','blur'].forEach(function(ev){ b.addEventListener(ev, function(){ sync(false); }); });
   ['input','change','blur'].forEach(function(ev){ a.addEventListener(ev, function(){ sync(false); }); });
   window.addEventListener('pageshow', function(){ sync(false); });
+  // A browser can fill both fields without firing any event on them. Look
+  // again whenever someone moves into or presses on anything else in the
+  // form, so the button and the lines catch up before a press on Send.
+  var form = document.getElementById('contactForm');
+  form.addEventListener('focusin', function(e){ if(e.target !== b) sync(false); });
+  form.addEventListener('pointerdown', function(e){ if(e.target !== b) sync(false); });
   sync(false);
-  return { matches: matches, sync: sync, DIFF: GATE_DIFF };
+  return { matches: matches, sync: sync, reason: reason };
 })();
 
 document.getElementById('contactForm').addEventListener('submit', async function(e){
     e.preventDefault();
     // A request is already in flight. Enter in a field must not start another.
     if(document.getElementById('contactBtn').disabled) return;
+    // Bring the button and the two lines up to date with the fields first.
+    confirmEmail.sync(false);
     var msgEl = document.getElementById('contactMsg');
     var btn   = document.getElementById('contactBtn');
     var name  = document.getElementById('cName').value.trim();
@@ -688,7 +701,7 @@ document.getElementById('contactForm').addEventListener('submit', async function
     // that actually stops a mismatched send. It reads the fields as they are
     // now, which also covers a browser that filled them without an event.
     if(!confirmEmail.matches()){
-      fail(confirmEmail.DIFF);
+      fail(confirmEmail.reason());
       document.getElementById('cEmail2').focus();
       return;
     }

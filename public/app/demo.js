@@ -830,7 +830,8 @@
     'pf_club_session': 1,
     'pf_parent_session': 1,
     'pf_club_verify_cache': 1,
-    'pf_events_session_id': 1
+    'pf_events_session_id': 1,
+    'pf_admin_token': 1
   };
   var shadow = {};
   (function shadowStorage() {

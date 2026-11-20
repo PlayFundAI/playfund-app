@@ -8,11 +8,97 @@
 <script>
   // Demo mode. Fetched only when the URL asks for it, so nothing about the
   // stand-in layer ships to a real parent or club. See public/app/demo.js.
-  if (new URLSearchParams(window.location.search).get('demo')) {
-    document.head.appendChild(Object.assign(document.createElement('script'), {
-      src: 'demo.js', async: false
-    }));
-  }
+  //
+  // A visit without a `demo` parameter stops at the first `return` and nothing
+  // else in this block runs. A visit with one must never turn into the real
+  // app, so before any other tag on the page is parsed this block:
+  //   1. holds the app's start (its `load` handler) until demo.js says it is
+  //      in place, and shows one sentence instead if that never happens;
+  //   2. writes a Content-Security-Policy that keeps scripts, frames, forms
+  //      and connections on this origin, plus the two font hosts;
+  //   3. makes fetch, XMLHttpRequest, sendBeacon, WebSocket and EventSource
+  //      refuse every other origin, as a second layer under the policy;
+  //   4. asks for demo.js by a path that works with or without the slash.
+  (function () {
+    var INLINE = false;   // demo/build-walkthrough.mjs sets this in the one-file build
+    var on = INLINE;
+    new URLSearchParams(window.location.search).forEach(function (v, k) {
+      if (k.toLowerCase() === 'demo') on = true;
+    });
+    if (!on) return;
+
+    // 1. The app starts from its `load` handler. This listener is the first
+    //    one registered and is a capturing one, so it runs before the app's.
+    var boot = window.PF_DEMO_BOOT = { ready: false, failed: false };
+    function fail() {
+      if (boot.failed) return;
+      boot.failed = true;
+      try { window.stop(); } catch (e) {}
+      document.documentElement.innerHTML =
+        '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+        '<title>PlayFund</title></head>' +
+        '<body style="margin:0;padding:48px 24px;font:16px/1.5 system-ui,sans-serif;color:#004643;background:#fff">' +
+        '<p id="pfDemoFailed" style="max-width:34em;margin:0 auto">Demo mode could not start, so nothing was loaded.</p></body>';
+    }
+    window.addEventListener('load', function (e) {
+      if (boot.ready && !boot.failed) return;
+      e.stopImmediatePropagation();
+      fail();
+    }, true);
+
+    // 2. Written into the document here, so it is in force before the parser
+    //    reaches the next tag.
+    var CSP = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; form-action 'self'; base-uri 'self'";
+    document.write('<meta http-equiv="Content-Security-Policy" content="' + CSP + '">');
+    if (!document.querySelector('meta[http-equiv="Content-Security-Policy"]')) { fail(); return; }
+
+    // 3. demo.js later puts its fixture layer in front of this fetch.
+    var here = window.location.origin;
+    function local(u) {
+      try { return here !== 'null' && new URL(String((u && u.url) || u), document.baseURI).origin === here; }
+      catch (e) { return false; }
+    }
+    function refused(u) { return new Error('Demo mode refused a request to ' + String((u && u.url) || u)); }
+    var nativeFetch = window.fetch;
+    window.fetch = function (input, init) {
+      return local(input) ? nativeFetch.call(window, input, init) : Promise.reject(refused(input));
+    };
+    var xhr = XMLHttpRequest.prototype, xhrOpen = xhr.open, xhrSend = xhr.send;
+    xhr.open = function (method, url) {
+      this.pfDemoLocal = local(url);
+      if (!this.pfDemoLocal) throw refused(url);
+      return xhrOpen.apply(this, arguments);
+    };
+    xhr.send = function () {
+      if (!this.pfDemoLocal) throw refused('an unopened address');
+      return xhrSend.apply(this, arguments);
+    };
+    var nativeBeacon = navigator.sendBeacon;
+    if (nativeBeacon) navigator.sendBeacon = function (url, data) {
+      return local(url) ? nativeBeacon.call(navigator, url, data) : false;
+    };
+    ['WebSocket', 'EventSource'].forEach(function (name) {
+      var Native = window[name];
+      if (!Native) return;
+      window[name] = function (url, options) {
+        if (!local(url)) throw refused(url);
+        return new Native(url, options);
+      };
+      window[name].prototype = Native.prototype;
+    });
+
+    // 4. /app/, /app and /app/index.html all resolve to /app/demo.js.
+    if (INLINE) return;
+    var dir = window.location.pathname;
+    var last = dir.slice(dir.lastIndexOf('/') + 1);
+    if (last.indexOf('.') !== -1 || last === 'index') dir = dir.slice(0, dir.length - last.length);
+    else if (last) dir += '/';
+    var script = document.createElement('script');
+    script.src = dir + 'demo.js';
+    script.async = false;
+    script.onerror = fail;
+    document.head.appendChild(script);
+  })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

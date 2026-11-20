@@ -2,17 +2,25 @@
    PlayFund — demo mode
 
    The real app, driven by a fixture instead of the Worker. Loaded only when
-   the URL carries ?demo=1 (see the injector in index.html's <head>), so
-   production never ships this layer.
+   the URL carries a demo parameter (see the loader at the top of
+   index.html's <head>), so a visit without one never fetches this layer.
 
    Why this exists
    ───────────────
-   The Worker runs on LIVE Stripe keys (pk_live_… in worker/wrangler.toml).
-   Demonstrating the deployed app against production would write real athlete
-   rows, send real email to a club admin and a parent, and — on the one button
-   the whole demo is about — charge a real card. Demo mode removes all three:
-   every call to the Worker and to Supabase is answered locally, and Stripe's
-   two SDKs are replaced by stand-ins.
+   A demonstration must never write an athlete row, send an email or take a
+   payment. In demo mode every call to the Worker and to the database is
+   answered locally from a fixture, and the payment processor's two SDKs are
+   replaced by stand-ins.
+
+   How it stays that way
+   ─────────────────────
+   The loader in index.html runs first. It holds the app's start until this
+   file reports that it is in place, writes a Content-Security-Policy that
+   keeps scripts, frames, forms and connections on this origin (plus the two
+   font hosts), and makes the request APIs refuse every other origin. If this
+   file does not arrive, or stops part-way, the app never starts and the page
+   says so. This file then puts the fixture in front of fetch, and passes
+   anything it does not recognise back to the loader's guard, not the network.
 
    What it is NOT
    ──────────────
@@ -24,11 +32,11 @@
    URL
    ───
      ?demo=1                       the demo, club side first
-     &club=Northside+Select        the club's real name, for their meeting
+     &club=Northside+Select        the club's name, for their meeting
      &city=Charlotte,+NC
-     &dues=1200                    season dues per athlete
+     &dues=1200                    season dues per athlete (1,200 also works)
      &athletes=64                  roster size (funded/deciding/declined scale)
-     &fee=800                      PlayFund's rate in basis points (8%)
+     &fee=800                      the club's rate in basis points
      &clubcode=NSS26               the club code families would type
      &guide=1                      presenter overlay, → to advance
      &auto=1                       advances itself, for screen recording
@@ -42,45 +50,103 @@
 (function () {
   'use strict';
 
+  // This file is only safe to run behind the loader in index.html, which holds
+  // the app's start and blocks outside requests before this file is fetched.
+  // Without it, do not let the app start on the strength of this file alone.
+  var boot = window.PF_DEMO_BOOT;
+  if (!boot) {
+    window.addEventListener('load', function (e) { e.stopImmediatePropagation(); }, true);
+    try { window.stop(); } catch (e) {}
+    document.documentElement.innerHTML =
+      '<head><title>PlayFund</title></head><body><p>Demo mode could not start, so nothing was loaded.</p></body>';
+    return;
+  }
+  if (boot.failed) return;
+
   var qs = new URLSearchParams(window.location.search);
-  if (!qs.get('demo')) return;
 
   var WORKER = 'https://playfund-worker.playfund.workers.dev';
   var SUPA   = 'https://klnbdvwasnnqszlhawbl.supabase.co';
 
   // ─────────────────────────────────────────────────────────────────────────
   // Config
+  //
+  // Every value taken from the address is reduced to a plain one here, at the
+  // point it is read. Nothing below this block reads the address.
   // ─────────────────────────────────────────────────────────────────────────
-  function num(v, dflt) {
-    var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
-    return isFinite(n) && n > 0 ? n : dflt;
+
+  // Names: letters, digits, spaces and . , - & ' and nothing else, with a
+  // length cap. An ampersand is always followed by a space and an apostrophe
+  // is shown as a typographic one, so neither means anything to a page that
+  // writes the name as markup. A value with nothing left falls back.
+  function text(name, dflt, max) {
+    var v = qs.get(name);
+    if (v == null) return dflt;
+    v = String(v)
+      .replace(/[^A-Za-z0-9\u00C0-\u024F .,'&-]/g, ' ')
+      .replace(/&/g, ' & ')
+      .replace(/'/g, '\u2019')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, max)
+      .replace(/[&\s]+$/, '');
+    return v || dflt;
+  }
+  // Numbers: parsed with any thousands comma or currency sign removed, so
+  // 1,200 and $1,200 both mean 1200. Not a number, or not above zero, falls
+  // back. Otherwise it is held inside the range, or, when `strict`, falls
+  // back if it is outside it.
+  function number(name, dflt, min, max, strict) {
+    var v = qs.get(name);
+    if (v == null) return dflt;
+    var n = Math.round(parseFloat(String(v).replace(/[,$\s]/g, '')));
+    if (!isFinite(n) || n <= 0) return dflt;
+    if (strict && (n < min || n > max)) return dflt;
+    return Math.min(max, Math.max(min, n));
   }
   function flag(name, dflt) {
     var v = qs.get(name);
     if (v == null) return dflt;
     return v !== '0' && v !== 'false' && v !== 'no';
   }
+  function emailAddress(name, dflt) {
+    var v = String(qs.get(name) || '').trim();
+    return v.length <= 80 && /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/.test(v) ? v : dflt;
+  }
+  function word(name, pattern) {
+    var v = qs.get(name);
+    return v != null && pattern.test(v) ? v : null;
+  }
 
   // Defaults are the explainer film's numbers (video/src/script.ts), so the
   // film, the deck and this demo never disagree in front of a club.
   var cfg = {
-    clubName: qs.get('club') || 'Riverside Soccer Club',
-    city:     qs.get('city')  || 'Richmond, VA',
-    sport:    qs.get('sport') || 'Soccer',
-    code:    (qs.get('clubcode') || 'RIVER26').toUpperCase(),
-    dues:     Math.round(num(qs.get('dues'), 1000)),
-    feeBps:   Math.round(num(qs.get('fee'), 800)),
-    adminName:  qs.get('admin') || 'Dana Whitfield',
-    adminEmail: qs.get('email') || 'treasurer@riversidesc.org',
+    clubName: text('club', 'Riverside Soccer Club', 60),
+    city:     text('city', 'Richmond, VA', 40),
+    sport:    text('sport', 'Soccer', 24),
+    code:     String(qs.get('clubcode') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'RIVER26',
+    dues:     number('dues', 1000, 1, 50000),
+    // A rate outside 1% to 20% is taken as a typing slip and the default is
+    // shown, so a mistyped link cannot put a made-up rate on the dashboard.
+    feeBps:   number('fee', 800, 100, 2000, true),
+    athletes: number('athletes', 58, 3, 500),
+    hold:     number('hold', 5200, 1000, 60000),
+    adminName:  text('admin', 'Dana Whitfield', 60),
+    adminEmail: emailAddress('email', 'treasurer@example.com'),
+    screen:     word('screen', /^[a-z0-9-]{1,40}$/),
+    role:       word('role', /^(parent|club)$/),
+    method:     word('method', /^(full|bnpl)$/),
+    hasAthlete: !!qs.get('athlete'),
     showChrome: flag('chrome', true),
     guide:      flag('guide', false),
     auto:       flag('auto', false),
-    pending:    flag('pending', false)
+    pending:    flag('pending', false),
+    shot:       flag('shot', false)
   };
 
   // Roster mix. Scales with &athletes= but keeps at least one of each bucket,
-  // because a club has to see that a decline is visible from day one.
-  var total = Math.round(num(qs.get('athletes'), 58));
+  // so the dashboard always shows all three rows.
+  var total = cfg.athletes;
   var needsOption = Math.max(1, Math.round(total * 2 / 58));
   var deciding    = Math.max(1, Math.round(total * 6 / 58));
   var funded      = Math.max(1, total - needsOption - deciding);
@@ -317,7 +383,10 @@
   // ─────────────────────────────────────────────────────────────────────────
   // Network: every Worker and Supabase call is answered here
   // ─────────────────────────────────────────────────────────────────────────
-  var realFetch = window.fetch ? window.fetch.bind(window) : null;
+  // Not the browser's fetch: the loader in index.html has already replaced
+  // that with one that refuses every origin but this page's own. Anything the
+  // fixture does not answer is handed to it, never to the network directly.
+  var guardedFetch = window.fetch;
 
   function reply(body, status) {
     return new Response(JSON.stringify(body == null ? {} : body), {
@@ -346,7 +415,7 @@
     try { return JSON.parse((init && init.body) || '{}'); } catch (e) { return {}; }
   }
 
-  var state = { declineNext: false, linksSent: 0, remindersSent: 0 };
+  var state = { linksSent: 0, remindersSent: 0 };
 
   function route(method, path, url, init) {
     var authed = !!headerOf(init, 'Authorization');
@@ -467,13 +536,6 @@
       if (ca.approval_status === 'pending') {
         return after(300, { error: "This athlete is still waiting on the club to confirm they're on the roster before you can pay." }, 403);
       }
-      if (state.declineNext && body.payment_type === 'bnpl') {
-        state.declineNext = false;
-        return after(900, {
-          error: "Installments aren't available for this amount. You can still pay in full, or ask your club about their own payment plan.",
-          reason: 'bnpl_unavailable'
-        }, 409);
-      }
       pendingCheckout = { athleteId: ca.id, type: body.payment_type };
       return after(500, { client_secret: 'cs_demo_' + ca.id });
     }
@@ -525,25 +587,45 @@
   }
 
   window.fetch = function (input, init) {
-    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
     var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
-    if (url.indexOf(WORKER) !== 0 && url.indexOf(SUPA) !== 0) {
-      return realFetch ? realFetch(input, init) : Promise.reject(new Error('no fetch'));
+    // Matched on the whole origin, so an address that only starts with the
+    // Worker's name is not mistaken for it.
+    var u = null;
+    try { u = new URL(url, document.baseURI); } catch (e) { /* left to the guard */ }
+    if (!u || (u.origin !== WORKER && u.origin !== SUPA)) {
+      return guardedFetch(input, init);
     }
-    var u;
-    try { u = new URL(url); } catch (e) { return Promise.resolve(reply({ error: 'bad url' }, 400)); }
-    var base = url.indexOf(WORKER) === 0 ? WORKER : SUPA;
-    var path = u.pathname.slice(new URL(base).pathname.replace(/\/$/, '').length) || u.pathname;
-    return route(method, path, u, init);
+    return route(method, u.pathname, u, init);
   };
+
+  // The app tidies its own one-time parameters out of the address with
+  // history.replaceState, and takes the rest of the query with them. Left
+  // alone, that would drop the demo parameter and make the next reload a
+  // visit without it. Any address the app writes keeps the parameter.
+  ['pushState', 'replaceState'].forEach(function (name) {
+    var native = window.history[name];
+    window.history[name] = function (state, title, url) {
+      if (url != null) {
+        try {
+          var next = new URL(String(url), window.location.href);
+          var kept = false;
+          next.searchParams.forEach(function (v, k) { if (k.toLowerCase() === 'demo') kept = true; });
+          if (!kept) { next.searchParams.set('demo', '1'); url = next.href; }
+        } catch (e) { /* left as given */ }
+      }
+      return native.call(window.history, state, title, url);
+    };
+  });
 
   // ─────────────────────────────────────────────────────────────────────────
   // Stripe stand-ins
   //
-  // defineProperty rather than assignment: js.stripe.com and connect.js are
-  // still <script> tags in <head>, and whichever of us runs last would
-  // otherwise win. These getters win either way, and the demo works with both
-  // SDKs blocked — which is what makes it safe to present without wifi.
+  // js.stripe.com and connect.js are still <script> tags in <head>, but in
+  // demo mode the loader's policy stops both from running, so these are the
+  // only versions the app ever sees. They are still defined as getters whose
+  // setter ignores the write, so nothing that runs later can put a real SDK
+  // in their place.
   // ─────────────────────────────────────────────────────────────────────────
   var pendingCheckout = null;
 
@@ -572,10 +654,11 @@
           }, 900);
         });
         var decline = mounted.querySelector('[data-demo-decline]');
+        // Opens the app's own screen for a family that was not approved, in
+        // the app's own words. Nothing is invented here about the reason.
         if (decline) decline.addEventListener('click', function (e) {
           e.preventDefault();
-          state.declineNext = true;
-          if (typeof window.openStripeCheckout === 'function') window.openStripeCheckout('bnpl');
+          if (typeof window.showDeclineScreen === 'function') window.showDeclineScreen();
         });
       },
       destroy: function () { if (mounted) mounted.innerHTML = ''; },
@@ -595,24 +678,18 @@
         '</div>';
     var foot = '</div>';
 
+    // Installments. The approved line and nothing more: no per-payment
+    // amounts and no dates, because the payment partner sets the schedule
+    // and PlayFund is not told it.
     if (type === 'bnpl') {
-      var each = cfg.dues / 4;
       return head +
         '<div style="padding:18px 16px;">' +
-          '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">Our payment partner would ask for name, address and date of birth here, then make an instant decision.</div>' +
-          '<div style="font-size:19px; font-weight:800; color:var(--ink); margin:14px 0 4px;">4 payments of ' + money(each) + '</div>' +
-          '<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Every two weeks &middot; ' + money(cfg.dues) + ' total</div>' +
-          '<div style="display:flex; gap:6px; margin-bottom:16px;">' +
-            [0, 1, 2, 3].map(function (i) {
-              return '<div style="flex:1; border:1px solid var(--line); border-radius:var(--r-chip); padding:9px 6px; text-align:center;">' +
-                '<div style="font-size:12.5px; font-weight:700; color:var(--ink);">' + money(each) + '</div>' +
-                '<div style="font-size:10.5px; color:var(--ink-faint);">' + ['Mar 1', 'Mar 15', 'Mar 29', 'Apr 12'][i] + '</div>' +
-              '</div>';
-            }).join('') +
-          '</div>' +
-          '<button class="btn btn-primary" data-demo-pay style="width:100%;">Agree and continue</button>' +
+          '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">Here the family is handed to our payment partner. Installments are subject to approval by our payment partner.</div>' +
+          '<div style="font-size:19px; font-weight:800; color:var(--ink); margin:14px 0 4px;">Commonly 4 interest-free payments, if approved</div>' +
+          '<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:16px;">Season dues ' + money(cfg.dues) + '</div>' +
+          '<button class="btn btn-primary" data-demo-pay style="width:100%;">Continue as if approved</button>' +
           '<div style="text-align:center; margin-top:12px;">' +
-            '<a href="#" data-demo-decline style="font-size:12px; color:var(--ink-faint);">Show a declined family instead</a>' +
+            '<a href="#" data-demo-decline style="font-size:12px; color:var(--ink-faint);">Show a family that is not approved</a>' +
           '</div>' +
         '</div>' + foot;
     }
@@ -741,7 +818,8 @@
     'pf_club_session': 1,
     'pf_parent_session': 1,
     'pf_club_verify_cache': 1,
-    'pf_events_session_id': 1
+    'pf_events_session_id': 1,
+    'pf_admin_token': 1
   };
   var shadow = {};
   (function shadowStorage() {
@@ -790,12 +868,12 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Presenter guide
+  // Guide panel
   //
-  // Each step says the one line to say and the one thing to click. `go` does
-  // the click for you, so the whole demo can be driven with the → key; and if
-  // you click it yourself instead, the observer below notices the screen it
-  // produced and moves the guide along.
+  // Each step has one line that makes its point. `go` performs the step, so
+  // the whole demo can be driven with the → key; and if the screen is clicked
+  // by hand instead, the observer below notices the screen it produced and
+  // moves the panel along.
   // ─────────────────────────────────────────────────────────────────────────
   function payout() {
     return Math.round(stats().fronted_cents / 100);
@@ -834,12 +912,17 @@
     if (left > 0) setTimeout(function () { clickIn(selector, left - 1); }, 120);
   }
 
+  // Every line below is on the shared screen, in a recording and in the
+  // one-file build, so a club reads all of it. Nothing here is a note to the
+  // presenter. `say` is the point of the step, `note` one supporting line,
+  // and `doing` names what is on screen. Anything about fees, payout,
+  // installments, credit or risk is the approved wording and no more.
   var steps = [
     {
       screen: 'club-select',
       say: 'Start where your treasurer starts.',
-      note: 'Built for a volunteer with high turnover, not a finance team. Toast’s onboarding runs four to six weeks; Square’s takes minutes.',
-      doing: 'Sign in as ' + cfg.clubName + '.',
+      note: 'Built for a volunteer treasurer, not a finance team.',
+      doing: 'The club sign-in screen, filled in for ' + cfg.clubName + '.',
       go: function () {
         window.enterClubMode();
         setTimeout(function () {
@@ -852,23 +935,23 @@
     },
     {
       screen: 'club-overview',
-      say: 'One number: what is landing in your account.',
-      note: money(payout()) + ' for ' + funded + ' funded athletes, before a ball is kicked. The fee conversation belongs in this meeting, not on their dashboard.',
-      doing: 'Press → to sign in.',
+      say: 'One number first: the club’s payout.',
+      note: 'Under it, how many athletes are funded and the season’s dues.',
+      doing: 'The club dashboard.',
       go: function () { window.submitClubLogin(); }
     },
     {
       screen: 'club-overview',
-      say: 'And the part nobody else shows you: who has not paid.',
-      note: 'Installments are approved by our partner, so some families are declined — the ones who needed flexibility most. Visible from day one, not discovered in March.',
-      doing: 'Point at the three rows under the payout.',
+      say: 'Then who has paid and who has not.',
+      note: 'Three rows: funded, still deciding, and needs another option.',
+      doing: 'The three rows under the payout.',
       ring: '.status-buckets'
     },
     {
       screen: 'roster',
-      say: 'Per athlete, in your language, not the system’s.',
-      note: '“Awaiting payment”, not “In Progress - Checkout”. Card or installments, the club is paid the same either way.',
-      doing: 'Open 14U Select.',
+      say: 'Each team has a roster with every athlete’s payment status.',
+      note: '',
+      doing: 'The 14U Select roster.',
       go: function () {
         window.state.team = teams[1];
         window.openRoster();
@@ -876,44 +959,44 @@
     },
     {
       screen: 'roster',
-      say: 'Nobody has to make the awkward phone call.',
-      note: 'Reminders go out automatically before every charge. This button is the manual nudge on top of that. Collections are socially awkward because the treasurer knows the families.',
-      doing: 'Hover the reminder button, then move on.',
+      say: 'One button emails a reminder to the families on this team who have not paid.',
+      note: '',
+      doing: 'The reminder button on the roster.',
       ring: '#rosterRemindBtn'
     },
     {
       screen: 'athlete-detail',
       say: 'Now the same season from the family’s side. This is the link they get by email.',
-      note: 'No account, no app. Roughly a quarter of people abandon at forced registration, and app fatigue dominated the parent survey.',
-      doing: 'Open Marcus Bell’s link.',
+      note: 'Parents do not need to create an account to register and pay.',
+      doing: 'Marcus Bell’s link, as his family opens it.',
       go: function () { parentLink('a-marcus-bell'); }
     },
     {
       screen: 'athlete-detail',
-      say: 'The receipt leads. What the season actually costs, itemised.',
-      note: 'Hidden and unpredictable cost was the second-biggest theme in 514 free-text answers; travel was the most-named cost at 42%.',
-      doing: 'Point at “What this covers”.',
+      say: 'The family sees what the dues cover, line by line.',
+      note: 'That comes before the choice of how to pay.',
+      doing: 'The “What this covers” panel.',
       ring: '#breakdownPanel'
     },
     {
       screen: 'embedded-checkout',
-      say: 'Or spread it. The split sits at the price, not behind a payment-method menu.',
-      note: 'Four payments, two weeks apart. Terms are set by our payment partner, not by PlayFund, and some plans may affect a family’s credit — we say so on this screen.',
-      doing: 'Choose installments.',
+      say: 'Families can pay in full or in installments.',
+      note: 'Commonly 4 interest-free payments, if approved. Installments are subject to approval by our payment partner.',
+      doing: 'A stand-in for the payment sheet. No card is charged.',
       go: function () { window.openStripeCheckout('bnpl'); }
     },
     {
       screen: 'confirm-terms',
-      say: 'The family is on a schedule. You were paid in full, today.',
-      note: 'Our partner carries the credit risk for the pilot. PlayFund does not underwrite and does not front its own capital.',
-      doing: 'Agree and continue.',
+      say: 'The club gets its money up front.',
+      note: 'Our payment partner handles the installments, so the club is not chasing payments.',
+      doing: 'The family’s confirmation screen.',
       go: function () { clickIn('[data-demo-pay]'); }
     },
     {
       screen: 'club-overview',
-      say: 'And back on your side, the money has already moved.',
-      note: 'Marcus just left “Still deciding” and the payout went up by ' + money(cfg.dues * (1 - cfg.feeBps / 10000)) + '. That is the whole loop.',
-      doing: 'Switch back to the club view.',
+      say: 'Back on the club’s side, a family that has paid counts as funded.',
+      note: 'It leaves “Still deciding”, and the figure at the top goes up.',
+      doing: 'The club dashboard again.',
       go: function () {
         window.state.club = authorizedClub();
         window.openClubOverview();
@@ -921,18 +1004,18 @@
     },
     {
       screen: 'decline',
-      say: 'When a family is declined, it is a fork, not a wall.',
-      note: 'Split with another payer, a smaller deposit, or the club’s own plan. Flywire’s authorised-payer feature took payment-plan defaults from 34% to under 1%.',
-      doing: 'Show the declined path.',
+      say: 'If a family is not approved, they still have options.',
+      note: 'They can pay in full, or pay the club directly.',
+      doing: 'What a family sees when it is not approved.',
       go: function () {
         parentLink('a-elena-bell', function () { window.showDeclineScreen(); });
       }
     },
     {
       screen: 'club-register-1',
-      say: 'Getting set up is one sitting, and you can stop halfway.',
-      note: 'The payout number appears before we ask for bank details. Most volunteer treasurers will not have the EIN to hand and will need to come back.',
-      doing: 'Open club registration.',
+      say: 'Last, what setting up asks of the club.',
+      note: 'The club’s details come first. Bank details go to our payment partner, never to PlayFund.',
+      doing: 'The first screen of club registration.',
       go: function () { window.showScreen('club-register-1'); }
     }
   ];
@@ -965,7 +1048,9 @@
       '<div class="pfd-bar"><i style="width:' + Math.round(n / steps.length * 100) + '%"></i></div>' +
       '<div class="pfd-keys">→ next · ← back · R reset · G hide</div>';
     guideEl.querySelector('.pfd-say').textContent = s.say;
-    guideEl.querySelector('.pfd-note').textContent = s.note;
+    var noteEl = guideEl.querySelector('.pfd-note');
+    noteEl.textContent = s.note || '';
+    noteEl.style.display = s.note ? '' : 'none';
     guideEl.querySelector('.pfd-do').textContent = idx < 0 ? 'Press → to begin.' : s.doing;
   }
 
@@ -1038,11 +1123,10 @@
     });
 
     if (cfg.auto) {
-      var hold = Math.round(num(qs.get('hold'), 5200));
       var tick = setInterval(function () {
         if (idx + 1 >= steps.length) { clearInterval(tick); return; }
         next();
-      }, hold);
+      }, cfg.hold);
     }
   }
 
@@ -1118,10 +1202,10 @@
     document.title = 'PlayFund \u00b7 demo';
     setTimeout(function () {
       mountGuide();
-      if (flag('shot', false)) setTimeout(shotMode, 500);
+      if (cfg.shot) setTimeout(shotMode, 500);
 
-      var screen = qs.get('screen');
-      var role = qs.get('role');
+      var screen = cfg.screen;
+      var role = cfg.role;
 
       if (screen) {
         // Some screens need their data put in place before they are shown.
@@ -1164,7 +1248,7 @@
             if (screen === 'decline') { window.showDeclineScreen(); return; }
             if (screen === 'scholarship-apply') { window.showScholarshipScreen(); return; }
             if (screen === 'payment-history') { window.openPaymentHistory(); return; }
-            if (screen === 'embedded-checkout') { window.openStripeCheckout(qs.get('method') === 'full' ? 'full' : 'bnpl'); return; }
+            if (screen === 'embedded-checkout') { window.openStripeCheckout(cfg.method === 'full' ? 'full' : 'bnpl'); return; }
             if (screen === 'confirm-now' || screen === 'confirm-terms') {
               var a = findAthlete('a-marcus-bell');
               markPaid(a, screen === 'confirm-terms' ? 'bnpl' : 'full');
@@ -1176,11 +1260,15 @@
           });
           return;
         }
-        window.showScreen(screen, true);
-        return;
+        // Any other screen is shown as it stands, if the app has one by
+        // that name. An unknown name is ignored and the demo opens as usual.
+        if (document.getElementById('screen-' + screen)) {
+          window.showScreen(screen, true);
+          return;
+        }
       }
 
-      if (qs.get('athlete')) return;            // the app's own deep link wins
+      if (cfg.hasAthlete) return;               // the app's own deep link wins
 
       if (role === 'parent') {
         window.enterParentMode();
@@ -1203,5 +1291,9 @@
     next: next, prev: prev, goTo: goTo, steps: steps
   };
 
-  console.log('%c[demo] PlayFund demo mode is on. No request leaves this page.', 'color:#5BA888;font-weight:700');
+  // Last line on purpose. The loader in index.html lets the app start only
+  // once this is set, so a failure anywhere above leaves the app unstarted.
+  boot.ready = true;
+
+  console.log('%c[demo] PlayFund demo mode is on. Requests are answered on this page or refused.', 'color:#5BA888;font-weight:700');
 })();

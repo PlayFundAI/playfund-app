@@ -2,17 +2,25 @@
    PlayFund — demo mode
 
    The real app, driven by a fixture instead of the Worker. Loaded only when
-   the URL carries ?demo=1 (see the injector in index.html's <head>), so
-   production never ships this layer.
+   the URL carries a demo parameter (see the loader at the top of
+   index.html's <head>), so a visit without one never fetches this layer.
 
    Why this exists
    ───────────────
-   The Worker runs on LIVE Stripe keys (pk_live_… in worker/wrangler.toml).
-   Demonstrating the deployed app against production would write real athlete
-   rows, send real email to a club admin and a parent, and — on the one button
-   the whole demo is about — charge a real card. Demo mode removes all three:
-   every call to the Worker and to Supabase is answered locally, and Stripe's
-   two SDKs are replaced by stand-ins.
+   A demonstration must never write an athlete row, send an email or take a
+   payment. In demo mode every call to the Worker and to the database is
+   answered locally from a fixture, and the payment processor's two SDKs are
+   replaced by stand-ins.
+
+   How it stays that way
+   ─────────────────────
+   The loader in index.html runs first. It holds the app's start until this
+   file reports that it is in place, writes a Content-Security-Policy that
+   keeps scripts, frames, forms and connections on this origin (plus the two
+   font hosts), and makes the request APIs refuse every other origin. If this
+   file does not arrive, or stops part-way, the app never starts and the page
+   says so. This file then puts the fixture in front of fetch, and passes
+   anything it does not recognise back to the loader's guard, not the network.
 
    What it is NOT
    ──────────────
@@ -42,8 +50,20 @@
 (function () {
   'use strict';
 
+  // This file is only safe to run behind the loader in index.html, which holds
+  // the app's start and blocks outside requests before this file is fetched.
+  // Without it, do not let the app start on the strength of this file alone.
+  var boot = window.PF_DEMO_BOOT;
+  if (!boot) {
+    window.addEventListener('load', function (e) { e.stopImmediatePropagation(); }, true);
+    try { window.stop(); } catch (e) {}
+    document.documentElement.innerHTML =
+      '<head><title>PlayFund</title></head><body><p>Demo mode could not start, so nothing was loaded.</p></body>';
+    return;
+  }
+  if (boot.failed) return;
+
   var qs = new URLSearchParams(window.location.search);
-  if (!qs.get('demo')) return;
 
   var WORKER = 'https://playfund-worker.playfund.workers.dev';
   var SUPA   = 'https://klnbdvwasnnqszlhawbl.supabase.co';
@@ -317,7 +337,10 @@
   // ─────────────────────────────────────────────────────────────────────────
   // Network: every Worker and Supabase call is answered here
   // ─────────────────────────────────────────────────────────────────────────
-  var realFetch = window.fetch ? window.fetch.bind(window) : null;
+  // Not the browser's fetch: the loader in index.html has already replaced
+  // that with one that refuses every origin but this page's own. Anything the
+  // fixture does not answer is handed to it, never to the network directly.
+  var guardedFetch = window.fetch;
 
   function reply(body, status) {
     return new Response(JSON.stringify(body == null ? {} : body), {
@@ -525,25 +548,45 @@
   }
 
   window.fetch = function (input, init) {
-    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var url = typeof input === 'string' ? input : (input && input.url) || String(input || '');
     var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
-    if (url.indexOf(WORKER) !== 0 && url.indexOf(SUPA) !== 0) {
-      return realFetch ? realFetch(input, init) : Promise.reject(new Error('no fetch'));
+    // Matched on the whole origin, so an address that only starts with the
+    // Worker's name is not mistaken for it.
+    var u = null;
+    try { u = new URL(url, document.baseURI); } catch (e) { /* left to the guard */ }
+    if (!u || (u.origin !== WORKER && u.origin !== SUPA)) {
+      return guardedFetch(input, init);
     }
-    var u;
-    try { u = new URL(url); } catch (e) { return Promise.resolve(reply({ error: 'bad url' }, 400)); }
-    var base = url.indexOf(WORKER) === 0 ? WORKER : SUPA;
-    var path = u.pathname.slice(new URL(base).pathname.replace(/\/$/, '').length) || u.pathname;
-    return route(method, path, u, init);
+    return route(method, u.pathname, u, init);
   };
+
+  // The app tidies its own one-time parameters out of the address with
+  // history.replaceState, and takes the rest of the query with them. Left
+  // alone, that would drop the demo parameter and make the next reload a
+  // visit without it. Any address the app writes keeps the parameter.
+  ['pushState', 'replaceState'].forEach(function (name) {
+    var native = window.history[name];
+    window.history[name] = function (state, title, url) {
+      if (url != null) {
+        try {
+          var next = new URL(String(url), window.location.href);
+          var kept = false;
+          next.searchParams.forEach(function (v, k) { if (k.toLowerCase() === 'demo') kept = true; });
+          if (!kept) { next.searchParams.set('demo', '1'); url = next.href; }
+        } catch (e) { /* left as given */ }
+      }
+      return native.call(window.history, state, title, url);
+    };
+  });
 
   // ─────────────────────────────────────────────────────────────────────────
   // Stripe stand-ins
   //
-  // defineProperty rather than assignment: js.stripe.com and connect.js are
-  // still <script> tags in <head>, and whichever of us runs last would
-  // otherwise win. These getters win either way, and the demo works with both
-  // SDKs blocked — which is what makes it safe to present without wifi.
+  // js.stripe.com and connect.js are still <script> tags in <head>, but in
+  // demo mode the loader's policy stops both from running, so these are the
+  // only versions the app ever sees. They are still defined as getters whose
+  // setter ignores the write, so nothing that runs later can put a real SDK
+  // in their place.
   // ─────────────────────────────────────────────────────────────────────────
   var pendingCheckout = null;
 
@@ -1203,5 +1246,9 @@
     next: next, prev: prev, goTo: goTo, steps: steps
   };
 
-  console.log('%c[demo] PlayFund demo mode is on. No request leaves this page.', 'color:#5BA888;font-weight:700');
+  // Last line on purpose. The loader in index.html lets the app start only
+  // once this is set, so a failure anywhere above leaves the app unstarted.
+  boot.ready = true;
+
+  console.log('%c[demo] PlayFund demo mode is on. Requests are answered on this page or refused.', 'color:#5BA888;font-weight:700');
 })();

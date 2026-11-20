@@ -76,6 +76,10 @@ try {
 // Nine steps in the order a club lives them, start to finish. `title` is the
 // whole slide. `say` is there only where a club would otherwise ask the
 // question out loud, and most slides do not have one.
+//
+// Every word here is read by a club. Anything about fees, payout,
+// installments, credit or risk is the approved wording and no more: no payout
+// dates, no figures, and nothing the product does not do yet.
 const slides = [
   {
     file: 'club-account',
@@ -111,27 +115,26 @@ const slides = [
     file: 'parent-options',
     screen: 'embedded-checkout',
     title: 'Families choose how to pay',
-    say: 'In full today, or spread over time.'
+    say: 'In full, or in installments. Installments are subject to approval by our payment partner.'
   },
   {
     file: 'club-payout',
     screen: 'club-overview',
     max: 1180,
-    title: 'You get paid up front either way',
-    say: 'Our payment partner collects the installments. You are paid at the start of the season.'
+    title: 'The club gets its money up front',
+    say: 'Our payment partner handles the installments, so the club is not chasing payments.'
   },
   {
     file: 'parent-declined',
     screen: 'decline',
-    title: 'If a family does not qualify, we work with you',
-    say: 'Pay in full, a smaller deposit, or your club\u2019s own plan.'
+    title: 'If a family is not approved, they still have options',
+    say: 'They can pay in full, or pay the club directly.'
   },
   {
     file: 'club-roster',
     screen: 'roster',
     max: 1240,
-    title: 'Check progress whenever you want',
-    say: 'You will not need to.'
+    title: 'Check progress whenever you want'
   }
 ];
 
@@ -200,7 +203,7 @@ function deckHtml(shots) {
   const cover = `
   <section class="slide cover">
     <div class="mark">PLAY<span>FUND</span></div>
-    <h1>Families pay over time.<br>Clubs get paid up front.</h1>
+    <h1>Families pay in full or in installments.<br>The club gets its money up front.</h1>
     <p class="sub">${esc(club.club)} &middot; ${esc(club.city)}</p>
     <p class="foot">Figures are examples, not a real club.</p>
   </section>`;
@@ -220,10 +223,10 @@ function deckHtml(shots) {
     <div class="mark">PLAY<span>FUND</span></div>
     <h1>What a pilot looks like</h1>
     <ul class="ask">
+      <li>We are running a small pilot.</li>
       <li>One season.</li>
       <li>You keep registration, rosters and messaging.</li>
       <li>We run how families pay.</li>
-      <li>No setup cost. No commitment after the season.</li>
     </ul>
     <p class="sub">admin@playfundai.com &middot; playfundai.com</p>
   </section>`;

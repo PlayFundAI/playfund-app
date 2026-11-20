@@ -415,7 +415,7 @@
     try { return JSON.parse((init && init.body) || '{}'); } catch (e) { return {}; }
   }
 
-  var state = { declineNext: false, linksSent: 0, remindersSent: 0 };
+  var state = { linksSent: 0, remindersSent: 0 };
 
   function route(method, path, url, init) {
     var authed = !!headerOf(init, 'Authorization');
@@ -536,13 +536,6 @@
       if (ca.approval_status === 'pending') {
         return after(300, { error: "This athlete is still waiting on the club to confirm they're on the roster before you can pay." }, 403);
       }
-      if (state.declineNext && body.payment_type === 'bnpl') {
-        state.declineNext = false;
-        return after(900, {
-          error: "Installments aren't available for this amount. You can still pay in full, or ask your club about their own payment plan.",
-          reason: 'bnpl_unavailable'
-        }, 409);
-      }
       pendingCheckout = { athleteId: ca.id, type: body.payment_type };
       return after(500, { client_secret: 'cs_demo_' + ca.id });
     }
@@ -661,10 +654,11 @@
           }, 900);
         });
         var decline = mounted.querySelector('[data-demo-decline]');
+        // Opens the app's own screen for a family that was not approved, in
+        // the app's own words. Nothing is invented here about the reason.
         if (decline) decline.addEventListener('click', function (e) {
           e.preventDefault();
-          state.declineNext = true;
-          if (typeof window.openStripeCheckout === 'function') window.openStripeCheckout('bnpl');
+          if (typeof window.showDeclineScreen === 'function') window.showDeclineScreen();
         });
       },
       destroy: function () { if (mounted) mounted.innerHTML = ''; },
@@ -684,24 +678,18 @@
         '</div>';
     var foot = '</div>';
 
+    // Installments. The approved line and nothing more: no per-payment
+    // amounts and no dates, because the payment partner sets the schedule
+    // and PlayFund is not told it.
     if (type === 'bnpl') {
-      var each = cfg.dues / 4;
       return head +
         '<div style="padding:18px 16px;">' +
-          '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">Our payment partner would ask for name, address and date of birth here, then make an instant decision.</div>' +
-          '<div style="font-size:19px; font-weight:800; color:var(--ink); margin:14px 0 4px;">4 payments of ' + money(each) + '</div>' +
-          '<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Every two weeks &middot; ' + money(cfg.dues) + ' total</div>' +
-          '<div style="display:flex; gap:6px; margin-bottom:16px;">' +
-            [0, 1, 2, 3].map(function (i) {
-              return '<div style="flex:1; border:1px solid var(--line); border-radius:var(--r-chip); padding:9px 6px; text-align:center;">' +
-                '<div style="font-size:12.5px; font-weight:700; color:var(--ink);">' + money(each) + '</div>' +
-                '<div style="font-size:10.5px; color:var(--ink-faint);">' + ['Mar 1', 'Mar 15', 'Mar 29', 'Apr 12'][i] + '</div>' +
-              '</div>';
-            }).join('') +
-          '</div>' +
-          '<button class="btn btn-primary" data-demo-pay style="width:100%;">Agree and continue</button>' +
+          '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">Here the family is handed to our payment partner. Installments are subject to approval by our payment partner.</div>' +
+          '<div style="font-size:19px; font-weight:800; color:var(--ink); margin:14px 0 4px;">Commonly 4 interest-free payments, if approved</div>' +
+          '<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:16px;">Season dues ' + money(cfg.dues) + '</div>' +
+          '<button class="btn btn-primary" data-demo-pay style="width:100%;">Continue as if approved</button>' +
           '<div style="text-align:center; margin-top:12px;">' +
-            '<a href="#" data-demo-decline style="font-size:12px; color:var(--ink-faint);">Show a declined family instead</a>' +
+            '<a href="#" data-demo-decline style="font-size:12px; color:var(--ink-faint);">Show a family that is not approved</a>' +
           '</div>' +
         '</div>' + foot;
     }
@@ -880,12 +868,12 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Presenter guide
+  // Guide panel
   //
-  // Each step says the one line to say and the one thing to click. `go` does
-  // the click for you, so the whole demo can be driven with the → key; and if
-  // you click it yourself instead, the observer below notices the screen it
-  // produced and moves the guide along.
+  // Each step has one line that makes its point. `go` performs the step, so
+  // the whole demo can be driven with the → key; and if the screen is clicked
+  // by hand instead, the observer below notices the screen it produced and
+  // moves the panel along.
   // ─────────────────────────────────────────────────────────────────────────
   function payout() {
     return Math.round(stats().fronted_cents / 100);
@@ -924,12 +912,17 @@
     if (left > 0) setTimeout(function () { clickIn(selector, left - 1); }, 120);
   }
 
+  // Every line below is on the shared screen, in a recording and in the
+  // one-file build, so a club reads all of it. Nothing here is a note to the
+  // presenter. `say` is the point of the step, `note` one supporting line,
+  // and `doing` names what is on screen. Anything about fees, payout,
+  // installments, credit or risk is the approved wording and no more.
   var steps = [
     {
       screen: 'club-select',
       say: 'Start where your treasurer starts.',
-      note: 'Built for a volunteer with high turnover, not a finance team. Toast’s onboarding runs four to six weeks; Square’s takes minutes.',
-      doing: 'Sign in as ' + cfg.clubName + '.',
+      note: 'Built for a volunteer treasurer, not a finance team.',
+      doing: 'The club sign-in screen, filled in for ' + cfg.clubName + '.',
       go: function () {
         window.enterClubMode();
         setTimeout(function () {
@@ -942,23 +935,23 @@
     },
     {
       screen: 'club-overview',
-      say: 'One number: what is landing in your account.',
-      note: money(payout()) + ' for ' + funded + ' funded athletes, before a ball is kicked. The fee conversation belongs in this meeting, not on their dashboard.',
-      doing: 'Press → to sign in.',
+      say: 'One number first: the club’s payout.',
+      note: 'Under it, how many athletes are funded and the season’s dues.',
+      doing: 'The club dashboard.',
       go: function () { window.submitClubLogin(); }
     },
     {
       screen: 'club-overview',
-      say: 'And the part nobody else shows you: who has not paid.',
-      note: 'Installments are approved by our partner, so some families are declined — the ones who needed flexibility most. Visible from day one, not discovered in March.',
-      doing: 'Point at the three rows under the payout.',
+      say: 'Then who has paid and who has not.',
+      note: 'Three rows: funded, still deciding, and needs another option.',
+      doing: 'The three rows under the payout.',
       ring: '.status-buckets'
     },
     {
       screen: 'roster',
-      say: 'Per athlete, in your language, not the system’s.',
-      note: '“Awaiting payment”, not “In Progress - Checkout”. Card or installments, the club is paid the same either way.',
-      doing: 'Open 14U Select.',
+      say: 'Each team has a roster with every athlete’s payment status.',
+      note: '',
+      doing: 'The 14U Select roster.',
       go: function () {
         window.state.team = teams[1];
         window.openRoster();
@@ -966,44 +959,44 @@
     },
     {
       screen: 'roster',
-      say: 'Nobody has to make the awkward phone call.',
-      note: 'Reminders go out automatically before every charge. This button is the manual nudge on top of that. Collections are socially awkward because the treasurer knows the families.',
-      doing: 'Hover the reminder button, then move on.',
+      say: 'One button emails a reminder to the families on this team who have not paid.',
+      note: '',
+      doing: 'The reminder button on the roster.',
       ring: '#rosterRemindBtn'
     },
     {
       screen: 'athlete-detail',
       say: 'Now the same season from the family’s side. This is the link they get by email.',
-      note: 'No account, no app. Roughly a quarter of people abandon at forced registration, and app fatigue dominated the parent survey.',
-      doing: 'Open Marcus Bell’s link.',
+      note: 'Parents do not need to create an account to register and pay.',
+      doing: 'Marcus Bell’s link, as his family opens it.',
       go: function () { parentLink('a-marcus-bell'); }
     },
     {
       screen: 'athlete-detail',
-      say: 'The receipt leads. What the season actually costs, itemised.',
-      note: 'Hidden and unpredictable cost was the second-biggest theme in 514 free-text answers; travel was the most-named cost at 42%.',
-      doing: 'Point at “What this covers”.',
+      say: 'The family sees what the dues cover, line by line.',
+      note: 'That comes before the choice of how to pay.',
+      doing: 'The “What this covers” panel.',
       ring: '#breakdownPanel'
     },
     {
       screen: 'embedded-checkout',
-      say: 'Or spread it. The split sits at the price, not behind a payment-method menu.',
-      note: 'Four payments, two weeks apart. Terms are set by our payment partner, not by PlayFund, and some plans may affect a family’s credit — we say so on this screen.',
-      doing: 'Choose installments.',
+      say: 'Families can pay in full or in installments.',
+      note: 'Commonly 4 interest-free payments, if approved. Installments are subject to approval by our payment partner.',
+      doing: 'A stand-in for the payment sheet. No card is charged.',
       go: function () { window.openStripeCheckout('bnpl'); }
     },
     {
       screen: 'confirm-terms',
-      say: 'The family is on a schedule. You were paid in full, today.',
-      note: 'Our partner carries the credit risk for the pilot. PlayFund does not underwrite and does not front its own capital.',
-      doing: 'Agree and continue.',
+      say: 'The club gets its money up front.',
+      note: 'Our payment partner handles the installments, so the club is not chasing payments.',
+      doing: 'The family’s confirmation screen.',
       go: function () { clickIn('[data-demo-pay]'); }
     },
     {
       screen: 'club-overview',
-      say: 'And back on your side, the money has already moved.',
-      note: 'Marcus just left “Still deciding” and the payout went up by ' + money(cfg.dues * (1 - cfg.feeBps / 10000)) + '. That is the whole loop.',
-      doing: 'Switch back to the club view.',
+      say: 'Back on the club’s side, a family that has paid counts as funded.',
+      note: 'It leaves “Still deciding”, and the figure at the top goes up.',
+      doing: 'The club dashboard again.',
       go: function () {
         window.state.club = authorizedClub();
         window.openClubOverview();
@@ -1011,18 +1004,18 @@
     },
     {
       screen: 'decline',
-      say: 'When a family is declined, it is a fork, not a wall.',
-      note: 'Split with another payer, a smaller deposit, or the club’s own plan. Flywire’s authorised-payer feature took payment-plan defaults from 34% to under 1%.',
-      doing: 'Show the declined path.',
+      say: 'If a family is not approved, they still have options.',
+      note: 'They can pay in full, or pay the club directly.',
+      doing: 'What a family sees when it is not approved.',
       go: function () {
         parentLink('a-elena-bell', function () { window.showDeclineScreen(); });
       }
     },
     {
       screen: 'club-register-1',
-      say: 'Getting set up is one sitting, and you can stop halfway.',
-      note: 'The payout number appears before we ask for bank details. Most volunteer treasurers will not have the EIN to hand and will need to come back.',
-      doing: 'Open club registration.',
+      say: 'Last, what setting up asks of the club.',
+      note: 'The club’s details come first. Bank details go to our payment partner, never to PlayFund.',
+      doing: 'The first screen of club registration.',
       go: function () { window.showScreen('club-register-1'); }
     }
   ];
@@ -1055,7 +1048,9 @@
       '<div class="pfd-bar"><i style="width:' + Math.round(n / steps.length * 100) + '%"></i></div>' +
       '<div class="pfd-keys">→ next · ← back · R reset · G hide</div>';
     guideEl.querySelector('.pfd-say').textContent = s.say;
-    guideEl.querySelector('.pfd-note').textContent = s.note;
+    var noteEl = guideEl.querySelector('.pfd-note');
+    noteEl.textContent = s.note || '';
+    noteEl.style.display = s.note ? '' : 'none';
     guideEl.querySelector('.pfd-do').textContent = idx < 0 ? 'Press → to begin.' : s.doing;
   }
 

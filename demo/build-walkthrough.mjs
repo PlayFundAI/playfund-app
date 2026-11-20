@@ -13,15 +13,20 @@
 
    How: the app has no images, no local stylesheets and no local scripts of its
    own, so the only thing standing between index.html and a standalone file was
-   demo.js, which the page fetches by relative path. This inlines it, and bakes
-   the club settings in so they apply on a double-click, where there is no
-   query string to read them from. Appending ?something=... in the address bar
-   still overrides them.
+   demo.js, which the page fetches by path. This inlines it, and bakes the club
+   settings in so they apply on a double-click, where there is no query string
+   to read them from. Appending ?something=... in the address bar still
+   overrides them, and those values are cleaned the same way as in the served
+   demo.
 
-   What stays online: the webfonts and Stripe's two SDKs, which are the same
-   <script> tags the real app carries. With no network the type falls back and
-   demo mode's stand-ins take over, which is exactly what happens in the served
-   version. Nothing else leaves the page in either case.
+   Demo mode is always on in this file, whatever the address says. The loader
+   from index.html is kept, so if the inlined script ever fails to run the
+   file shows "Demo mode could not start" and never the real app.
+
+   What stays online: the webfonts, and nothing else. The file carries its
+   Content-Security-Policy as a tag at the top of <head>, so the payment
+   processor's two <script> tags, which are still in the markup, are refused
+   before they are requested. With no network the type falls back.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -72,12 +77,29 @@ const patchedDemo = demo.replace(
   "  })();"
 );
 
-// ── 2. swap the loader for the script itself ────────────────────────────────
-const LOADER = /<script>\s*\/\/ Demo mode\.[\s\S]*?<\/script>/;
-if (!LOADER.test(html)) {
-  console.error('The demo-mode loader is not where this script expects it in public/app/index.html.');
+// ── 2. keep the loader, and put the script straight after it ────────────────
+// The loader is what makes demo mode fail closed: it holds the app's start
+// until the demo script reports in, and blocks outside requests. The one-file
+// build needs all of that too, so the loader stays, is told the demo is always
+// on and that the script is already on the page, and the script follows it.
+// If the script ever fails to run, the file shows the loader's "could not
+// start" sentence and not the real app.
+function stop(message) {
+  console.error(message);
   process.exit(1);
 }
+const LOADER = /<script>\s*\/\/ Demo mode\.[\s\S]*?<\/script>/;
+const found = html.match(LOADER);
+if (!found) stop('The demo-mode loader is not where this script expects it in public/app/index.html.');
+
+const INLINE_ANCHOR = 'var INLINE = false;';
+if (found[0].split(INLINE_ANCHOR).length !== 2) {
+  stop('The loader no longer has exactly one `' + INLINE_ANCHOR + '`. Fix the anchor in demo/build-walkthrough.mjs.');
+}
+const loader = found[0].replace(INLINE_ANCHOR, 'var INLINE = true;');
+
+const policy = found[0].match(/var CSP = "([^"]+)";/);
+if (!policy) stop('The loader no longer defines its policy as `var CSP = "...";`. Fix the anchor in demo/build-walkthrough.mjs.');
 
 // </script> inside the file would close this tag early. Only one sequence can
 // do that and it is cheaper to neutralise it than to reason about where it
@@ -89,9 +111,20 @@ const inlined = '<script>\n' + patchedDemo.replace(/<\/script>/gi, '<\\/script>'
 // "everything after the match", which splices the remaining 300KB of the page
 // into the middle of the script. It fails as a syntax error rather than as
 // anything legible.
-let out = html.replace(LOADER, () => inlined);
+let out = html.replace(LOADER, () => loader + '\n' + inlined);
 
-// ── 3. the two footer links have nothing to point at from a local file ──────
+// ── 3. the same policy as a real tag, ahead of everything else ──────────────
+// The served app can only write its policy from the loader, because a visit
+// without the demo flag must not carry one. This file is always the demo, so
+// the policy can be in the markup itself, where it applies before any script
+// runs and before the browser looks ahead for things to fetch.
+const HEAD_ANCHOR = '<meta charset="UTF-8">';
+if (out.split(HEAD_ANCHOR).length !== 2) stop('public/app/index.html no longer starts its <head> with ' + HEAD_ANCHOR + '.');
+const policyTag = '<meta http-equiv="Content-Security-Policy" content="' + policy[1] + '">';
+out = out.replace(HEAD_ANCHOR, () => HEAD_ANCHOR + '\n' + policyTag);
+if (out.indexOf(policyTag) > out.indexOf('<script')) stop('The policy tag did not land ahead of the first script.');
+
+// ── 4. the two footer links have nothing to point at from a local file ──────
 out = out
   .replace(/href="\.\.\/privacy-policy\.html"/g, 'href="https://www.playfundai.com/privacy-policy.html" target="_blank" rel="noopener"')
   .replace(/href="\.\.\/terms-of-service\.html"/g, 'href="https://www.playfundai.com/terms-of-service.html" target="_blank" rel="noopener"');

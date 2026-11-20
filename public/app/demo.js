@@ -32,11 +32,11 @@
    URL
    ───
      ?demo=1                       the demo, club side first
-     &club=Northside+Select        the club's real name, for their meeting
+     &club=Northside+Select        the club's name, for their meeting
      &city=Charlotte,+NC
-     &dues=1200                    season dues per athlete
+     &dues=1200                    season dues per athlete (1,200 also works)
      &athletes=64                  roster size (funded/deciding/declined scale)
-     &fee=800                      PlayFund's rate in basis points (8%)
+     &fee=800                      the club's rate in basis points
      &clubcode=NSS26               the club code families would type
      &guide=1                      presenter overlay, → to advance
      &auto=1                       advances itself, for screen recording
@@ -70,37 +70,83 @@
 
   // ─────────────────────────────────────────────────────────────────────────
   // Config
+  //
+  // Every value taken from the address is reduced to a plain one here, at the
+  // point it is read. Nothing below this block reads the address.
   // ─────────────────────────────────────────────────────────────────────────
-  function num(v, dflt) {
-    var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
-    return isFinite(n) && n > 0 ? n : dflt;
+
+  // Names: letters, digits, spaces and . , - & ' and nothing else, with a
+  // length cap. An ampersand is always followed by a space and an apostrophe
+  // is shown as a typographic one, so neither means anything to a page that
+  // writes the name as markup. A value with nothing left falls back.
+  function text(name, dflt, max) {
+    var v = qs.get(name);
+    if (v == null) return dflt;
+    v = String(v)
+      .replace(/[^A-Za-z0-9\u00C0-\u024F .,'&-]/g, ' ')
+      .replace(/&/g, ' & ')
+      .replace(/'/g, '\u2019')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, max)
+      .replace(/[&\s]+$/, '');
+    return v || dflt;
+  }
+  // Numbers: parsed with any thousands comma or currency sign removed, so
+  // 1,200 and $1,200 both mean 1200. Not a number, or not above zero, falls
+  // back. Otherwise it is held inside the range, or, when `strict`, falls
+  // back if it is outside it.
+  function number(name, dflt, min, max, strict) {
+    var v = qs.get(name);
+    if (v == null) return dflt;
+    var n = Math.round(parseFloat(String(v).replace(/[,$\s]/g, '')));
+    if (!isFinite(n) || n <= 0) return dflt;
+    if (strict && (n < min || n > max)) return dflt;
+    return Math.min(max, Math.max(min, n));
   }
   function flag(name, dflt) {
     var v = qs.get(name);
     if (v == null) return dflt;
     return v !== '0' && v !== 'false' && v !== 'no';
   }
+  function emailAddress(name, dflt) {
+    var v = String(qs.get(name) || '').trim();
+    return v.length <= 80 && /^[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/.test(v) ? v : dflt;
+  }
+  function word(name, pattern) {
+    var v = qs.get(name);
+    return v != null && pattern.test(v) ? v : null;
+  }
 
   // Defaults are the explainer film's numbers (video/src/script.ts), so the
   // film, the deck and this demo never disagree in front of a club.
   var cfg = {
-    clubName: qs.get('club') || 'Riverside Soccer Club',
-    city:     qs.get('city')  || 'Richmond, VA',
-    sport:    qs.get('sport') || 'Soccer',
-    code:    (qs.get('clubcode') || 'RIVER26').toUpperCase(),
-    dues:     Math.round(num(qs.get('dues'), 1000)),
-    feeBps:   Math.round(num(qs.get('fee'), 800)),
-    adminName:  qs.get('admin') || 'Dana Whitfield',
-    adminEmail: qs.get('email') || 'treasurer@riversidesc.org',
+    clubName: text('club', 'Riverside Soccer Club', 60),
+    city:     text('city', 'Richmond, VA', 40),
+    sport:    text('sport', 'Soccer', 24),
+    code:     String(qs.get('clubcode') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'RIVER26',
+    dues:     number('dues', 1000, 1, 50000),
+    // A rate outside 1% to 20% is taken as a typing slip and the default is
+    // shown, so a mistyped link cannot put a made-up rate on the dashboard.
+    feeBps:   number('fee', 800, 100, 2000, true),
+    athletes: number('athletes', 58, 3, 500),
+    hold:     number('hold', 5200, 1000, 60000),
+    adminName:  text('admin', 'Dana Whitfield', 60),
+    adminEmail: emailAddress('email', 'treasurer@example.com'),
+    screen:     word('screen', /^[a-z0-9-]{1,40}$/),
+    role:       word('role', /^(parent|club)$/),
+    method:     word('method', /^(full|bnpl)$/),
+    hasAthlete: !!qs.get('athlete'),
     showChrome: flag('chrome', true),
     guide:      flag('guide', false),
     auto:       flag('auto', false),
-    pending:    flag('pending', false)
+    pending:    flag('pending', false),
+    shot:       flag('shot', false)
   };
 
   // Roster mix. Scales with &athletes= but keeps at least one of each bucket,
-  // because a club has to see that a decline is visible from day one.
-  var total = Math.round(num(qs.get('athletes'), 58));
+  // so the dashboard always shows all three rows.
+  var total = cfg.athletes;
   var needsOption = Math.max(1, Math.round(total * 2 / 58));
   var deciding    = Math.max(1, Math.round(total * 6 / 58));
   var funded      = Math.max(1, total - needsOption - deciding);
@@ -1081,11 +1127,10 @@
     });
 
     if (cfg.auto) {
-      var hold = Math.round(num(qs.get('hold'), 5200));
       var tick = setInterval(function () {
         if (idx + 1 >= steps.length) { clearInterval(tick); return; }
         next();
-      }, hold);
+      }, cfg.hold);
     }
   }
 
@@ -1161,10 +1206,10 @@
     document.title = 'PlayFund \u00b7 demo';
     setTimeout(function () {
       mountGuide();
-      if (flag('shot', false)) setTimeout(shotMode, 500);
+      if (cfg.shot) setTimeout(shotMode, 500);
 
-      var screen = qs.get('screen');
-      var role = qs.get('role');
+      var screen = cfg.screen;
+      var role = cfg.role;
 
       if (screen) {
         // Some screens need their data put in place before they are shown.
@@ -1207,7 +1252,7 @@
             if (screen === 'decline') { window.showDeclineScreen(); return; }
             if (screen === 'scholarship-apply') { window.showScholarshipScreen(); return; }
             if (screen === 'payment-history') { window.openPaymentHistory(); return; }
-            if (screen === 'embedded-checkout') { window.openStripeCheckout(qs.get('method') === 'full' ? 'full' : 'bnpl'); return; }
+            if (screen === 'embedded-checkout') { window.openStripeCheckout(cfg.method === 'full' ? 'full' : 'bnpl'); return; }
             if (screen === 'confirm-now' || screen === 'confirm-terms') {
               var a = findAthlete('a-marcus-bell');
               markPaid(a, screen === 'confirm-terms' ? 'bnpl' : 'full');
@@ -1219,11 +1264,15 @@
           });
           return;
         }
-        window.showScreen(screen, true);
-        return;
+        // Any other screen is shown as it stands, if the app has one by
+        // that name. An unknown name is ignored and the demo opens as usual.
+        if (document.getElementById('screen-' + screen)) {
+          window.showScreen(screen, true);
+          return;
+        }
       }
 
-      if (qs.get('athlete')) return;            // the app's own deep link wins
+      if (cfg.hasAthlete) return;               // the app's own deep link wins
 
       if (role === 'parent') {
         window.enterParentMode();

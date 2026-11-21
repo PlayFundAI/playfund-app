@@ -4121,10 +4121,19 @@ var usStates = ["Virginia"];
   // How long this page goes on showing a figure after the Worker sent it. The
   // Worker vouches for a figure at the moment it sends it and no longer: a
   // refund a minute later takes the figure down at the Worker, and a page left
-  // open would not know. So after this long the page stops showing what it was
-  // sent and asks the Worker again. PAYOUT_ASK_EVERY_MS is how often it looks
-  // at the clock. Together: a figure the Worker has withdrawn is gone from an
-  // open, visible page within about 75 seconds.
+  // open would not know. Three numbers:
+  //
+  //   PAYOUT_ASK_AFTER_MS   once a figure is this old, ask the Worker again.
+  //                         The figure stays up while the page waits, so a
+  //                         correct figure never blinks off between answers.
+  //   PAYOUT_SHOWN_FOR_MS   the limit. A figure this old with no fresh answer
+  //                         comes down, whatever the page is waiting for.
+  //   PAYOUT_ASK_EVERY_MS   how often the page looks at the clock.
+  //
+  // Together: a figure the Worker has withdrawn is gone from an open, visible
+  // page within about a minute when the Worker answers, and within about 75
+  // seconds when it cannot be reached.
+  var PAYOUT_ASK_AFTER_MS = 45 * 1000;
   var PAYOUT_SHOWN_FOR_MS = 60 * 1000;
   var PAYOUT_ASK_EVERY_MS = 15 * 1000;
 
@@ -4203,20 +4212,21 @@ var usStates = ["Virginia"];
     '</div>';
   }
 
-  // Whether what a slot holds arrived too long ago to go on showing. True for
-  // a slot holding nothing, too.
-  function payoutSlotIsOld(id, nowMs){
+  // Whether it is time to ask the Worker again about what a slot holds. True
+  // for a slot holding nothing, too. This comes before the figure's limit, so
+  // the fresh answer is normally in hand before the old one has to come down.
+  function payoutSlotIsDue(id, nowMs){
     var p = payoutSlots[id] && payoutSlots[id].payout;
     if(!p || typeof p.received_ms !== 'number') return true;
     var age = nowMs - p.received_ms;
-    return !(age >= 0 && age <= PAYOUT_SHOWN_FOR_MS);
+    return !(age >= 0 && age < PAYOUT_ASK_AFTER_MS);
   }
   // Whether any slot that is on screen right now, among those whose ids start
-  // with one of the prefixes, holds something old.
-  function payoutShownAndOld(prefixes, nowMs){
+  // with one of the prefixes, is due to be asked about again.
+  function payoutShownAndDue(prefixes, nowMs){
     for(var id in payoutSlots){
       var mine = prefixes.some(function(prefix){ return id.indexOf(prefix) === 0; });
-      if(!mine || !payoutSlotIsOld(id, nowMs)) continue;
+      if(!mine || !payoutSlotIsDue(id, nowMs)) continue;
       var el = document.getElementById(id);
       // offsetParent is null for anything inside a screen that is not showing.
       if(el && el.offsetParent !== null) return true;
@@ -4256,19 +4266,27 @@ var usStates = ["Virginia"];
   }
 
   // Runs every few seconds, when a club screen is opened, and whenever the tab
-  // is looked at again. First, any figure this page has held too long is taken
-  // down. Then, if such a slot is on screen, the page asks the Worker again,
-  // so a fresh figure, or the words for none, takes its place. A tab nobody is
+  // is looked at again.
+  //
+  // First, every slot is drawn again. That takes down any figure that has
+  // really passed its limit, and only those: a figure inside its limit is
+  // left exactly as it is. This happens even while a request is under way, so
+  // a slow Worker cannot keep an old figure up.
+  //
+  // Then, if a slot on screen is due, the page asks the Worker again. The
+  // figure on screen stays while it waits. When the answer arrives it is put
+  // in: a fresh figure replaces the old one with nothing in between, and an
+  // answer of "no figure" takes the old one down at once. A tab nobody is
   // looking at does not ask: it asks the moment it is looked at.
   var payoutRefreshBusy = false;
   async function refreshPayouts(){
+    for(var old in payoutSlots) drawPayout(old);
     if(payoutRefreshBusy) return;
     payoutRefreshBusy = true;
     try {
-      for(var old in payoutSlots) drawPayout(old);
       if(document.hidden) return;
       var c = state.club;
-      if(c && c.code && payoutShownAndOld(['overviewPayoutAmt', 'bucketFundedAmt', 'statCollected'], Date.now())){
+      if(c && c.code && payoutShownAndDue(['overviewPayoutAmt', 'bucketFundedAmt', 'statCollected'], Date.now())){
         var token = await getClubSessionToken();
         var fresh = token ? await fetchClub(c.code, token) : null;
         if(fresh && state.club === c){
@@ -4282,7 +4300,7 @@ var usStates = ["Virginia"];
           if(payoutSlots.statCollected)     payoutSlots.statCollected.payout     = state.team ? state.team.payout : undefined;
         }
       }
-      if(adminSession && payoutShownAndOld(['admin'], Date.now())) await refreshAdminPayouts();
+      if(adminSession && payoutShownAndDue(['admin'], Date.now())) await refreshAdminPayouts();
     } catch(e){
       console.error('refreshPayouts error:', e);
     } finally {

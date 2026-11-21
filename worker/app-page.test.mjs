@@ -109,6 +109,7 @@ function pageWithFakeBrowser({ club = null, token = "token", fetched = () => nul
     listeners: {},
     fetches: 0,
     adminFetches: 0,
+    drawn: {},
     hiddenScreens: new Set(),
     text: (id) => document.getElementById(id).textContent,
     unavailable: (id) => document.getElementById(id).classes.has("is-unavailable")
@@ -117,7 +118,12 @@ function pageWithFakeBrowser({ club = null, token = "token", fetched = () => nul
     hidden: false,
     getElementById(id) {
       if (!elements[id]) {
-        const el = { textContent: "", classes: new Set() };
+        const el = { classes: new Set() };
+        // Everything ever drawn into the element, in order, so a test can
+        // tell whether a figure blinked off between two answers.
+        let text = "";
+        fake.drawn[id] = [];
+        Object.defineProperty(el, "textContent", { get: () => text, set: (value) => { text = value; fake.drawn[id].push(value); } });
         el.classList = {
           toggle: (name, on) => (on ? el.classes.add(name) : el.classes.delete(name)),
           remove: (name) => el.classes.delete(name)
@@ -134,7 +140,7 @@ function pageWithFakeBrowser({ club = null, token = "token", fetched = () => nul
   const api = new Function(
     "document", "state", "Date", "setInterval", "getClubSessionToken", "fetchClub", "console",
     "fetch", "WORKER_URL", "adminSession", "adminAllClubs", "adminDetailClubId",
-    `${page.slice(start, end)}; return { showPayout, clearPayout, refreshPayouts, stampPayouts, payoutSlots, PAYOUT_UNAVAILABLE_TEXT, PAYOUT_UNAVAILABLE_SHORT, PAYOUT_SHOWN_FOR_MS, PAYOUT_ASK_EVERY_MS };`
+    `${page.slice(start, end)}; return { showPayout, clearPayout, refreshPayouts, stampPayouts, payoutSlots, PAYOUT_UNAVAILABLE_TEXT, PAYOUT_UNAVAILABLE_SHORT, PAYOUT_SHOWN_FOR_MS, PAYOUT_ASK_AFTER_MS, PAYOUT_ASK_EVERY_MS };`
   )(
     document, state, { now: () => fake.clock.now },
     (fn, ms) => fake.timers.push({ fn, ms }),
@@ -154,17 +160,23 @@ function pageWithFakeBrowser({ club = null, token = "token", fetched = () => nul
   return Object.assign(fake, api, { state, document });
 }
 
-test("a club dashboard left open asks the Worker again about every minute and never keeps an old figure", async () => {
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test("a club dashboard left open asks the Worker again before its figure expires, with no blank in between", async () => {
   const team = { id: "t1", payout: sent({ verified: true, club_net_cents: 97070 }) };
   const club = { code: "TESTCLB", payout: sent({ verified: true, club_net_cents: 97070 }), teams: [team] };
-  let next = (now) => ({ payout: sent({ verified: true, club_net_cents: 189070 }, now), teams: [{ id: "t1", payout: sent({ verified: true, club_net_cents: 189070 }, now) }] });
+  const good = (cents) => (now) => ({ payout: sent({ verified: true, club_net_cents: cents }, now), teams: [{ id: "t1", payout: sent({ verified: true, club_net_cents: cents }, now) }] });
+  let next = good(189070);
   const p = pageWithFakeBrowser({ club, fetched: (code, tok, now) => next(now) });
   p.state.team = team;
   const tick = async (ms) => { p.clock.now += ms; await p.timers[0].fn(); };
 
-  // Short enough that a withdrawn figure is gone within about 75 seconds.
+  // The page asks at 45 seconds and the figure's limit is 60. It looks at
+  // the clock every 15, so the asking always comes before the limit.
+  assert.equal(p.PAYOUT_ASK_AFTER_MS, 45 * 1000);
   assert.equal(p.PAYOUT_SHOWN_FOR_MS, 60 * 1000);
   assert.equal(p.PAYOUT_ASK_EVERY_MS, 15 * 1000);
+  assert.ok(p.PAYOUT_ASK_AFTER_MS + p.PAYOUT_ASK_EVERY_MS <= p.PAYOUT_SHOWN_FOR_MS);
   assert.equal(p.timers.length, 1);
   assert.equal(p.timers[0].ms, p.PAYOUT_ASK_EVERY_MS);
 
@@ -173,36 +185,105 @@ test("a club dashboard left open asks the Worker again about every minute and ne
   p.showPayout("statCollected", team.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_TEXT);
   assert.equal(p.text("overviewPayoutAmt"), "$970.70");
 
-  // For the first minute the page does not ask again.
-  for (let i = 0; i < 4; i++) await tick(p.PAYOUT_ASK_EVERY_MS);
+  // For the first half minute the page does not ask again.
+  await tick(p.PAYOUT_ASK_EVERY_MS);
+  await tick(p.PAYOUT_ASK_EVERY_MS);
   assert.equal(p.fetches, 0);
   assert.equal(p.text("overviewPayoutAmt"), "$970.70");
 
-  // At the next look at the clock it asks, and shows what the Worker says now.
+  // At 45 seconds it asks, and the new figure goes straight in.
   await tick(p.PAYOUT_ASK_EVERY_MS);
   assert.equal(p.fetches, 1);
   assert.equal(p.text("overviewPayoutAmt"), "$1,890.70");
   assert.equal(p.text("bucketFundedAmt"), "$1,890.70");
   assert.equal(p.text("statCollected"), "$1,890.70");
 
-  // The Worker no longer vouches for a figure (a refund, say): the number
-  // goes, at most a minute and a quarter after the page last asked.
-  next = (now) => ({ payout: sent({ verified: false }, now), teams: [{ id: "t1", payout: sent({ verified: false }, now) }] });
-  let waited = 0;
-  while (p.text("overviewPayoutAmt") === "$1,890.70") {
+  // Twenty minutes of a dashboard left open, with a correct figure every
+  // time: the line of text is never drawn, not even for a moment.
+  for (let i = 0; i < 80; i++) {
+    next = good(189070 + i);
     await tick(p.PAYOUT_ASK_EVERY_MS);
-    waited += p.PAYOUT_ASK_EVERY_MS;
-    assert.ok(waited <= 75 * 1000, "the old figure stayed up for more than 75 seconds");
   }
-  assert.equal(p.text("overviewPayoutAmt"), p.PAYOUT_UNAVAILABLE_TEXT);
-  assert.equal(p.unavailable("overviewPayoutAmt"), true);
-  assert.equal(p.text("bucketFundedAmt"), "");
-  assert.equal(p.text("statCollected"), p.PAYOUT_UNAVAILABLE_TEXT);
+  assert.ok(p.fetches > 20);
+  for (const id of ["overviewPayoutAmt", "statCollected"]) {
+    assert.equal(p.drawn[id].includes(p.PAYOUT_UNAVAILABLE_TEXT), false, `${id} blinked to the line of text between two good answers`);
+    assert.equal(p.drawn[id].every((text) => /^\$[\d,]+\.\d\d$/.test(text)), true, id);
+  }
+  assert.equal(p.drawn.bucketFundedAmt.includes(""), false, "the Funded amount blinked off between two good answers");
+});
 
-  // With no figure on screen the page keeps asking, so one appears by itself
-  // once a check has passed again.
-  next = (now) => ({ payout: sent({ verified: true, club_net_cents: 97070 }, now), teams: [{ id: "t1", payout: sent({ verified: true, club_net_cents: 97070 }, now) }] });
-  for (let i = 0; i < 5; i++) await tick(p.PAYOUT_ASK_EVERY_MS);
+test("a slow answer does not blank a figure early, and does not keep one up past its limit", async () => {
+  const club = { code: "TESTCLB", payout: sent({ verified: true, club_net_cents: 500 }), teams: [] };
+  let release;
+  const p = pageWithFakeBrowser({ club, fetched: (code, tok, now) => new Promise((resolve) => { release = () => resolve({ payout: sent({ verified: true, club_net_cents: 700 }, p.clock.now), teams: [] }); }) });
+  p.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_TEXT);
+  const step = async (ms) => { p.clock.now += ms; p.timers[0].fn(); await flush(); };
+
+  // 45 seconds: the page asks. The Worker is slow. The figure stays.
+  await step(45 * 1000);
+  assert.equal(p.fetches, 1);
+  assert.equal(p.text("overviewPayoutAmt"), "$5.00");
+  // 60 seconds, still waiting: the figure is at its limit, not past it.
+  await step(15 * 1000);
+  assert.equal(p.text("overviewPayoutAmt"), "$5.00");
+  // 75 seconds, still no answer: past its limit, so it comes down, even
+  // though the request is still under way.
+  await step(15 * 1000);
+  assert.equal(p.fetches, 1, "a second request was started while the first was still out");
+  assert.equal(p.text("overviewPayoutAmt"), p.PAYOUT_UNAVAILABLE_TEXT);
+  // The answer finally lands: the fresh figure goes in.
+  release();
+  await flush();
+  assert.equal(p.text("overviewPayoutAmt"), "$7.00");
+
+  // The usual case, an answer that takes a few seconds: no blank at all.
+  p.drawn.overviewPayoutAmt.length = 0;
+  await step(45 * 1000);
+  assert.equal(p.fetches, 2);
+  p.clock.now += 5 * 1000;
+  release();
+  await flush();
+  assert.equal(p.text("overviewPayoutAmt"), "$7.00");
+  assert.equal(p.drawn.overviewPayoutAmt.includes(p.PAYOUT_UNAVAILABLE_TEXT), false);
+});
+
+test("a figure the Worker has withdrawn is gone from an open page within the stated time", async () => {
+  // However the page's clock-watching lines up with the moment its figure
+  // arrived, a figure the Worker no longer vouches for is gone within 60
+  // seconds when the Worker answers, and within 75 when it cannot be reached.
+  for (const offset of [0, 1, 7000, 14999]) {
+    for (const reachable of [true, false]) {
+      const club = { code: "TESTCLB", payout: sent({ verified: true, club_net_cents: 500 }, NOW), teams: [] };
+      const p = pageWithFakeBrowser({ club, fetched: (code, tok, now) => (reachable ? { payout: sent({ verified: false }, now), teams: [] } : null) });
+      p.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_TEXT);
+      // The Worker withdraws the figure the instant after sending it. The
+      // page's first look at the clock comes `offset` later, then every 15 seconds.
+      let elapsed = offset;
+      p.clock.now = NOW + elapsed;
+      await p.timers[0].fn();
+      while (p.text("overviewPayoutAmt") === "$5.00") {
+        elapsed += p.PAYOUT_ASK_EVERY_MS;
+        p.clock.now = NOW + elapsed;
+        await p.timers[0].fn();
+        assert.ok(elapsed <= 90 * 1000, "the figure never came down");
+      }
+      const limit = reachable ? 60 * 1000 : 75 * 1000;
+      assert.ok(elapsed <= limit, `offset ${offset}, Worker ${reachable ? "answering" : "unreachable"}: the withdrawn figure stayed up for ${elapsed / 1000} seconds`);
+      assert.equal(p.text("overviewPayoutAmt"), p.PAYOUT_UNAVAILABLE_TEXT);
+    }
+  }
+});
+
+test("with no figure on screen the page keeps asking, so one appears by itself", async () => {
+  const club = { code: "TESTCLB", payout: sent({ verified: false }), teams: [] };
+  let answer = (now) => ({ payout: sent({ verified: false }, now), teams: [] });
+  const p = pageWithFakeBrowser({ club, fetched: (code, tok, now) => answer(now) });
+  p.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_TEXT);
+  assert.equal(p.text("overviewPayoutAmt"), p.PAYOUT_UNAVAILABLE_TEXT);
+  for (let i = 0; i < 4; i++) { p.clock.now += p.PAYOUT_ASK_EVERY_MS; await p.timers[0].fn(); }
+  assert.equal(p.fetches, 1);
+  answer = (now) => ({ payout: sent({ verified: true, club_net_cents: 97070 }, now), teams: [] });
+  for (let i = 0; i < 4; i++) { p.clock.now += p.PAYOUT_ASK_EVERY_MS; await p.timers[0].fn(); }
   assert.equal(p.text("overviewPayoutAmt"), "$970.70");
 });
 
@@ -297,7 +378,21 @@ test("an admin screen left open asks again too, and never keeps figures it canno
   assert.equal(p.text("adminTotalFronted"), "$46,000.00");
   assert.equal(p.text("adminTotalCollected"), "$50,000.00");
 
-  // A minute on, the page asks the Worker for every club again.
+  // Forty-five seconds on, the page asks the Worker for every club again, and
+  // nothing on screen blinks while it does.
+  p.adminReply = () => ({
+    clubs: [{ id: "club_1", payout: { verified: true, club_net_cents: 4600000, charge_cents: 5000000 }, payout_check: { status: "verified" },
+      teams: [{ id: "team_1", payout: { verified: true, club_net_cents: 4600000, charge_cents: 5000000 } }] }],
+    totals: { payout: { verified: true, club_net_cents: 4600000, charge_cents: 5000000 } }
+  });
+  for (let i = 0; i < 12; i++) { p.clock.now += p.PAYOUT_ASK_EVERY_MS; await p.timers[0].fn(); }
+  assert.ok(p.adminFetches >= 3);
+  for (const id of ["adminTotalFronted", "adminTotalCollected", "adminClubCardPayout-club_1", "adminDetailFronted", "adminTeamCardPayout-team_1", "adminRosterCollected"]) {
+    assert.equal(p.drawn[id].includes(p.PAYOUT_UNAVAILABLE_SHORT), false, `${id} blinked to "Not available" between two good answers`);
+  }
+  const askedSoFar = p.adminFetches;
+
+  // Past the limit with a new figure waiting: it goes in.
   p.adminReply = () => ({
     clubs: [{ id: "club_1", payout: { verified: true, club_net_cents: 4697070, charge_cents: 5100000 }, payout_check: { status: "verified" },
       teams: [{ id: "team_1", payout: { verified: true, club_net_cents: 4697070, charge_cents: 5100000 } }] }],
@@ -305,7 +400,7 @@ test("an admin screen left open asks again too, and never keeps figures it canno
   });
   p.clock.now += p.PAYOUT_SHOWN_FOR_MS + 1;
   await p.timers[0].fn();
-  assert.equal(p.adminFetches, 1);
+  assert.equal(p.adminFetches, askedSoFar + 1);
   assert.equal(p.fetches, 0, "the club endpoint is not used for admin screens");
   assert.equal(p.text("adminTotalFronted"), "$46,970.70");
   assert.equal(p.text("adminTotalCollected"), "$51,000.00");

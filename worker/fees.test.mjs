@@ -13,10 +13,9 @@ import {
   applicationFeeCents,
   clubFeeBps,
   clubPayoutCents,
-  paymentTypeForStatus,
-  payoutFloor,
-  payoutForStatusCents
+  payoutFloor
 } from "./fees.mjs";
+import * as fees from "./fees.mjs";
 
 const usd = (dollars) => Math.round(dollars * 100);
 
@@ -149,35 +148,6 @@ test("payout is the dues less the fee, to the cent", () => {
   }
 });
 
-test("payment status maps to how the family paid", () => {
-  assert.equal(paymentTypeForStatus("paid_full"), "full");
-  assert.equal(paymentTypeForStatus("bnpl_active"), "bnpl");
-  assert.equal(paymentTypeForStatus("bnpl_complete"), "bnpl");
-  for (const status of ["unpaid", "defaulted", "pending", "", null, undefined]) {
-    assert.equal(paymentTypeForStatus(status), null, `status ${String(status)}`);
-  }
-});
-
-test("dashboard payout follows how each athlete paid", () => {
-  const club = { duesCents: usd(1000), feeBps: 800 };
-  assert.equal(payoutForStatusCents({ ...club, paymentStatus: "paid_full" }), 97070);
-  assert.equal(payoutForStatusCents({ ...club, paymentStatus: "bnpl_active" }), 92000);
-  assert.equal(payoutForStatusCents({ ...club, paymentStatus: "bnpl_complete" }), 92000);
-  // Not paid yet: nothing has reached the club.
-  for (const paymentStatus of ["unpaid", "defaulted", null, undefined]) {
-    assert.equal(payoutForStatusCents({ ...club, paymentStatus }), 0);
-  }
-  // A team with no dues set counts as nothing instead of throwing.
-  for (const duesCents of [0, null, undefined]) {
-    assert.equal(payoutForStatusCents({ duesCents, feeBps: 800, paymentStatus: "paid_full" }), 0);
-    assert.equal(payoutForStatusCents({ duesCents, feeBps: 800, paymentStatus: "bnpl_active" }), 0);
-  }
-  // So does a rate that checkout would have refused to charge.
-  for (const feeBps of [-1, 10001, 8.5, "800"]) {
-    assert.equal(payoutForStatusCents({ duesCents: usd(1000), feeBps, paymentStatus: "bnpl_active" }), 0);
-  }
-});
-
 test("projection floor: the lowest payout whichever way a family pays", () => {
   // At the standard rate the lowest case is every family on installments.
   assert.deepEqual(payoutFloor({ duesCents: usd(1000), feeBps: 800 }), { cents: 92000, paymentType: "bnpl" });
@@ -194,48 +164,18 @@ test("projection floor: the lowest payout whichever way a family pays", () => {
   }
 });
 
-// The club dashboard is a static page and cannot import this module, so it
-// carries its own copy of the two pay-in-full numbers. This fails if the page
-// and the Worker ever disagree about them.
-test("the app page uses the same pay-in-full numbers as the Worker", () => {
-  const page = readFileSync(new URL("../public/app/index.html", import.meta.url), "utf8");
-  const bps = page.match(/\bPAY_IN_FULL_FEE_BPS\s*=\s*(\d+)/);
-  const fixed = page.match(/\bPAY_IN_FULL_FEE_FIXED_CENTS\s*=\s*(\d+)/);
-  assert.ok(bps, "PAY_IN_FULL_FEE_BPS not found in public/app/index.html");
-  assert.ok(fixed, "PAY_IN_FULL_FEE_FIXED_CENTS not found in public/app/index.html");
-  assert.equal(Number(bps[1]), PAY_IN_FULL_FEE_BPS);
-  assert.equal(Number(fixed[1]), PAY_IN_FULL_FEE_FIXED_CENTS);
-});
-
-// Matching numbers are not enough if the page uses them differently. This
-// lifts the page's own payout helper out of the HTML, runs it, and compares
-// what it shows a club with what the Worker reports for the same athlete.
-test("the app page works out a funded athlete's payout the same way as the Worker", () => {
-  const page = readFileSync(new URL("../public/app/index.html", import.meta.url), "utf8");
-  const start = page.indexOf("function clubFeeRate(club){");
-  const end = page.indexOf("function openRoster()", start);
-  assert.ok(start > 0 && end > start, "clubFeeRate and clubPayoutFor not found where expected in public/app/index.html");
-  const source = page.slice(start, end);
-  assert.match(source, /function clubPayoutFor\(dues, paymentStatus, club\)/);
-  const clubPayoutFor = new Function("state", `${source}; return clubPayoutFor;`)({ club: null });
-
-  for (const duesCents of DUES_SWEEP) {
-    for (const feeBps of BPS_SWEEP) {
-      for (const paymentStatus of ["paid_full", "bnpl_active", "bnpl_complete"]) {
-        const pageCents = Math.round(clubPayoutFor(duesCents / 100, paymentStatus, { fee_bps: feeBps }) * 100);
-        const workerCents = payoutForStatusCents({ duesCents, paymentStatus, feeBps });
-        // Pay in full must agree to the cent. Installments may differ by one
-        // cent, because the page multiplies by the share the club keeps where
-        // the Worker subtracts a rounded fee. The page shows whole dollars.
-        const tolerance = paymentStatus === "paid_full" ? 0 : 1;
-        assert.ok(
-          Math.abs(pageCents - workerCents) <= tolerance,
-          `${paymentStatus} dues ${duesCents} at ${feeBps} bps: page ${pageCents}, Worker ${workerCents}`
-        );
-      }
-    }
-  }
-  // The headline case: $1,000 of dues at the standard rate.
-  assert.equal(clubPayoutFor(1000, "paid_full", { fee_bps: 800 }), 970.7);
-  assert.equal(clubPayoutFor(1000, "bnpl_active", { fee_bps: 800 }), 920);
+// This module sets the fee asked for at checkout and backs the "at least"
+// projection. It must not be a way to say what a club HAS received: that comes
+// only from the processor's record of each payment (payouts.mjs). These two
+// helpers used to estimate it from an athlete's status and today's rule.
+test("nothing here estimates what a club has received", () => {
+  assert.equal("payoutForStatusCents" in fees, false);
+  assert.equal("paymentTypeForStatus" in fees, false);
+  const worker = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  // In the Worker the fee arithmetic is used in exactly two places: the fee
+  // sent with a new checkout, and the labelled "at least" figure in the staff
+  // email about a new club.
+  assert.equal(worker.match(/\bapplicationFeeCents\(/g).length, 1);
+  assert.equal(worker.match(/\bpayoutFloor\(/g).length, 1);
+  assert.equal(/\bclubPayoutCents\b/.test(worker), false);
 });

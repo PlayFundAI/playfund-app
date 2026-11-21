@@ -316,6 +316,34 @@
     .trow .pf::before{content:'PlayFund: ';font-weight:600;color:var(--ink-soft)}
   }
   @media (max-width:640px){ .grid-4{grid-template-columns:1fr} }
+
+  /* ── The path ─────────────────────────────────────────────────────────────
+     Three steps from what exists to what does not. The first is a solid ink
+     card and the other two are dashed outlines, so the difference between
+     built and not built is visible before a single status label is read.
+     Shared by the home page teaser and the vision page; keep the two copies
+     of this block identical. */
+  .path{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:980px;
+        margin:0 auto;text-align:left}
+  .path-step{display:flex;flex-direction:column;text-decoration:none;border-radius:13px;
+             padding:20px 22px 18px;background:#fff;border:1.5px dashed #C3CFCC;
+             color:var(--ink);transition:border-color .15s ease,transform .15s ease}
+  .path-step:hover{border-color:var(--green);transform:translateY(-2px)}
+  .path-step.is-live{background:var(--ink);border:1.5px solid var(--ink);color:#fff}
+  .path-n{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;color:var(--ink-faint)}
+  .is-live .path-n{color:var(--green)}
+  .path-t{font-weight:700;font-size:16.5px;line-height:1.35;margin:9px 0 14px}
+  .path-s{margin-top:auto;display:inline-flex;align-items:center;gap:8px;
+          font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+  .path-s::before{content:"";width:7px;height:7px;border-radius:50%;flex-shrink:0;
+                  border:1.5px solid var(--ink-faint)}
+  .is-live .path-s{color:rgba(255,255,255,.82)}
+  .is-live .path-s::before{background:var(--green);border-color:var(--green)}
+  @media (max-width:760px){ .path{grid-template-columns:1fr;max-width:460px;gap:12px} }
+  /* The line under the path is the disclosure for steps two and three, so it
+     is body-sized and readable, not a footnote. */
+  .path-note{text-align:center;margin:22px auto 0;max-width:760px;font-size:14.5px;color:var(--ink-soft)}
+  .path-note a{color:var(--ink);font-weight:600}
 </style>
 </head>
 <body>
@@ -327,6 +355,7 @@
       <a href="#contact" class="nav-aud">For clubs</a>
       <a href="/for-parents" class="nav-aud">For parents</a>
       <a href="#platform">Why PlayFund</a>
+      <a href="/vision">Vision</a>
     </div>
     <div class="nav-right">
       <a class="nav-signin" href="/app/">Sign in</a>
@@ -396,6 +425,33 @@
   </div>
 </section>
 
+<section id="vision">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>PlayFund&rsquo;s vision for youth sports</h2>
+      <p>Dues are where we start. This is what exists today, and what we want to build on top of it.</p>
+    </div>
+    <div class="path">
+      <a class="path-step is-live" href="/vision#today">
+        <span class="path-n">01</span>
+        <span class="path-t">Registration and payments, with the club paid up front.</span>
+        <span class="path-s">Opening to pilot clubs</span>
+      </a>
+      <a class="path-step" href="/vision#aid">
+        <span class="path-n">02</span>
+        <span class="path-t">Sponsors for the club, and aid it can account for.</span>
+        <span class="path-s">Exploring</span>
+      </a>
+      <a class="path-step" href="/vision#card">
+        <span class="path-n">03</span>
+        <span class="path-t">One card for everything else a season costs.</span>
+        <span class="path-s">Exploring</span>
+      </a>
+    </div>
+    <p class="path-note">Steps two and three are ideas we are exploring. They are not available today. <a href="/vision">Read where we are going</a></p>
+  </div>
+</section>
+
 <section class="closing">
   <div class="wrap">
     <h2>Ready to stop chasing dues all season?</h2>
@@ -461,6 +517,7 @@
       </div>
       <div class="foot-col">
         <div>Company</div>
+        <a href="/vision">Vision</a>
         <a href="mailto:admin@playfundai.com">admin@playfundai.com</a>
         <a href="privacy-policy.html">Privacy</a>
         <a href="terms-of-service.html">Terms</a>

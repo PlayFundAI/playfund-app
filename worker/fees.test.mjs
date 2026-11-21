@@ -179,3 +179,15 @@ test("nothing here estimates what a club has received", () => {
   assert.equal(worker.match(/\bpayoutFloor\(/g).length, 1);
   assert.equal(/\bclubPayoutCents\b/.test(worker), false);
 });
+
+// The app page used to carry its own copy of the fee rule and work a payout
+// out from dues. It now shows the Worker's confirmed figure or nothing. This
+// fails if a copy of the rule comes back. app-page.test.mjs checks the rest of
+// what the page does with a figure.
+test("the app page carries no copy of the fee rule", () => {
+  const page = readFileSync(new URL("../public/app/index.html", import.meta.url), "utf8");
+  for (const gone of ["PAY_IN_FULL_FEE_BPS", "PAY_IN_FULL_FEE_FIXED_CENTS", "clubPayoutFor", "clubFeeRate"]) {
+    assert.equal(page.includes(gone), false, `${gone} is back in public/app/index.html`);
+  }
+  assert.equal(/\b290\b[^\n]*\/\s*10000|\/\s*10000[^\n]*\b290\b/.test(page), false, "the pay-in-full rate is being applied in the page");
+});

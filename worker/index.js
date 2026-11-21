@@ -768,6 +768,10 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
   if (await isHardSuppressed(env, club.admin_email)) return;
+  // Everything a registrant typed is text, never markup. This email carries
+  // the account setup link, so nothing typed into the form may be able to
+  // change what surrounds it.
+  const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   const fmt = (iso) => {
     if (!iso) return null;
     return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -809,7 +813,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
     </td></tr>
     <tr><td style="padding:36px 32px 28px;border-bottom:1px solid #E8EDEC;">
       <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">You're all set</p>
-      <h1 style="margin:0 0 12px;font-size:28px;font-weight:800;color:#004643;line-height:1.2;">${adminFirst}, ${club.name} is registered.</h1>
+      <h1 style="margin:0 0 12px;font-size:28px;font-weight:800;color:#004643;line-height:1.2;">${esc(adminFirst)}, ${esc(club.name)} is registered.</h1>
       <p style="margin:0;font-size:15px;color:#6B7280;line-height:1.6;">Set up your account below to connect your bank and start collecting, no call needed. Here's what you submitted.</p>
     </td></tr>
     <tr><td style="padding:0;background-color:#004643;">
@@ -830,9 +834,9 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
     <tr><td style="padding:24px 32px;border-bottom:1px solid #E8EDEC;">
       <p style="margin:0 0 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#9CA3AF;">What you submitted</p>
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Club name</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${club.name}</td></tr></table></td></tr>
-        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Sport</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${club.sport || "TBD"}</td></tr></table></td></tr>
-        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Location</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${location}</td></tr></table></td></tr>
+        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Club name</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${esc(club.name)}</td></tr></table></td></tr>
+        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Sport</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${esc(club.sport || "TBD")}</td></tr></table></td></tr>
+        <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Location</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${esc(location)}</td></tr></table></td></tr>
         <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Season</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${seasonDates}</td></tr></table></td></tr>
         <tr><td style="padding:9px 0;border-bottom:1px solid #E8EDEC;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Athletes</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${athleteCount || "TBD"}</td></tr></table></td></tr>
         <tr><td style="padding:9px 0;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="font-size:13px;color:#6B7280;">Season dues per athlete</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${duesStr}</td></tr></table></td></tr>
@@ -2422,13 +2426,11 @@ var index_default = {
         sendClubWelcomeEmail(env, club, inviteUrl),
         sendInternalClubAlert(env, club, inviteError)
       ]);
+      // The reply names its fields one by one. The setup link goes to the admin
+      // mailbox and is not repeated here, and a failed link is reported in the
+      // internal alert above.
       return json({
-        club: { ...club, teams: createdTeams },
-        invite_url: inviteUrl,
-        // Surfaced so a failed link is visible to the caller and in the
-        // internal alert, instead of a club silently getting a welcome email
-        // with no way in. The registration itself still succeeded.
-        invite_error: inviteError,
+        club: { id: club.id, name: club.name, code: club.code, teams: createdTeams },
         message: "Registration received. Check your email for a link to set up your account."
       }, 201);
     }

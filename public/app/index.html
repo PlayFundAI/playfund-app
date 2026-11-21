@@ -1610,7 +1610,7 @@
           </div>
           <div>
             <div class="payment-method-label">Set up Klarna installments</div>
-            <div class="payment-method-sub">4 bi-weekly payments · no interest</div>
+            <div class="payment-method-sub">Commonly 4 interest-free payments, if approved</div>
           </div>
           <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -2546,7 +2546,7 @@
         <div class="faq-question-text">How does the club advance work?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Each family's payment lands in your account (less PlayFund's service fee) as they pay, whether that's a card payment settling right away or a Klarna installment plan where Klarna pays your club upfront and collects from the family over time. Either way, your club gets paid in full regardless of how families choose to pay, you're never waiting on a family's installment schedule.</div>
+      <div class="faq-answer">Each family's payment lands in your account (less the fee for that payment) as they pay, whether that's a card payment settling right away or a Klarna installment plan where Klarna pays your club upfront and collects from the family over time. Either way, your club gets paid in full regardless of how families choose to pay, you're never waiting on a family's installment schedule.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -2562,7 +2562,7 @@
         <div class="faq-question-text">What does it cost the club?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">PlayFund charges a service fee on total season dues, deducted before funds land in your account. The exact percentage is set for your club during onboarding, there are no setup fees, monthly fees, or hidden costs, and families pay no extra fees.</div>
+      <div class="faq-answer">PlayFund's service fee applies when a family pays in installments. It is a percentage of that family's dues, set for your club during onboarding and taken from your payout. When a family pays in full, the club pays card processing cost only. There are no setup fees or monthly fees, and PlayFund adds nothing to what a family pays.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -3408,7 +3408,7 @@ var usStates = ["Virginia"];
     var csub = document.getElementById('declineClubSub');
     if(el)   el.textContent   = '$' + dues.toLocaleString();
     if(sub)  sub.textContent  = (reason === 'unavailable'
-      ? "Installments aren't available for this amount, but there are still a few ways to get "
+      ? "Installments aren't available for this payment, but there are still a few ways to get "
       : "The installment plan couldn't be approved, but there are still a few ways to get ")
       + athleteName + " on the roster.";
     if(csub) csub.textContent = clubName + " offers their own payment plan. We'll pass your details along so you don't start over.";
@@ -3877,12 +3877,12 @@ var usStates = ["Virginia"];
     c.teams.forEach(function(team){
       var athletes = team.athletes || [];
       var dues = team.dues || (team.dues_cents ? team.dues_cents / 100 : 0);
-      var advanceCents = Math.round(dues * clubFeeRate() * 100);
 
       var teamFunded = 0, teamPending = 0;
       athletes.forEach(function(a){
         if(a.approval_status === 'pending') pendingApprovals.push({ athlete: a, team: team });
         var s = a.payment_status || 'unpaid';
+        var advanceCents = Math.round(clubPayoutFor(dues, s) * 100);
         totalAthletes++;
         totalDuesCents += dues * 100;
         if(s === 'paid_full' || s === 'bnpl_active' || s === 'bnpl_complete'){
@@ -4129,8 +4129,8 @@ var usStates = ["Virginia"];
     openClubOverview();
   }
 
-  // Mirrors clubFeeBps/clubPayoutCents in worker/index.js. The rate is per
-  // club (clubs.fee_bps, set by a PlayFund admin); 500 is only a fallback for
+  // Mirrors clubFeeBps in worker/fees.mjs. The rate is per
+  // club (clubs.fee_bps, set by a PlayFund admin); 800 is only a fallback for
   // a club whose rate was never set, never a published price. These screens
   // are shown after a club has signed up, so their real rate is the right
   // thing to use -- unlike the registration screens, which show dues rather
@@ -4139,6 +4139,20 @@ var usStates = ["Virginia"];
     var c = club || state.club;
     var bps = (c && c.fee_bps != null) ? c.fee_bps : 800;
     return 1 - (bps / 10000);
+  }
+
+  // What one funded athlete's payment puts in the club's account, in dollars.
+  // Mirrors worker/fees.mjs: the club's rate applies to installments only, and
+  // a pay-in-full payment carries card processing cost only. The two numbers
+  // below must equal the pair in that file. worker/fees.test.mjs fails if they
+  // do not.
+  var PAY_IN_FULL_FEE_BPS = 290;
+  var PAY_IN_FULL_FEE_FIXED_CENTS = 30;
+  function clubPayoutFor(dues, paymentStatus, club){
+    if(paymentStatus !== 'paid_full') return dues * clubFeeRate(club);
+    var cents = Math.round(dues * 100);
+    var fee = Math.min(cents, Math.round(cents * PAY_IN_FULL_FEE_BPS / 10000) + PAY_IN_FULL_FEE_FIXED_CENTS);
+    return (cents - fee) / 100;
   }
 
   function openRoster(){
@@ -4170,7 +4184,10 @@ var usStates = ["Virginia"];
       return s !== 'unpaid' && s !== 'defaulted';
     }).length;
     var totalCount = athletes.length;
-    var frontedAmt = Math.round(fundedCount * dues * clubFeeRate());
+    var frontedAmt = Math.round(athletes.reduce(function(sum, a){
+      var s = a.payment_status || 'unpaid';
+      return (s === 'unpaid' || s === 'defaulted') ? sum : sum + clubPayoutFor(dues, s);
+    }, 0));
     var pct = totalCount > 0 ? Math.round(fundedCount / totalCount * 100) : 0;
 
     var fracEl = document.getElementById('statFundedFraction');
@@ -6144,13 +6161,12 @@ var usStates = ["Virginia"];
 
       var athletes = liveTeam.athletes || [];
       var dues = liveTeam.dues_cents / 100;
-      var advanceAmt = Math.round(dues * clubFeeRate(data.club));
       var funded = 0, fronted = 0;
       athletes.forEach(function(a){
         var s = a.payment_status || 'unpaid';
         if(['paid_full','bnpl_active','bnpl_complete'].includes(s)){
           funded++;
-          fronted += advanceAmt;
+          fronted += Math.round(clubPayoutFor(dues, s, data.club));
         }
       });
 

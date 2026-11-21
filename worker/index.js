@@ -11,7 +11,9 @@ import {
 // Whether a payout figure may be shown at all, and the check behind it. See
 // payouts.mjs, payouts.test.mjs and payouts.worker.test.mjs.
 import {
+  ADVERSE_EVENT_HOLD_MS,
   FUNDED_STATUSES,
+  GLOBAL_REASONS,
   PAYMENT_SELECT,
   QUIET_REASONS,
   REASONS,
@@ -148,12 +150,22 @@ __name(stripe, "stripe");
 // gives up after a few seconds and never throws, because the only safe thing
 // to do with a slow or failed answer here is to show no figure.
 var PROCESSOR_TIMEOUT_MS = 8000;
+// AbortSignal.timeout where the runtime has it, and the long-standing
+// AbortController otherwise, so that a runtime without the newer helper does
+// not turn every processor read into a failure.
+function timeoutSignal(ms) {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") return AbortSignal.timeout(ms);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+__name(timeoutSignal, "timeoutSignal");
 async function processorGet(env, path) {
   try {
     const res = await fetch(`https://api.stripe.com/v1${path}`, {
       method: "GET",
       headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}` },
-      signal: AbortSignal.timeout(PROCESSOR_TIMEOUT_MS)
+      signal: timeoutSignal(PROCESSOR_TIMEOUT_MS)
     });
     let data = null;
     try {
@@ -890,22 +902,45 @@ async function readPaymentRecords(env, athleteIds, budget) {
 }
 __name(readPaymentRecords, "readPaymentRecords");
 
-// Insert the club's row in payout_checks, or replace it. Every column is sent
-// every time, so a failed check also wipes the totals of the one before it.
-async function savePayoutCheck(env, row) {
+// Save one club's result in payout_checks through save_payout_check (see the
+// migration). Every column is sent every time, so a failed check also wipes
+// the totals of the one before it.
+//
+// The database refuses to replace a newer result with an older one, in one
+// statement. That matters when a refund is reported while a check is already
+// running: the check read the processor before the refund, and must not put
+// the old figure back when it finishes. `force` is for the refund report
+// itself, which replaces whatever is there.
+//
+// Returns { ok: true, applied } where applied is false if a newer result was
+// already saved and this one was dropped, or { ok: false } if nothing is known
+// to have been saved.
+async function savePayoutCheck(env, row, force = false) {
   try {
-    const res = await fetch(`${env.SUPABASE_URL}/rest/v1/payout_checks?on_conflict=club_id`, {
+    const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/save_payout_check`, {
       method: "POST",
       headers: {
         "apikey": env.SUPABASE_SERVICE_KEY,
         "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates, return=minimal"
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify(row)
+      body: JSON.stringify({ p: row, p_force: force })
     });
-    if (res.ok) return { ok: true, status: res.status };
-    return { ok: false, status: res.status, error: (await res.text()).slice(0, 200) };
+    const text = await res.text();
+    if (!res.ok) return { ok: false, status: res.status, error: text.slice(0, 200) };
+    let applied = null;
+    try {
+      applied = JSON.parse(text);
+    } catch {
+    }
+    // The database API returns a single value as the body itself. Accept the
+    // one-row list form as well, as runWeeklyMetrics does.
+    if (Array.isArray(applied) && applied.length === 1) applied = applied[0];
+    if (applied && typeof applied === "object") applied = applied.save_payout_check;
+    if (applied !== true && applied !== false) {
+      return { ok: false, status: res.status, error: `unexpected reply: ${text.slice(0, 100)}` };
+    }
+    return { ok: true, status: res.status, applied };
   } catch (e) {
     return { ok: false, status: 0, error: String(e) };
   }
@@ -970,7 +1005,15 @@ async function listProcessorTransfers(env, accountId, budget) {
     const body = res.data;
     if (!res.ok || body.object !== "list" || !Array.isArray(body.data) || typeof body.has_more !== "boolean") {
       const message = body && body.error && body.error.message ? ` ${body.error.message}` : "";
-      return { ok: false, reason: "processor_unreadable", detail: `listing transfers: http ${res.status}${res.error ? ` ${res.error}` : ""}${message}`.slice(0, 300) };
+      // No answer, a server error or "slow down" is the processor being out of
+      // reach, which is the same for every club. Anything else is about this
+      // club's account.
+      const down = res.status === 0 || res.status === 429 || res.status >= 500;
+      return {
+        ok: false,
+        reason: down ? "processor_down" : "processor_unreadable",
+        detail: `listing transfers: http ${res.status}${res.error ? ` ${res.error}` : ""}${message}`.slice(0, 300)
+      };
     }
     transfers.push(...body.data);
     if (!body.has_more) return { ok: true, transfers };
@@ -1011,12 +1054,21 @@ async function alertPayoutCheck(env, club, outcome, budget) {
     const RESEND_API_KEY = env.RESEND_API_KEY;
     if (!RESEND_API_KEY) return;
     const what = REASONS[outcome.reason] || "The check did not pass.";
+    // A problem that is not about one club gets one email, worded for all.
+    const forAll = {
+      store_unavailable: ["payout checks cannot be saved", "No club is being shown a payout figure, because the results of payout checks cannot be saved or read.", "The usual cause is that migrations/2026-11-21-payout-tie-out.sql has not been applied to the database."],
+      db_unreadable: ["PlayFund's records cannot be read", "Clubs are being shown no payout figure, because PlayFund's own payment records could not be read for the check.", "Figures come back by themselves once a check can read the database again."],
+      processor_down: ["the payment processor cannot be reached", "Each club is shown no payout figure from the moment its check fails, because Stripe could not be reached to confirm it.", "Figures come back by themselves once a check can reach Stripe again."]
+    }[outcome.reason] || ["payout checks cannot run", "Clubs are being shown no payout figure, because payout checks cannot run.", "Figures come back by themselves once a check passes."];
     const subject = club
       ? `ACTION NEEDED: payout figure hidden for ${club.name}`
-      : "ACTION NEEDED: payout figures hidden, payout checks cannot run";
+      : `ACTION NEEDED: payout figures hidden, ${forAll[0]}`;
     const who = club
       ? `<strong>${escapeHtml(club.name)}</strong> (club code ${escapeHtml(club.code || "unknown")}) is being shown no payout figure, because the last check of its payments against Stripe did not pass.`
-      : "No club is being shown a payout figure, because payout checks cannot run.";
+      : escapeHtml(forAll[1]);
+    const next = club
+      ? `To see the latest result or run the check again: PlayFund Admin, then ${escapeHtml(club.name)}, then "Payout check".`
+      : escapeHtml(forAll[2]);
     if (budget) budget.used += 2;
     const sent = await resendSend(env, {
       method: "POST",
@@ -1030,7 +1082,7 @@ async function alertPayoutCheck(env, club, outcome, budget) {
   <p style="margin:0 0 8px;font-size:14px;color:#374151;"><strong>What the check found:</strong> ${escapeHtml(what)}</p>
   <p style="margin:0 0 16px;font-size:14px;color:#374151;"><strong>Detail:</strong> ${escapeHtml(outcome.detail || "none")}</p>
   <p style="margin:0 0 16px;font-size:14px;color:#374151;">In place of the number the club sees a short line of text. Nothing has been sent to the club and this check moves no money. The figure comes back only when a later check passes.</p>
-  <p style="margin:0 0 16px;font-size:14px;color:#374151;">${club ? `To see the latest result or run the check again: PlayFund Admin, then ${escapeHtml(club.name)}, then "Payout check".` : "The usual cause is that migrations/2026-11-21-payout-tie-out.sql has not been applied to the database."}</p>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">${next}</p>
   <p style="margin:0;font-size:12px;color:#9CA3AF;">Sent once for this ${club ? "club and " : ""}problem.</p>
 </div>`
       })
@@ -1091,18 +1143,29 @@ async function computePayoutCheck(env, club, now, budget, known) {
   }
   if (result.status !== "verified") return result;
   if (pending) return fail("backfill_pending", `${pending} payment records still to fill in`);
-  return { ...result, fingerprint: await payoutFingerprint(accountId, result.rows) };
+  return { ...result, fingerprint: await payoutFingerprint(accountId, result.rows, athletes) };
 }
 __name(computePayoutCheck, "computePayoutCheck");
 
 // Check one club against the processor, save the result, and tell staff if it
-// failed. Never throws. Returns { status, reason, detail, checked_at }, or
-// { status: "skipped" } for a club with no processor account.
+// failed. Never throws. Returns { status, reason, detail, checked_at }, where
+// status is "verified", "failed", "skipped" (a club with no processor account)
+// or "superseded" (a newer result was saved while this check was running, so
+// this one was dropped and changed nothing).
 //
 // `known` may carry what the caller has already read: `athletes`, `payments`,
 // and `previous` (the club's current payout_checks row, or null).
 async function runPayoutCheck(env, club, known = {}, budget = { used: 0, max: 24 }) {
+  // The moment the check starts. Everything it learns from the processor is
+  // from this moment or later, and the saved result can only replace one that
+  // is older than this.
   const now = /* @__PURE__ */ new Date();
+  let previous = known.previous;
+  if (previous === void 0) {
+    budget.used++;
+    const res = await dbRows(env, `/payout_checks?club_id=eq.${club.id}&select=status,reason`);
+    previous = res.ok ? res.rows[0] || null : null;
+  }
   let result;
   try {
     result = await computePayoutCheck(env, club, now, budget, known);
@@ -1111,13 +1174,6 @@ async function runPayoutCheck(env, club, known = {}, budget = { used: 0, max: 24
   }
   if (result === null) return { status: "skipped" };
 
-  let previous = known.previous;
-  if (previous === void 0) {
-    budget.used++;
-    const res = await dbRows(env, `/payout_checks?club_id=eq.${club.id}&select=status,reason`);
-    previous = res.ok ? res.rows[0] || null : null;
-  }
-
   const verified = result.status === "verified";
   const row = {
     club_id: String(club.id),
@@ -1125,6 +1181,7 @@ async function runPayoutCheck(env, club, known = {}, budget = { used: 0, max: 24
     reason: verified ? null : result.reason,
     detail: verified ? null : String(result.detail || "").slice(0, 500),
     checked_at: now.toISOString(),
+    not_before: now.toISOString(),
     stripe_account_id: club.stripe_account_id,
     payment_count: verified ? result.summary.payment_count : 0,
     charge_cents: verified ? result.summary.charge_cents : 0,
@@ -1140,6 +1197,13 @@ async function runPayoutCheck(env, club, known = {}, budget = { used: 0, max: 24
     budget.used++;
     saved = await savePayoutCheck(env, row);
   }
+  if (saved.ok && !saved.applied) {
+    // Something newer is already saved: a later check, or a refund, dispute
+    // or reversal reported while this one was running. This result describes
+    // an older moment and is dropped, with no email and no change.
+    console.log(`Payout check for ${club.code} dropped: a newer result was saved while it ran`);
+    return { status: "superseded", reason: null, detail: null, checked_at: row.checked_at };
+  }
   let outcome = { status: row.status, reason: row.reason, detail: row.detail, checked_at: row.checked_at };
   if (!saved.ok) {
     outcome = { status: "failed", reason: "store_unavailable", detail: `could not save the check: ${dbErrorText(saved)}`, checked_at: row.checked_at };
@@ -1149,14 +1213,16 @@ async function runPayoutCheck(env, club, known = {}, budget = { used: 0, max: 24
   if (outcome.status === "failed") {
     console.error(`Payout check failed for ${club.code}: ${outcome.reason} ${outcome.detail}`);
     if (!QUIET_REASONS.includes(outcome.reason)) {
-      const aboutEveryClub = outcome.reason === "store_unavailable" || outcome.reason === "db_unreadable";
-      await alertPayoutCheck(env, aboutEveryClub ? null : club, outcome, budget);
+      await alertPayoutCheck(env, GLOBAL_REASONS.includes(outcome.reason) ? null : club, outcome, budget);
     }
   } else if (previous && previous.status === "failed") {
+    // Passing again. Note it, so that the same problem coming back later is
+    // reported again. A problem that was not about one club is noted the same
+    // way it was reported: against no club.
     budget.used++;
     const cleared = await dbWrite(env, "POST", "/events", {
       event_name: "payout_check_ok",
-      club_id: club.id,
+      club_id: GLOBAL_REASONS.includes(previous.reason) ? null : club.id,
       properties: { after: previous.reason || null }
     });
     if (!cleared.ok) console.error(`Could not record that ${club.code} passes its payout check again: ${dbErrorText(cleared)}`);
@@ -1212,7 +1278,7 @@ async function runPayoutChecks(env) {
     const outcome = await runPayoutCheck(env, club, { athletes, payments, previous }, budget);
     checked++;
     if (outcome.status === "verified") verified++;
-    else failed++;
+    else if (outcome.status === "failed") failed++;
   }
   console.log(`Payout checks: ${checked} of ${clubsRes.rows.length} clubs checked, ${verified} verified, ${failed} failed, ${budget.used} requests`);
   return { ok: true, checked, verified, failed };
@@ -1235,7 +1301,9 @@ async function clubPayoutResult(env, clubId) {
       club: clubRes.rows[0],
       athletes: athRes.rows,
       payments: payRes.rows,
-      check: checkRes.ok ? checkRes.rows[0] || null : null,
+      // undefined when the saved checks could not be read: not the same as
+      // knowing there is none.
+      check: checkRes.ok ? checkRes.rows[0] || null : void 0,
       now: /* @__PURE__ */ new Date()
     });
   } catch (e) {
@@ -1269,7 +1337,7 @@ async function clubsPayoutResults(env, clubs) {
         club,
         athletes,
         payments: payRes.rows.filter((p) => ids.has(String(p.athlete_id))),
-        check: checks.get(String(club.id)) || null,
+        check: checkRes.ok ? checks.get(String(club.id)) || null : void 0,
         now
       }));
     }
@@ -1338,13 +1406,20 @@ __name(clubForProcessorEvent, "clubForProcessorEvent");
 
 // Hide a club's figure because the processor has reported a refund, dispute
 // or reversal. Returns true once no "verified" row can still be standing.
+//
+// The saved row replaces whatever is there, and cannot itself be replaced by
+// any check that started before ADVERSE_EVENT_HOLD_MS from now. So a check
+// that was already running, on what the processor said before this event,
+// cannot bring the figure back when it finishes.
 async function hidePayoutAfterProcessorEvent(env, club, reason, detail) {
+  const now = Date.now();
   const row = {
     club_id: String(club.id),
     status: "failed",
     reason,
     detail,
-    checked_at: (/* @__PURE__ */ new Date()).toISOString(),
+    checked_at: new Date(now).toISOString(),
+    not_before: new Date(now + ADVERSE_EVENT_HOLD_MS).toISOString(),
     stripe_account_id: club.stripe_account_id || null,
     payment_count: 0,
     charge_cents: 0,
@@ -1352,8 +1427,8 @@ async function hidePayoutAfterProcessorEvent(env, club, reason, detail) {
     club_net_cents: 0,
     fingerprint: null
   };
-  let saved = await savePayoutCheck(env, row);
-  if (!saved.ok) saved = await savePayoutCheck(env, row);
+  let saved = await savePayoutCheck(env, row, true);
+  if (!saved.ok) saved = await savePayoutCheck(env, row, true);
   await alertPayoutCheck(env, club, { reason, detail });
   if (saved.ok) return true;
   console.error(`Could not save the hidden payout state for ${club.code}: ${dbErrorText(saved)}`);

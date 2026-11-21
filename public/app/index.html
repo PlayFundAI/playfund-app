@@ -995,6 +995,7 @@
      number, so it is set as text and not in the display face. */
   .payout-hero-amount.is-unavailable { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; line-height: 1.4; }
   .admin-fin-amount.is-unavailable { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--ink-soft); }
+  .team-card-funded-num.is-unavailable { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
   .payout-hero-sub { font-size: 13.5px; color: rgba(255,255,255,0.72); line-height: 1.5; }
   .payout-hero-sub b { color: var(--white); font-weight: 700; }
 
@@ -2056,20 +2057,12 @@
     <div class="admin-fin-panel">
       <div class="admin-fin-card">
         <div class="admin-fin-amount" id="adminTotalFronted"></div>
-        <div class="admin-fin-label">Fronted to Clubs</div>
+        <div class="admin-fin-label">Reached club accounts</div>
       </div>
       <div class="admin-fin-card">
         <div class="admin-fin-amount" id="adminTotalCollected"></div>
         <div class="admin-fin-label">Collected from Families</div>
       </div>
-    </div>
-
-    <!-- Recovery bar -->
-    <div class="admin-recovery-bar">
-      <div class="admin-recovery-track">
-        <div class="admin-recovery-fill" id="adminTotalRecoveryBar" style="width:0%"></div>
-      </div>
-      <div class="admin-recovery-label" id="adminTotalRecoveryLabel"></div>
     </div>
 
     <div class="roster-section-label" id="adminActionLabel" style="display:none;">Needs action</div>
@@ -2107,20 +2100,12 @@
     <div class="admin-fin-panel">
       <div class="admin-fin-card">
         <div class="admin-fin-amount" id="adminDetailFronted"></div>
-        <div class="admin-fin-label">Fronted to Club</div>
+        <div class="admin-fin-label">Reached club account</div>
       </div>
       <div class="admin-fin-card">
         <div class="admin-fin-amount" id="adminDetailCollected"></div>
         <div class="admin-fin-label">Collected from Families</div>
       </div>
-    </div>
-
-    <!-- Recovery bar -->
-    <div class="admin-recovery-bar">
-      <div class="admin-recovery-track">
-        <div class="admin-recovery-fill" id="adminDetailRecoveryBar" style="width:0%"></div>
-      </div>
-      <div class="admin-recovery-label" id="adminDetailRecoveryLabel"></div>
     </div>
 
     <!-- Payout check. Whether this club's figures above have been matched
@@ -2191,20 +2176,12 @@
     <div class="admin-fin-panel">
       <div class="admin-fin-card">
         <div class="admin-fin-amount" id="adminRosterFronted"></div>
-        <div class="admin-fin-label">Fronted to Club</div>
+        <div class="admin-fin-label">Reached club account</div>
       </div>
       <div class="admin-fin-card">
         <div class="admin-fin-amount" id="adminRosterCollected"></div>
         <div class="admin-fin-label">Collected from Families</div>
       </div>
-    </div>
-
-    <!-- Recovery bar -->
-    <div class="admin-recovery-bar">
-      <div class="admin-recovery-track">
-        <div class="admin-recovery-fill" id="adminRosterRecoveryBar" style="width:0%"></div>
-      </div>
-      <div class="admin-recovery-label" id="adminRosterRecoveryLabel"></div>
     </div>
 
     <div id="adminRosterList"></div>
@@ -2953,7 +2930,7 @@ var usStates = ["Virginia"];
       var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : undefined;
       var res = await fetch(WORKER_URL + '/club/' + code, opts);
       if (!res.ok) return null;
-      var data = await res.json();
+      var data = stampPayouts(await res.json(), Date.now());
       if (!data.club) return null;
       // Normalize to match the shape the rest of the app expects
       var club = data.club;
@@ -3734,7 +3711,7 @@ var usStates = ["Virginia"];
           dues_due_date: dueDate
         })
       });
-      var data = await res.json();
+      var data = stampPayouts(await res.json(), Date.now());
       if(!res.ok){ errEl.textContent = data.error || 'Failed to add team.'; errEl.classList.remove('loading-msg'); return; }
 
       var newTeam = Object.assign({}, data.team, {
@@ -3915,6 +3892,8 @@ var usStates = ["Virginia"];
     // Payout hero. The figure is the Worker's, confirmed against the payment
     // processor, or it is not shown. See payoutCents above.
     showPayout('overviewPayoutAmt', c.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_TEXT);
+    // Opened with a figure this page has held too long: ask the Worker again.
+    refreshPayouts();
     document.getElementById('overviewFundedCount').textContent = totalFunded;
     document.getElementById('overviewAthleteCount').textContent = totalAthletes;
     document.getElementById('overviewTotalDues').textContent  = '$' + Math.round(totalDuesCents / 100).toLocaleString();
@@ -4139,6 +4118,13 @@ var usStates = ["Virginia"];
   // The same, for the small slots on PlayFund Admin screens.
   var PAYOUT_UNAVAILABLE_SHORT = 'Not available';
 
+  // How long this page goes on showing a figure after the Worker sent it. The
+  // Worker vouches for a figure at the moment it sends it and no longer: a
+  // refund a minute later takes the figure down at the Worker, and a page left
+  // open would not know. So after this long the page stops showing what it was
+  // sent, and for a signed-in club it asks the Worker again.
+  var PAYOUT_SHOWN_FOR_MS = 10 * 60 * 1000;
+
   // The Worker sends a figure for money a club has received only after it has
   // matched that figure against the payment processor's records, and sends
   // { verified: false } in every other case. This page shows that figure or
@@ -4146,9 +4132,14 @@ var usStates = ["Virginia"];
   // by a rate or takes a fee off, and worker/app-page.test.mjs fails if that
   // comes back.
   //
-  // Returns whole cents, or null when there is no figure to show.
-  function payoutCents(payout, field){
+  // Returns whole cents, or null when there is no figure to show: not sent,
+  // not confirmed, not a whole number of cents, or held by this page for too
+  // long.
+  function payoutCents(payout, field, nowMs){
     if(!payout || payout.verified !== true) return null;
+    if(typeof payout.received_ms !== 'number') return null;
+    var age = (nowMs === undefined ? Date.now() : nowMs) - payout.received_ms;
+    if(!(age >= 0 && age <= PAYOUT_SHOWN_FOR_MS)) return null;
     var cents = payout[field];
     if(typeof cents !== 'number' || !isFinite(cents) || cents < 0 || Math.floor(cents) !== cents) return null;
     return cents;
@@ -4161,50 +4152,89 @@ var usStates = ["Virginia"];
     return '$' + ((cents - rem) / 100).toLocaleString('en-US') + '.' + (rem < 10 ? '0' : '') + rem;
   }
 
-  // Puts a figure, or the words for "no figure", into one element. Every
-  // received-money slot on every screen is filled through here.
-  function showPayout(id, payout, field, unavailableText){
-    var el = document.getElementById(id);
-    if(!el) return;
-    var cents = payoutCents(payout, field);
-    el.textContent = cents === null ? unavailableText : fmtCents(cents);
-    el.classList.toggle('is-unavailable', cents === null);
+  // Marks every payout figure inside something the Worker has just sent with
+  // the time it arrived. Called on each reply that can carry one.
+  function stampPayouts(node, nowMs){
+    if(!node || typeof node !== 'object') return node;
+    if(Array.isArray(node)){
+      for(var i = 0; i < node.length; i++) stampPayouts(node[i], nowMs);
+      return node;
+    }
+    for(var key in node){
+      if(key === 'payout' && node[key] && typeof node[key] === 'object') node[key].received_ms = nowMs;
+      else stampPayouts(node[key], nowMs);
+    }
+    return node;
   }
 
+  // Every received-money slot on every screen is filled through showPayout,
+  // which remembers what it was given so the slot can be drawn again later.
+  var payoutSlots = {};
+  function drawPayout(id){
+    var slot = payoutSlots[id];
+    var el = document.getElementById(id);
+    if(!slot || !el) return;
+    var cents = payoutCents(slot.payout, slot.field);
+    el.textContent = cents === null ? slot.text : fmtCents(cents);
+    el.classList.toggle('is-unavailable', cents === null);
+  }
+  // Puts a figure, or the words for "no figure", into one element.
+  function showPayout(id, payout, field, unavailableText){
+    payoutSlots[id] = { payout: payout, field: field, text: unavailableText };
+    drawPayout(id);
+  }
   // While a screen is loading, the same slots hold nothing.
   function clearPayout(id){
+    delete payoutSlots[id];
     var el = document.getElementById(id);
     if(!el) return;
     el.textContent = '';
     el.classList.remove('is-unavailable');
   }
-
-  // The admin "recovered" percentage compares two figures the Worker sent:
-  // what families were charged and what reached the club. Same sum as before,
-  // but with either figure missing there is no percentage. Returns null then.
-  function recoveryPct(payout){
-    var net = payoutCents(payout, 'club_net_cents');
-    var charged = payoutCents(payout, 'charge_cents');
-    if(net === null || charged === null) return null;
-    return net > 0 ? Math.min(100, Math.round(charged / net * 100)) : 0;
-  }
-  function showRecovery(barId, labelId, payout){
-    var pct = recoveryPct(payout);
-    var bar = document.getElementById(barId);
-    var label = document.getElementById(labelId);
-    if(bar) bar.style.width = (pct === null ? 0 : pct) + '%';
-    if(label) label.innerHTML = pct === null ? '' : '<b>' + pct + '%</b> of advances recovered';
-  }
-  // The same percentage on a club or team card, or the words for "no figure".
-  function recoveryCardHtml(payout){
-    var pct = recoveryPct(payout);
+  // The figure on a club or team card in PlayFund Admin. The card is built as
+  // text, so the figure is put in afterwards, through showPayout like the rest.
+  function payoutCardHtml(id){
     return '<div class="team-card-funded">' +
-      (pct === null
-        ? '<div class="team-card-funded-num" style="font-family:\'Inter\',sans-serif; font-size:12px; font-weight:600; color:var(--ink-soft);">' + PAYOUT_UNAVAILABLE_SHORT + '</div>'
-        : '<div class="team-card-funded-num">' + pct + '%</div>') +
-      '<div class="team-card-funded-label">Advances Recovered</div>' +
+      '<div class="team-card-funded-num" id="' + id + '"></div>' +
+      '<div class="team-card-funded-label">Reached account</div>' +
     '</div>';
   }
+
+  // Runs once a minute, when a club screen is opened, and whenever the tab is
+  // looked at again. Any figure this page has held too long is taken down. For
+  // a signed-in club the page first asks the Worker for the club again, so a
+  // fresh figure, or the words for none, takes its place.
+  var payoutRefreshBusy = false;
+  async function refreshPayouts(){
+    if(payoutRefreshBusy) return;
+    payoutRefreshBusy = true;
+    try {
+      var c = state.club;
+      var onClubScreen = payoutSlots.overviewPayoutAmt || payoutSlots.statCollected;
+      var held = c && c.payout && typeof c.payout.received_ms === 'number' ? Date.now() - c.payout.received_ms : -1;
+      if(c && c.code && onClubScreen && !(held >= 0 && held <= PAYOUT_SHOWN_FOR_MS)){
+        var token = await getClubSessionToken();
+        var fresh = token ? await fetchClub(c.code, token) : null;
+        if(fresh && state.club === c){
+          c.payout = fresh.payout;
+          (c.teams || []).forEach(function(team){
+            var match = (fresh.teams || []).filter(function(t){ return t.id === team.id; })[0];
+            team.payout = match ? match.payout : undefined;
+          });
+          if(payoutSlots.overviewPayoutAmt) payoutSlots.overviewPayoutAmt.payout = c.payout;
+          if(payoutSlots.bucketFundedAmt)   payoutSlots.bucketFundedAmt.payout   = c.payout;
+          if(payoutSlots.statCollected)     payoutSlots.statCollected.payout     = state.team ? state.team.payout : undefined;
+        }
+      }
+    } catch(e){
+      console.error('refreshPayouts error:', e);
+    } finally {
+      payoutRefreshBusy = false;
+      for(var id in payoutSlots) drawPayout(id);
+    }
+  }
+  setInterval(refreshPayouts, 60 * 1000);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshPayouts(); });
 
   function openRoster(){
     var c = state.club;
@@ -4243,6 +4273,7 @@ var usStates = ["Virginia"];
     // This team's share of what the club has received: the Worker's confirmed
     // figure, or no figure.
     showPayout('statCollected', team.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_TEXT);
+    refreshPayouts();
     if(barEl)  barEl.style.width  = pct + '%';
 
     var noteEl = document.getElementById('fundedNote');
@@ -5833,9 +5864,10 @@ var usStates = ["Virginia"];
             '<div class="team-card-sub">' + club.code + ' &middot; ' + club.city + ' &middot; ' + club.team_count + ' teams</div>' +
             '<div class="team-card-sub" style="margin-top:2px;">Total Dues: $' + Math.round(totalDues).toLocaleString() + '</div>' +
           '</div>' +
-          recoveryCardHtml(club.payout);
+          payoutCardHtml('adminClubCardPayout-' + club.id);
         card.addEventListener('click', function(){ openAdminClubDetail(club); });
         listEl.appendChild(card);
+        showPayout('adminClubCardPayout-' + club.id, club.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
     });
   }
 
@@ -5847,14 +5879,13 @@ var usStates = ["Virginia"];
     });
     clearPayout('adminTotalFronted');
     clearPayout('adminTotalCollected');
-    showRecovery('adminTotalRecoveryBar', 'adminTotalRecoveryLabel', null);
     document.getElementById('adminClubList').innerHTML = '';
 
     try {
       var res = await fetch(WORKER_URL + '/admin/clubs', {
         headers: { 'Authorization': 'Bearer ' + adminSession }
       });
-      var data = await res.json();
+      var data = stampPayouts(await res.json(), Date.now());
       if(!res.ok){
         document.getElementById('adminClubList').innerHTML =
           '<p style="color:var(--unpaid); font-size:14px; text-align:center; padding:32px 0;">' + (data.error || 'Failed to load clubs.') + '</p>';
@@ -5879,7 +5910,6 @@ var usStates = ["Virginia"];
       // figure has been confirmed; otherwise the Worker sends none.
       showPayout('adminTotalFronted',   totals.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
       showPayout('adminTotalCollected', totals.payout, 'charge_cents',   PAYOUT_UNAVAILABLE_SHORT);
-      showRecovery('adminTotalRecoveryBar', 'adminTotalRecoveryLabel', totals.payout);
 
       // Work queue — every club with something blocking it, listed with the
       // specific reason. Without this, finding the handful of clubs that need
@@ -5980,7 +6010,6 @@ var usStates = ["Virginia"];
     // Financial panels: the Worker's confirmed figures, or no figure.
     showPayout('adminDetailFronted',   club.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
     showPayout('adminDetailCollected', club.payout, 'charge_cents',   PAYOUT_UNAVAILABLE_SHORT);
-    showRecovery('adminDetailRecoveryBar', 'adminDetailRecoveryLabel', club.payout);
     showAdminPayoutCheck(club.payout_check, club.payout);
 
     var teamListEl = document.getElementById('adminTeamList');
@@ -6000,11 +6029,12 @@ var usStates = ["Virginia"];
           '<div class="team-card-name">' + team.name + '</div>' +
           '<div class="team-card-sub">Total Dues: $' + Math.round(teamTotalDues).toLocaleString() + '</div>' +
         '</div>' +
-        // This used to be a fixed "0%". It is now this team's own figures,
-        // or the words for "no figure".
-        recoveryCardHtml(team.payout);
+        // This used to be a fixed "0%". It is now what reached the club's
+        // account for this team, or the words for "no figure".
+        payoutCardHtml('adminTeamCardPayout-' + team.id);
       card.addEventListener('click', function(){ openAdminTeamRoster(club, team); });
       teamListEl.appendChild(card);
+      showPayout('adminTeamCardPayout-' + team.id, team.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
     });
 
     showScreen('admin-club-detail');
@@ -6233,12 +6263,11 @@ var usStates = ["Virginia"];
     clearPayout('adminRosterFronted');
     document.getElementById('adminRosterFunded').textContent    = '…';
     clearPayout('adminRosterCollected');
-    showRecovery('adminRosterRecoveryBar', 'adminRosterRecoveryLabel', null);
     showScreen('admin-team-roster');
 
     try {
       var res = await fetch(WORKER_URL + '/club/' + club.code, { headers: { 'Authorization': 'Bearer ' + adminSession } });
-      var data = await res.json();
+      var data = stampPayouts(await res.json(), Date.now());
       var liveTeam = (data.club.teams || []).find(function(t){ return t.id === team.id; });
       if(!liveTeam){ document.getElementById('adminRosterList').innerHTML = '<p>Team not found.</p>'; return; }
 
@@ -6258,7 +6287,6 @@ var usStates = ["Virginia"];
       showPayout('adminRosterFronted',   liveTeam.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
       document.getElementById('adminRosterFunded').textContent    = funded + '/' + athletes.length;
       showPayout('adminRosterCollected', liveTeam.payout, 'charge_cents',   PAYOUT_UNAVAILABLE_SHORT);
-      showRecovery('adminRosterRecoveryBar', 'adminRosterRecoveryLabel', liveTeam.payout);
 
       var listEl = document.getElementById('adminRosterList');
       if(athletes.length === 0){

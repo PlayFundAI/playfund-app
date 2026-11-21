@@ -26,7 +26,7 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { call, createWorld, payFor, runTimer, sendWebhook } from "./payouts.standin.mjs";
-import { PAYOUT_CHECK_MAX_AGE_MS, SETTLING_GRACE_MS, payoutFingerprint } from "./payouts.mjs";
+import { ADVERSE_EVENT_HOLD_MS, PAYOUT_CHECK_MAX_AGE_MS, SETTLING_GRACE_MS, payoutFingerprint } from "./payouts.mjs";
 
 // One world per test. The stand-in is installed for the whole file and never
 // removed, and it fails the test if the Worker asks for anything unexpected.
@@ -453,7 +453,7 @@ test("the processor call fails: no figure", async (t) => {
   world.faults.processor = () => new Response(JSON.stringify({ error: { message: "placeholder outage" } }), { status: 500 });
   await timer();
   assert.equal(checkRow(club).status, "failed");
-  assert.equal(checkRow(club).reason, "processor_unreadable");
+  assert.equal(checkRow(club).reason, "processor_down");
   await assertHiddenEverywhere(club);
   assert.equal(alerts().length, 1);
 
@@ -467,8 +467,18 @@ test("the processor call times out: no figure", async (t) => {
   const { club } = await paidClub(t);
   world.faults.processor = () => "timeout";
   await timer();
+  assert.equal(checkRow(club).reason, "processor_down");
+  await assertHiddenEverywhere(club);
+});
+
+test("the processor refuses the club's account: no figure, and staff are told which club", async (t) => {
+  const { club } = await paidClub(t);
+  world.faults.processor = () => new Response(JSON.stringify({ error: { message: "placeholder: no such destination" } }), { status: 400 });
+  await timer();
   assert.equal(checkRow(club).reason, "processor_unreadable");
   await assertHiddenEverywhere(club);
+  assert.equal(alerts().length, 1);
+  assert.match(alerts()[0].subject, new RegExp(club.name));
 });
 
 test("the processor answers in a shape that is not a list: no figure", async (t) => {
@@ -509,7 +519,7 @@ test("the check is older than the newest payment: no figure", async (t) => {
     charge_cents: rows.reduce((s, r) => s + r.charge_cents, 0),
     application_fee_cents: rows.reduce((s, r) => s + r.application_fee_cents, 0),
     club_net_cents: rows.reduce((s, r) => s + r.club_net_cents, 0),
-    fingerprint: await payoutFingerprint(club.stripe_account_id, rows)
+    fingerprint: await payoutFingerprint(club.stripe_account_id, rows, world.db.athletes)
   });
   assert.ok(Date.parse(paymentRow(pay).created_at) > Date.parse(verified.checked_at));
   await assertHiddenEverywhere(club);
@@ -573,12 +583,21 @@ test("an athlete is marked paid with no payment row: no figure", async (t) => {
 });
 
 test("a payment exists for an athlete who is not marked paid: no figure", async (t) => {
-  const { club } = await paidClub(t);
+  const { club, wait } = await paidClub(t);
   world.db.athletes[0].payment_status = "unpaid";
   await assertHiddenEverywhere(club);
+  // Minutes after the payment this can be a webhook still retrying, so it is
+  // hidden without an email.
+  await timer();
+  assert.equal(checkRow(club).reason, "settling");
+  await assertHiddenEverywhere(club);
+  assert.equal(alerts().length, 0);
+  // Still so later: now it is reported.
+  wait(SETTLING_GRACE_MS + MINUTE);
   await timer();
   assert.equal(checkRow(club).reason, "payment_without_paid_status");
   await assertHiddenEverywhere(club);
+  assert.equal(alerts().length, 1);
 });
 
 test("the same payment recorded twice: no figure", async (t) => {
@@ -680,7 +699,8 @@ test("the new columns do not exist: payments are still recorded exactly as befor
   await timer();
   await timer();
   assert.equal(alerts().length, 1);
-  assert.match(alerts()[0].subject, /payout checks cannot run/);
+  assert.match(alerts()[0].subject, /payout checks cannot be saved/);
+  assert.match(alerts()[0].html, /migrations\/2026-11-21-payout-tie-out\.sql/);
 
   // Once the migration is applied, the next check fills the records in from
   // the processor and the figure appears, tied to the cent.
@@ -688,6 +708,194 @@ test("the new columns do not exist: payments are still recorded exactly as befor
   await timer();
   assert.equal(world.db.payments[0].application_fee_cents, card.feeCents);
   assertTies((await clubView(club)).payout, club.stripe_account_id);
+});
+
+// ---------------------------------------------------------------------------
+// Things happening at the same time.
+// ---------------------------------------------------------------------------
+
+// Each of these changes the processor and tells the Worker with an event.
+const ADVERSE = [
+  ["charge.refunded", "refund", (p) => world.processor.refund(p, 100000, { reverseTransfer: true }), (p) => world.processor.chargeObject(p)],
+  ["charge.dispute.created", "dispute", (p) => { p.disputed = true; }, (p) => ({ id: "dp_test0001", object: "dispute", charge: p.chargeId, payment_intent: p.intentId, amount: p.amountCents })],
+  ["transfer.reversed", "transfer_reversed", (p) => { p.reversedCents = 100000; }, (p) => world.processor.transferObject(p)],
+  ["application_fee.refunded", "fee_refunded", (p) => { p.feeRefundedCents = p.feeCents; }, (p) => world.processor.feeObject(p)]
+];
+
+test("a refund reported while a check is running: the check cannot put the old figure back", async (t) => {
+  for (const [type, reason, change, object] of ADVERSE) {
+    for (const start of ["timer", "staff", "payment"]) {
+      const { club, first } = await paidClub(t);
+      const where = `${type} during a check started by ${start}`;
+      // The check has the processor's list in hand, from before the change.
+      // Then the change happens and its event is handled, all before the
+      // check finishes.
+      world.whileListing = async () => {
+        change(first);
+        const res = await sendWebhook(worker, world, type, object(first));
+        assert.equal(res.status, 200, where);
+        assert.equal(checkRow(club).reason, reason, where);
+      };
+      if (start === "timer") await timer();
+      else if (start === "staff") {
+        // Staff are told their check was overtaken, not that it passed.
+        const res = await call(worker, "POST", `/admin/clubs/${club.id}/payout-check`, { token: "token-staff" });
+        assert.equal(res.body.payout_check.status, "superseded", where);
+        assertNoFigure(res.body.payout);
+      } else await payFor(worker, world, club.teams[0].athletes[2], "full");
+      assert.equal(world.whileListing, null, `${where}: the event was never delivered`);
+
+      // The finished check did not replace the event's result.
+      assert.equal(checkRow(club).status, "failed", where);
+      assert.equal(checkRow(club).reason, reason, where);
+      await assertHiddenEverywhere(club);
+      assert.equal(alerts().length, 1, where);
+      // And it did not record a "passing again", which would re-send the alert later.
+      assert.equal(world.db.events.filter((e) => e.event_name === "payout_check_ok").length, 0, where);
+      t.mock.timers.reset();
+    }
+  }
+});
+
+test("after a refund is reported, a check cannot bring the figure back even if the processor still shows the old state", async (t) => {
+  const { club, first, wait } = await paidClub(t);
+  // The event arrives, but the processor's list has not caught up with it yet.
+  const res = await sendWebhook(worker, world, "charge.refunded", world.processor.chargeObject(first));
+  assert.equal(res.status, 200);
+  await assertHiddenEverywhere(club);
+
+  // Checks that start inside the hold are dropped, whoever starts them.
+  await timer();
+  assert.equal(checkRow(club).reason, "refund");
+  await call(worker, "POST", `/admin/clubs/${club.id}/payout-check`, { token: "token-staff" });
+  assert.equal(checkRow(club).reason, "refund");
+  await assertHiddenEverywhere(club);
+
+  // By the time the hold has passed the processor shows the refund itself.
+  world.processor.refund(first, 100000);
+  wait(ADVERSE_EVENT_HOLD_MS + MINUTE);
+  await timer();
+  assert.equal(checkRow(club).status, "failed");
+  assert.equal(checkRow(club).reason, "refund");
+  await assertHiddenEverywhere(club);
+  assert.equal(alerts().length, 1);
+});
+
+test("an older check that finishes after a newer one does not replace it", async (t) => {
+  const { club, first, wait } = await paidClub(t);
+  // An older check is holding the processor's list. While it waits, a refund
+  // happens with no event, time passes, and a newer check sees the refund.
+  world.whileListing = async () => {
+    world.processor.refund(first, 100000);
+    wait(MINUTE);
+    await timer();
+    assert.equal(checkRow(club).reason, "refund");
+  };
+  await timer();
+  assert.equal(world.whileListing, null);
+  assert.equal(checkRow(club).status, "failed");
+  assert.equal(checkRow(club).reason, "refund");
+  await assertHiddenEverywhere(club);
+});
+
+test("a new payment recorded while a check is running: no figure until a check has seen it", async (t) => {
+  const { club } = await paidClub(t);
+  const before = world.processor.ledger(club.stripe_account_id);
+  // The timed check lists transfers, and in that gap a third family pays and
+  // the webhook for it is fully handled, with its own check.
+  world.whileListing = async () => {
+    await payFor(worker, world, club.teams[0].athletes[2], "full");
+  };
+  await timer();
+  const view = await clubView(club);
+  // Either nothing is shown, or the figure includes the new payment. Never the old total.
+  if (view.payout.verified) assertTies(view.payout, club.stripe_account_id);
+  else assertNoFigure(view.payout);
+  assert.notEqual(view.payout.club_net_cents, before);
+  await timer();
+  assertTies((await clubView(club)).payout, club.stripe_account_id);
+});
+
+test("two deliveries of one payment at the same moment: one row, and the second is sent again", async (t) => {
+  begin(t);
+  const club = world.addClub();
+  const [athlete] = club.teams[0].athletes;
+  const pay = await payFor(worker, world, athlete, "full");
+  assert.equal(world.db.payments.length, 1);
+  // The second delivery looks for an existing row a moment too early and
+  // finds none, as it would if both arrived together.
+  let lied = false;
+  world.faults.db = ({ method, table, url }) => {
+    if (!lied && method === "GET" && table === "payments" && url.search.includes("stripe_payment_intent=eq.")) {
+      lied = true;
+      return new Response("[]", { status: 200 });
+    }
+    return null;
+  };
+  const second = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay), { eventId: "evt_the_other_delivery" });
+  // The database's one-row rule refuses the insert, and the processor is asked to try again.
+  assert.equal(second.status, 500);
+  assert.equal(world.db.payments.length, 1);
+  const again = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay), { eventId: "evt_the_other_delivery" });
+  assert.equal(again.status, 200);
+  assert.equal(world.db.payments.length, 1);
+  assert.equal(world.mail.filter((m) => /^Receipt:/.test(m.subject)).length, 1);
+  assertTies((await clubView(club)).payout, club.stripe_account_id);
+});
+
+test("an athlete changes team: no figure until the split between teams has been checked again", async (t) => {
+  begin(t);
+  const club = world.addClub({ teams: [{ dues_cents: 100000, athletes: 1 }, { dues_cents: 100000, athletes: 1 }] });
+  const [one, two] = club.teams;
+  const pay = await payFor(worker, world, one.athletes[0], "full");
+  assert.equal((await clubView(club)).teams.find((x) => x.id === one.id).payout.club_net_cents, world.processor.net(pay));
+
+  world.db.athletes.find((a) => a.id === one.athletes[0].id).team_id = two.id;
+  // Neither team's figure quietly moves.
+  await assertHiddenEverywhere(club);
+
+  await timer();
+  const view = await clubView(club);
+  assertTies(view.payout, club.stripe_account_id);
+  // A team's figure is the payments of the athletes on that team.
+  assert.equal(view.teams.find((x) => x.id === two.id).payout.club_net_cents, world.processor.net(pay));
+  assert.equal(view.teams.find((x) => x.id === one.id).payout.club_net_cents, 0);
+});
+
+test("a club that loses its processor account after being checked is not shown a zero", async (t) => {
+  const { club } = await paidClub(t);
+  // The account id is cleared and the payment rows go with their athletes.
+  world.db.clubs[0].stripe_account_id = null;
+  world.db.payments.length = 0;
+  for (const a of world.db.athletes) a.payment_status = "unpaid";
+  await assertHiddenEverywhere(club);
+  await timer();
+  await assertHiddenEverywhere(club);
+});
+
+test("when the processor cannot be reached, staff get one email, not one per club", async (t) => {
+  const { wait } = begin(t);
+  for (let i = 0; i < 8; i++) world.addClub({ teams: [{ dues_cents: 100000, athletes: 1 }] });
+  await timer();
+  assert.equal((await adminView()).totals.payout.verified, true);
+
+  world.faults.processor = () => new Response("{}", { status: 503 });
+  wait(RUN_EVERY);
+  await timer();
+  assert.equal(world.db.payout_checks.filter((r) => r.reason === "processor_down").length, 8);
+  assert.equal(alerts().length, 1);
+  assert.match(alerts()[0].subject, /the payment processor cannot be reached/);
+  assert.equal((await adminView()).totals.payout.verified, false);
+
+  // Back again: figures return. A second outage later is reported again.
+  world.faults.processor = null;
+  wait(RUN_EVERY);
+  await timer();
+  assert.equal((await adminView()).totals.payout.verified, true);
+  world.faults.processor = () => "timeout";
+  wait(RUN_EVERY);
+  await timer();
+  assert.equal(alerts().length, 2);
 });
 
 // ---------------------------------------------------------------------------
@@ -1179,7 +1387,7 @@ test("whenever a figure is returned, it equals the processor's total for that sc
       const move = pick([
         "pay", "pay", "pay", "pay", "missed", "rate", "dues", "refund", "dispute", "reversal", "fee_refund",
         "delete_row", "edit_fee", "edit_amount", "phantom", "mark_paid", "blank_fee", "wait", "long_wait",
-        "timer", "timer", "move_athlete", "outage", "restore", "new_account"
+        "timer", "timer", "move_athlete", "outage", "restore", "new_account", "mid_check", "mid_check"
       ]);
       let label = `step ${step} ${move}`;
 
@@ -1189,7 +1397,7 @@ test("whenever a figure is returned, it equals the processor's total for that sc
         await payFor(worker, world, pick(unpaid), pick(["full", "bnpl"]), { deliver: false });
         unseen.add(club.id);
       } else if (move === "rate") {
-        dbClub.fee_bps = pick([605, 700, 900, 1500]);
+        dbClub.fee_bps = pick([700, 900, 1500, 2000]);
       } else if (move === "dues") {
         pick(world.db.teams.filter((team) => team.club_id === club.id)).dues_cents = pick([10000, 50000, 200000]);
       } else if (["refund", "dispute", "reversal", "fee_refund"].includes(move) && paid.length) {
@@ -1249,6 +1457,18 @@ test("whenever a figure is returned, it equals the processor's total for that sc
         await timer();
         await timer();
         if (!world.faults.processor) unseen.clear();
+      } else if (move === "mid_check" && paid.length) {
+        // A refund that takes money back, reported while a check is running.
+        const pay = pick(paid);
+        let happened = false;
+        world.whileListing = async () => {
+          happened = true;
+          world.processor.refund(pay, 1, { reverseTransfer: true });
+          await sendWebhook(worker, world, "charge.refunded", world.processor.chargeObject(pay));
+        };
+        await timer();
+        world.whileListing = null;
+        label += happened ? " (reported mid-check)" : " (no check ran)";
       } else if (move === "move_athlete") {
         const teams = world.db.teams.filter((team) => team.club_id === club.id);
         pick(liveAthletes(club)).team_id = pick(teams).id;

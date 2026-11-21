@@ -50,6 +50,13 @@ export const PAYOUT_CHECK_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 // before staff are told. The figure is hidden for the whole of that time.
 export const SETTLING_GRACE_MS = 15 * 60 * 1000;
 
+// When the processor reports a refund, dispute or reversal, the club's figure
+// is hidden and no check that started within this long afterwards may bring
+// it back. A check that was already running read the processor before the
+// event, and one that starts a moment later might be answered before the
+// processor's own records have caught up.
+export const ADVERSE_EVENT_HOLD_MS = 2 * 60 * 1000;
+
 // How far apart the Worker's clock and the database's clock may be.
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
 
@@ -86,6 +93,7 @@ export const REASONS = {
   payment_without_paid_status: "A payment is recorded for an athlete who is not marked as paid.",
   processor_unexpected: "The payment processor returned a payment in a shape PlayFund does not recognise.",
   processor_unreadable: "The payment processor could not be read for this club's account.",
+  processor_down: "The payment processor could not be reached.",
   too_many_payments: "This club has more payments than one check can read.",
   db_unreadable: "PlayFund's own payment records could not be read.",
   store_unavailable: "Payout checks cannot be saved or read. The database migration for payout checks may not have been applied.",
@@ -93,6 +101,8 @@ export const REASONS = {
   backfill_pending: "Older payments are still being filled in from the payment processor's records."
 };
 export const QUIET_REASONS = ["settling", "backfill_pending"];
+// Problems that are not about one club. Staff get one email for all clubs.
+export const GLOBAL_REASONS = ["store_unavailable", "db_unreadable", "processor_down"];
 
 // When several things are wrong at once, the one reported. Kept in a fixed
 // order so that the reason does not flip between checks and re-send the alert.
@@ -213,12 +223,18 @@ export function isCompletePaymentRow(row, accountId) {
 
 // Problems that can be seen in the app's own records without asking the
 // processor. Shared by the check and by the decision to show a figure.
-function ownRecordProblems(athletes, payments) {
+//
+// `nowMs` is given by the check only. With it, a payment that is minutes old
+// and whose athlete is not yet marked paid is "settling", not a problem to
+// report: the webhook that recorded it may still be finishing or retrying.
+function ownRecordProblems(athletes, payments, nowMs) {
   const problems = [];
   const byIntent = new Map();
-  const paidAthletes = new Set();
+  const paidAthletes = new Map();
   for (const p of payments) {
-    paidAthletes.add(String(p.athlete_id));
+    const created = Date.parse(p.created_at);
+    const id = String(p.athlete_id);
+    paidAthletes.set(id, Math.max(paidAthletes.get(id) || 0, Number.isFinite(created) ? created : 0));
     if (!isId(p.stripe_payment_intent)) {
       problems.push({ reason: "record_mismatch", detail: `payment row ${p.id} has no payment intent` });
       continue;
@@ -234,10 +250,13 @@ function ownRecordProblems(athletes, payments) {
       problems.push({ reason: "paid_without_payment", detail: `athlete ${a.id} is ${a.payment_status} with no payment row` });
     }
   }
-  for (const id of paidAthletes) {
+  for (const [id, newest] of paidAthletes) {
     const a = athleteById.get(id);
     if (!a || !FUNDED_STATUSES.includes(a.payment_status)) {
-      problems.push({ reason: "payment_without_paid_status", detail: `athlete ${id} has a payment but is not marked paid` });
+      const young = a && nowMs !== undefined && nowMs - newest < SETTLING_GRACE_MS;
+      problems.push(young
+        ? { reason: "settling", detail: `athlete ${id} has a new payment and is not marked paid yet` }
+        : { reason: "payment_without_paid_status", detail: `athlete ${id} has a payment but is not marked paid` });
     }
   }
   return { problems, byIntent };
@@ -277,7 +296,7 @@ function worst(problems) {
 // only stands once every backfill has been written.
 export function tieOut({ accountId, athletes, payments, transfers, now }) {
   const nowMs = now.getTime();
-  const { problems, byIntent } = ownRecordProblems(athletes, payments);
+  const { problems, byIntent } = ownRecordProblems(athletes, payments, nowMs);
 
   const atProcessor = new Map();
   for (const transfer of transfers) {
@@ -364,12 +383,15 @@ function summarize(rows) {
 }
 
 // A short, fixed description of exactly which payment records a check looked
-// at. Stored with a passed check and worked out again from the database every
-// time a figure is about to be shown. If a payment has been added, removed or
-// altered since the check, the two differ and no figure is shown.
-export async function payoutFingerprint(accountId, rows) {
+// at, and which team each one counted towards. Stored with a passed check and
+// worked out again from the database every time a figure is about to be
+// shown. If a payment has been added, removed or altered since the check, or
+// an athlete has changed team, the two differ and no figure is shown.
+export async function payoutFingerprint(accountId, rows, athletes) {
+  const teamOf = new Map(athletes.map((a) => [String(a.id), a.team_id == null ? "" : String(a.team_id)]));
   const lines = rows.map((r) => [
-    r.stripe_payment_intent, r.id, r.athlete_id, r.stripe_charge_id, r.stripe_transfer_id,
+    r.stripe_payment_intent, r.id, r.athlete_id, teamOf.get(String(r.athlete_id)) || "",
+    r.stripe_charge_id, r.stripe_transfer_id,
     r.stripe_application_fee_id == null ? "" : r.stripe_application_fee_id,
     r.amount_cents, r.charge_cents, r.application_fee_cents, r.club_net_cents
   ].join("|")).sort();
@@ -386,7 +408,8 @@ const NO_FIGURE = Object.freeze({ verified: false });
 //   club       { id, stripe_account_id }
 //   athletes   every athlete of the club: { id, team_id, payment_status }
 //   payments   every succeeded payment row for those athletes (PAYMENT_SELECT)
-//   check      the club's row in payout_checks, or null
+//   check      the club's row in payout_checks; null if it is known to have
+//              none; undefined if that could not be read
 //   now        a Date
 //
 // Returns { verified: false } unless every condition holds. When it does:
@@ -401,8 +424,10 @@ export async function verifiedPayout({ club, athletes, payments, check, now }) {
 
     if (!accountId) {
       // A club with no account at the processor cannot have been sent money
-      // through PlayFund. Zero is shown only if the app's own records agree.
-      if (payments.length) return NO_FIGURE;
+      // through PlayFund. Zero is shown only if the app's own records agree,
+      // and only if the club is known never to have been checked: a saved
+      // check means it had an account at some point.
+      if (payments.length || check !== null) return NO_FIGURE;
       return { verified: true, club_net_cents: 0, charge_cents: 0, payment_count: 0, checked_at: null, teams: new Map() };
     }
 
@@ -427,7 +452,7 @@ export async function verifiedPayout({ club, athletes, payments, check, now }) {
       check.application_fee_cents !== total.application_fee_cents ||
       check.club_net_cents !== total.club_net_cents
     ) return NO_FIGURE;
-    if (!isId(check.fingerprint) || check.fingerprint !== await payoutFingerprint(accountId, payments)) return NO_FIGURE;
+    if (!isId(check.fingerprint) || check.fingerprint !== await payoutFingerprint(accountId, payments, athletes)) return NO_FIGURE;
 
     const teamOf = new Map(athletes.map((a) => [String(a.id), a.team_id == null ? null : String(a.team_id)]));
     const teams = new Map();

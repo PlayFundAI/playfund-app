@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  ADVERSE_EVENT_HOLD_MS,
   PAYOUT_CHECK_MAX_AGE_MS,
   SETTLING_GRACE_MS,
   isCompletePaymentRow,
@@ -143,7 +144,7 @@ async function passedCheck(u, overrides = {}) {
   assert.equal(result.status, "verified");
   return {
     club_id: "c1", status: "verified", checked_at: u.now.toISOString(), stripe_account_id: u.accountId,
-    ...result.summary, fingerprint: await payoutFingerprint(u.accountId, result.rows), ...overrides
+    ...result.summary, fingerprint: await payoutFingerprint(u.accountId, result.rows, u.athletes), ...overrides
   };
 }
 
@@ -163,6 +164,8 @@ test("the tie-out passes only when both sides agree in both directions", () => {
     duplicate_payment_rows: () => { const x = unit(); x.payments.push({ ...x.payments[0], id: "row1b" }); return x; },
     paid_without_payment: () => { const x = unit(); x.athletes[2].payment_status = "bnpl_active"; return x; },
     payment_without_paid_status: () => { const x = unit(); x.athletes[0].payment_status = "unpaid"; return x; },
+    // The same, minutes after the payment: the webhook may still be finishing.
+    settling_status: () => { const x = unit(); x.athletes[0].payment_status = "unpaid"; x.payments[0].created_at = x.now.toISOString(); return x; },
     refund: () => { const x = unit(); x.transfers[0].source_transaction.amount_refunded = 1; return x; },
     dispute: () => { const x = unit(); x.transfers[0].source_transaction.disputed = true; return x; },
     transfer_reversed: () => { const x = unit(); x.transfers[0].amount_reversed = 1; return x; },
@@ -172,7 +175,7 @@ test("the tie-out passes only when both sides agree in both directions", () => {
   for (const [reason, build] of Object.entries(cases)) {
     const result = tieOut(build());
     assert.equal(result.status, "failed", reason);
-    assert.equal(result.reason, reason, reason);
+    assert.equal(result.reason, reason.replace(/_status$/, "") === "settling" ? "settling" : reason, reason);
     assert.equal("summary" in result, false, reason);
     assert.equal("rows" in result, false, reason);
   }
@@ -301,11 +304,21 @@ test("deciding to show a figure: every condition has to hold", async () => {
   assert.equal((await verifiedPayout({ ...base, payments: asStored, check: { ...check, checked_at: pg(T0) } })).verified, true);
   assert.deepEqual(await verifiedPayout({ ...base, payments: asStored, check: { ...check, checked_at: pg(T0 - 2 * HOUR) } }), { verified: false });
 
-  // A club with no processor account: zero if and only if its records are empty.
+  // An athlete changes team after the check: the split between teams is no
+  // longer the one that was checked.
+  const moved = u.athletes.map((a) => (a.id === "a1" ? { ...a, team_id: "t2" } : a));
+  assert.deepEqual(await verifiedPayout({ ...base, athletes: moved }), { verified: false });
+
+  // A club with no processor account: zero if and only if its records are
+  // empty and it is known never to have been checked.
   const none = { id: "c2", stripe_account_id: null };
   assert.equal((await verifiedPayout({ club: none, athletes: [u.athletes[2]], payments: [], check: null, now: u.now })).club_net_cents, 0);
   assert.deepEqual(await verifiedPayout({ club: none, athletes: u.athletes, payments: u.payments, check, now: u.now }), { verified: false });
   assert.deepEqual(await verifiedPayout({ club: none, athletes: u.athletes, payments: [], check: null, now: u.now }), { verified: false });
+  // It had an account once (a check was saved), or the saved checks could not be read.
+  assert.deepEqual(await verifiedPayout({ club: none, athletes: [u.athletes[2]], payments: [], check, now: u.now }), { verified: false });
+  assert.deepEqual(await verifiedPayout({ club: none, athletes: [u.athletes[2]], payments: [], check: undefined, now: u.now }), { verified: false });
+  assert.ok(ADVERSE_EVENT_HOLD_MS >= 60 * 1000, "the hold after a refund report must outlast a running check");
 });
 
 test("what the app is sent never carries a number alongside 'not verified'", () => {

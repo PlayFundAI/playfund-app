@@ -19,7 +19,8 @@ export const ENV = {
   STRIPE_WEBHOOK_SECRET: "placeholder-webhook-secret",
   RESEND_API_KEY: "placeholder-not-a-key",
   PAY_IN_FULL_PMC_ID: "pmc_placeholder",
-  MIN_FEE_BPS: "600",
+  // A placeholder, set low so that it never decides anything in these tests.
+  MIN_FEE_BPS: "100",
   APP_URL: "https://app.invalid/app/"
 };
 
@@ -38,7 +39,8 @@ const reply = (status, data) => new Response(JSON.stringify(data), { status, hea
 export function createWorld({ migrated = true } = {}) {
   const world = {
     // false plays a database the migration has not been applied to: `payments`
-    // has only its old columns and `payout_checks` does not exist.
+    // has only its old columns, and `payout_checks` and `save_payout_check`
+    // do not exist.
     migrated,
     db: { clubs: [], teams: [], athletes: [], payments: [], payout_checks: [], events: [], user_profiles: [], suppressed_emails: [] },
     tokens: {},
@@ -50,6 +52,11 @@ export function createWorld({ migrated = true } = {}) {
     // (or, for the processor, the string "timeout") to use instead of the
     // normal answer, or nothing to carry on as normal.
     faults: { db: null, processor: null },
+    // Set by a test to make something happen in the middle of a check: an
+    // async function called once, after the processor has put together its
+    // list of transfers and before the Worker receives it. Whatever it does
+    // (a refund, a second check) the Worker is still holding the older list.
+    whileListing: null,
     processor: createProcessor()
   };
 
@@ -68,10 +75,28 @@ export function createWorld({ migrated = true } = {}) {
     throw new Error(`stand-in database: the filter ${col}=${expr} is not supported`);
   }
 
+  // migrations/2026-11-21-payout-tie-out.sql, save_payout_check: insert the
+  // row, or replace the existing one unless that one is newer.
+  function savePayoutCheck({ p, p_force }) {
+    if (!world.migrated) {
+      return reply(404, { code: "PGRST202", message: "Could not find the function public.save_payout_check(p, p_force) in the schema cache" });
+    }
+    const rows = world.db.payout_checks;
+    const existing = rows.find((r) => r.club_id === p.club_id);
+    if (!existing) {
+      rows.push({ ...p });
+      return reply(200, true);
+    }
+    if (!(p_force || Date.parse(existing.not_before) <= Date.parse(p.not_before))) return reply(200, false);
+    Object.assign(existing, p);
+    return reply(200, true);
+  }
+
   function database(method, url, init) {
     const table = url.pathname.replace("/rest/v1/", "");
     const fault = world.faults.db && world.faults.db({ method, table, url, body: init.body });
     if (fault) return fault;
+    if (table === "rpc/save_payout_check" && method === "POST") return savePayoutCheck(JSON.parse(init.body));
     if (!(table in world.db)) throw new Error(`stand-in database: no table ${table}`);
     if (table === "payout_checks" && !world.migrated) {
       return reply(404, { code: "PGRST205", message: "Could not find the table 'public.payout_checks' in the schema cache" });
@@ -108,6 +133,10 @@ export function createWorld({ migrated = true } = {}) {
       const incoming = Array.isArray(body) ? body : [body];
       const missing = unknownColumn(incoming.flatMap((r) => Object.keys(r)));
       if (missing) return reply(400, { code: "PGRST204", message: `Could not find the '${missing}' column of 'payments' in the schema cache` });
+      // The migration's rule: one payment, one "succeeded" row.
+      if (table === "payments" && world.migrated && incoming.some((f) => f.status === "succeeded" && rows.some((r) => r.status === "succeeded" && r.stripe_payment_intent === f.stripe_payment_intent))) {
+        return reply(409, { code: "23505", message: 'duplicate key value violates unique constraint "payments_one_succeeded_row_per_intent"' });
+      }
       const written = [];
       for (const fields of incoming) {
         if (prefer.includes("resolution=merge-duplicates")) {
@@ -157,12 +186,16 @@ export function createWorld({ migrated = true } = {}) {
       // The charge and its fee are only nested when the caller asks for them.
       const nest = expand.includes("data.source_transaction.application_fee");
       const charge = nest || expand.includes("data.source_transaction");
-      return reply(200, {
+      // Built now: what the processor knew at this instant.
+      const answer = {
         object: "list",
         url: "/v1/transfers",
         has_more: list.length > page.length,
         data: page.map((pay) => p.transferObject(pay, { charge, fee: nest }))
-      });
+      };
+      const meanwhile = world.whileListing;
+      world.whileListing = null;
+      return meanwhile ? Promise.resolve(meanwhile()).then(() => reply(200, answer)) : reply(200, answer);
     }
     const intent = path.match(/^\/payment_intents\/([^/]+)$/);
     if (method === "GET" && intent) {

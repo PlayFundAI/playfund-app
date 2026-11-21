@@ -644,7 +644,9 @@ test("the database cannot be read: no figure, and the rest of the page still loa
   const { club } = await paidClub(t);
   for (const broken of ["payout_checks", "payments", "athletes"]) {
     world.faults.db = ({ method, table, url }) =>
-      method === "GET" && table === broken && (table !== "athletes" || url.search.includes("club_id="))
+      // For athletes, only the reads made for the payout figure: the club
+      // page's by club, and the admin list's of every athlete.
+      method === "GET" && table === broken && (table !== "athletes" || url.search.includes("club_id=") || url.search.includes("select=id,club_id"))
         ? new Response('{"message":"placeholder failure"}', { status: 500 })
         : null;
     const res = await call(worker, "GET", `/club/${club.code}`, { token: "token-staff" });
@@ -656,6 +658,150 @@ test("the database cannot be read: no figure, and the rest of the page still loa
     assert.equal(admin.status, 200, broken);
     assertNoFigure(admin.body.clubs[0].payout);
   }
+});
+
+// ---------------------------------------------------------------------------
+// A database reply that is cut short or refused must never pass for a whole one.
+// ---------------------------------------------------------------------------
+
+test("the database returns only a few rows at a time: every read still gets all of them", async (t) => {
+  begin(t);
+  // The real API stops at a row limit and says nothing. Here it stops at 3.
+  world.limits.maxRows = 3;
+  const one = world.addClub({ teams: [{ dues_cents: 50000, athletes: 3 }] });
+  const two = world.addClub({ teams: [{ dues_cents: 50000, athletes: 4 }, { dues_cents: 30000, athletes: 3 }] });
+  for (const athlete of [...two.teams[0].athletes, ...two.teams[1].athletes]) await payFor(worker, world, athlete, "full");
+  await payFor(worker, world, one.teams[0].athletes[0], "bnpl");
+  await timer();
+
+  // Nobody is told a payment is missing when it is only on the next page.
+  assert.equal(alerts().length, 0);
+  for (const club of [one, two]) {
+    assert.equal(checkRow(club).status, "verified", club.code);
+    assertTies((await clubView(club)).payout, club.stripe_account_id);
+  }
+  assert.equal((await clubView(two)).payout.payment_count, 7);
+  const admin = await adminView();
+  assertTies(admin.clubs.find((c) => c.id === two.id).payout, two.stripe_account_id);
+  assert.equal(admin.totals.payout.club_net_cents, world.processor.payments.reduce((s, p) => s + world.processor.net(p), 0));
+  // Each team's share is still right when its rows arrive across several pages.
+  const teams = (await clubView(two)).teams;
+  assert.equal(teams.reduce((s, team) => s + team.payout.club_net_cents, 0), world.processor.ledger(two.stripe_account_id));
+});
+
+test("a database reply with no row count is not trusted: no figure, and no false report of missing money", async (t) => {
+  const { club } = await paidClub(t);
+  // Replies to the payout reads are cut to one row and carry no count, so
+  // there is no way to tell they are short.
+  const real = world.fetch;
+  world.fetch = async (input, init = {}) => {
+    const res = await real(input, init);
+    const url = new URL(typeof input === "string" ? input : input.url);
+    if ((init.method || "GET") === "GET" && url.pathname === "/rest/v1/payments" && res.ok) {
+      const rows = await res.clone().json();
+      if (Array.isArray(rows) && rows.length > 1) return new Response(JSON.stringify(rows.slice(0, 1)), { status: 200 });
+    }
+    return res;
+  };
+  await assertHiddenEverywhere(club);
+  await timer();
+  // The check does not go ahead on a list it cannot prove is whole. It would
+  // otherwise have told staff the processor has a payment PlayFund never recorded.
+  assert.equal(checkRow(club).status, "failed");
+  assert.equal(checkRow(club).reason, "db_unreadable");
+  assert.equal(alerts().length, 1);
+  assert.match(alerts()[0].subject, /records cannot be read/);
+  assert.doesNotMatch(alerts()[0].html, /has no payment record for/);
+  await assertHiddenEverywhere(club);
+});
+
+test("a database reply that counts more rows than it ever delivers: no figure", async (t) => {
+  const { club } = await paidClub(t);
+  const real = world.fetch;
+  world.fetch = async (input, init = {}) => {
+    const res = await real(input, init);
+    const url = new URL(typeof input === "string" ? input : input.url);
+    if ((init.method || "GET") === "GET" && url.pathname === "/rest/v1/payments" && res.ok && String((init.headers || {}).Prefer).includes("count=exact")) {
+      const rows = await res.clone().json();
+      // Says there are three more rows than there are, on every page.
+      return new Response(JSON.stringify(rows), { status: 206, headers: { "Content-Range": `0-${rows.length - 1}/${rows.length + 3}` } });
+    }
+    return res;
+  };
+  await assertHiddenEverywhere(club);
+  await timer();
+  assert.equal(checkRow(club).status, "failed");
+  await assertHiddenEverywhere(club);
+});
+
+test("a big club: athlete ids go in bounded batches, never in one long URL", async (t) => {
+  begin(t);
+  const club = world.addClub({ teams: [{ dues_cents: 20000, athletes: 320 }] });
+  const paying = club.teams[0].athletes.filter((_, i) => i % 40 === 0);
+  for (const athlete of paying) await payFor(worker, world, athlete, "full");
+  world.requests.length = 0;
+  await timer();
+  assert.ok(world.requests.length <= 50, `a run made ${world.requests.length} requests`);
+  // 320 ids in one list would be about 12,000 characters. The stand-in
+  // refuses anything over 8,000, as the real API would.
+  const longest = Math.max(...world.requests.map((r) => r.length));
+  assert.ok(longest < 5000, `a request URL was ${longest} characters long`);
+  assert.equal(world.requests.filter((r) => r.includes("/rest/v1/payments?athlete_id=in.")).length, 4);
+  assert.equal(checkRow(club).status, "verified");
+  const view = await clubView(club);
+  assertTies(view.payout, club.stripe_account_id);
+  assert.equal(view.payout.payment_count, paying.length);
+  assertTies((await adminView()).clubs[0].payout, club.stripe_account_id);
+});
+
+test("a URL the database refuses as too long: no figure", async (t) => {
+  const { club } = await paidClub(t);
+  // Short enough that even one batch of ids is refused.
+  world.limits.maxUrl = 200;
+  const res = await call(worker, "GET", `/club/${club.code}`, { token: "token-staff" });
+  assert.equal(res.status, 200);
+  assertNoFigure(res.body.club.payout);
+  // A check that cannot read the club's records does not leave the earlier pass standing.
+  await timer();
+  assert.equal(checkRow(club).status, "failed");
+  world.limits.maxUrl = 8000;
+  assertNoFigure((await clubView(club)).payout);
+  await timer();
+  assertTies((await clubView(club)).payout, club.stripe_account_id);
+});
+
+test("clubs too large to share a run are taken a few at a time, and none is skipped for ever", async (t) => {
+  const { wait } = begin(t);
+  const clubs = [];
+  for (let i = 0; i < 12; i++) clubs.push(world.addClub({ teams: [{ dues_cents: 20000, athletes: 150 }] }));
+  let runs = 0;
+  while (world.db.payout_checks.length < clubs.length) {
+    world.requests.length = 0;
+    await timer();
+    assert.ok(world.requests.length <= 50, `a run made ${world.requests.length} requests`);
+    runs++;
+    wait(RUN_EVERY);
+    assert.ok(runs < 6, "the timer is not getting round the clubs");
+  }
+  assert.ok(runs > 1, "twelve clubs of 150 athletes should not fit in one run");
+  assert.ok(runs * RUN_EVERY * 2 <= PAYOUT_CHECK_MAX_AGE_MS);
+  assert.equal(world.db.payout_checks.every((r) => r.status === "verified"), true);
+  assert.equal(alerts().length, 0);
+});
+
+test("one club too large for a run by itself is shown no figure, and staff are told which", async (t) => {
+  begin(t);
+  const small = world.addClub({ teams: [{ dues_cents: 20000, athletes: 2 }] });
+  const huge = world.addClub({ teams: [{ dues_cents: 20000, athletes: 4000 }] });
+  await timer();
+  await timer();
+  assert.ok(world.requests.length > 0);
+  assert.equal(checkRow(small).status, "verified");
+  assert.equal(checkRow(huge).status, "failed");
+  assert.equal(checkRow(huge).reason, "too_many_payments");
+  assertNoFigure((await clubView(huge)).payout);
+  assert.equal(alerts().length, 1);
+  assert.match(alerts()[0].subject, new RegExp(huge.name));
 });
 
 // ---------------------------------------------------------------------------
@@ -1025,6 +1171,57 @@ test("staff are told once per problem, and again if the same problem comes back 
   assert.equal(alerts().length, 2);
 });
 
+test("a pass after a quiet reason writes no 'passing again' row", async (t) => {
+  const { club } = await paidClub(t);
+  const okRows = () => world.db.events.filter((e) => e.event_name === "payout_check_ok");
+  // A third family pays and the webhook is late: hidden, quietly.
+  const pay = await payFor(worker, world, club.teams[0].athletes[2], "full", { deliver: false });
+  await timer();
+  assert.equal(checkRow(club).reason, "settling");
+  // The webhook arrives and the club passes again.
+  await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay));
+  assert.equal(checkRow(club).status, "verified");
+  assertTies((await clubView(club)).payout, club.stripe_account_id);
+  // Staff were never told anything, so there is nothing to mark as cleared.
+  assert.equal(alerts().length, 0);
+  assert.equal(okRows().length, 0);
+
+  // Filling in a missing record from the processor does not write one either.
+  world.db.payments.forEach((row) => { row.application_fee_cents = null; });
+  await timer();
+  assert.equal(checkRow(club).status, "verified");
+  assert.equal(okRows().length, 0);
+});
+
+test("a pass after a quiet reason still clears an email that went out before it", async (t) => {
+  const { club, wait } = await paidClub(t);
+  const okRows = () => world.db.events.filter((e) => e.event_name === "payout_check_ok");
+  const refuse = () => new Response(JSON.stringify({ error: { message: "placeholder: no such destination" } }), { status: 400 });
+  // A real problem: staff are told.
+  world.faults.processor = refuse;
+  wait(RUN_EVERY);
+  await timer();
+  assert.equal(checkRow(club).reason, "processor_unreadable");
+  assert.equal(alerts().length, 1);
+  // It clears, but the next check lands on a quiet reason before any pass.
+  world.faults.processor = null;
+  const pay = await payFor(worker, world, club.teams[0].athletes[2], "full", { deliver: false });
+  wait(RUN_EVERY);
+  await timer();
+  assert.equal(checkRow(club).reason, "settling");
+  assert.equal(okRows().length, 0);
+  // Then it passes. The earlier email is marked as cleared, once.
+  wait(RUN_EVERY);
+  await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay));
+  assert.equal(checkRow(club).status, "verified");
+  assert.equal(okRows().length, 1);
+  // So the same problem coming back is reported again.
+  world.faults.processor = refuse;
+  wait(RUN_EVERY);
+  await timer();
+  assert.equal(alerts().length, 2);
+});
+
 test("the alert says what was found, and is never sent to the club", async (t) => {
   const { club, first } = await paidClub(t);
   world.processor.refund(first, 100000);
@@ -1191,22 +1388,63 @@ test("no response carries the old estimated fields", async (t) => {
 // The timed run and the limits it has to stay inside.
 // ---------------------------------------------------------------------------
 
-test("the timer's schedule in the Worker matches wrangler.toml", () => {
+test("every schedule in wrangler.toml is one the Worker knows, and the other way round", () => {
   const toml = readFileSync(new URL("./wrangler.toml", import.meta.url), "utf8");
   const crons = JSON.parse(toml.match(/^crons\s*=\s*(\[.*\])/m)[1]);
-  assert.ok(crons.includes(PAYOUT_CHECK_CRON), `${PAYOUT_CHECK_CRON} is not in wrangler.toml`);
-  // The other schedules are still there.
-  assert.ok(crons.includes("0 13 * * *"));
-  assert.ok(crons.includes("0 14 * * 1"));
+  const known = {
+    PAYOUT_CHECK_CRON,
+    WEEKLY_METRICS_CRON: source.match(/WEEKLY_METRICS_CRON = "([^"]+)"/)[1],
+    DAILY_REMINDERS_CRON: source.match(/DAILY_REMINDERS_CRON = "([^"]+)"/)[1]
+  };
+  // The runtime hands back the expression exactly as written in the file, so
+  // the two lists have to match character for character.
+  assert.deepEqual([...crons].sort(), Object.values(known).sort());
+  assert.equal(new Set(crons).size, 3);
 });
 
-test("the timed run only fires on its own schedule", async (t) => {
+test("each schedule runs its own job, and a schedule the Worker does not know runs nothing", async (t) => {
   begin(t);
   world.addClub();
+  const made = () => world.requests.join("\n");
+  const reminders = /\/rest\/v1\/clubs\?reminders_enabled=eq\.true/;
+  const digest = /\/rest\/v1\/rpc\/weekly_metrics/;
+  const checks = /\/v1\/transfers\?/;
+
+  // The daily reminder sweep, and only that.
+  world.requests.length = 0;
   await runTimer(worker, "0 13 * * *");
+  assert.match(made(), reminders);
+  assert.doesNotMatch(made(), digest);
+  assert.doesNotMatch(made(), checks);
   assert.equal(world.db.payout_checks.length, 0, "the reminder schedule does not run payout checks");
+
+  // The Monday digest, and only that.
+  world.requests.length = 0;
+  await runTimer(worker, "0 14 * * 1");
+  assert.match(made(), digest);
+  assert.doesNotMatch(made(), reminders);
+  assert.doesNotMatch(made(), checks);
+  assert.equal(world.mail.filter((m) => /^PlayFund weekly metrics/.test(m.subject)).length, 1);
+
+  // The payout check, and only that.
+  world.requests.length = 0;
   await timer();
+  assert.match(made(), checks);
+  assert.doesNotMatch(made(), reminders);
+  assert.doesNotMatch(made(), digest);
   assert.equal(world.db.payout_checks.length, 1);
+
+  // Anything else: nothing at all is run, and it is said out loud. It used
+  // to fall through to the reminder emails.
+  for (const cron of ["*/5 * * * *", "0 12 * * *", "0 13 * * * ", " 0 13 * * *", "0 13 * * 1", "", undefined, null]) {
+    world.requests.length = 0;
+    logged.length = 0;
+    const mailBefore = world.mail.length;
+    await runTimer(worker, cron);
+    assert.equal(world.requests.length, 0, `"${cron}" made requests`);
+    assert.equal(world.mail.length, mailBefore, `"${cron}" sent mail`);
+    assert.match(logged.join("\n"), /matches no schedule/, `"${cron}" was not reported`);
+  }
 });
 
 test("one timed run stays under the request limit and gets round every club in time", async (t) => {

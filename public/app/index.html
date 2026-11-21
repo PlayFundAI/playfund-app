@@ -4122,8 +4122,11 @@ var usStates = ["Virginia"];
   // Worker vouches for a figure at the moment it sends it and no longer: a
   // refund a minute later takes the figure down at the Worker, and a page left
   // open would not know. So after this long the page stops showing what it was
-  // sent, and for a signed-in club it asks the Worker again.
-  var PAYOUT_SHOWN_FOR_MS = 10 * 60 * 1000;
+  // sent and asks the Worker again. PAYOUT_ASK_EVERY_MS is how often it looks
+  // at the clock. Together: a figure the Worker has withdrawn is gone from an
+  // open, visible page within about 75 seconds.
+  var PAYOUT_SHOWN_FOR_MS = 60 * 1000;
+  var PAYOUT_ASK_EVERY_MS = 15 * 1000;
 
   // The Worker sends a figure for money a club has received only after it has
   // matched that figure against the payment processor's records, and sends
@@ -4200,19 +4203,72 @@ var usStates = ["Virginia"];
     '</div>';
   }
 
-  // Runs once a minute, when a club screen is opened, and whenever the tab is
-  // looked at again. Any figure this page has held too long is taken down. For
-  // a signed-in club the page first asks the Worker for the club again, so a
-  // fresh figure, or the words for none, takes its place.
+  // Whether what a slot holds arrived too long ago to go on showing. True for
+  // a slot holding nothing, too.
+  function payoutSlotIsOld(id, nowMs){
+    var p = payoutSlots[id] && payoutSlots[id].payout;
+    if(!p || typeof p.received_ms !== 'number') return true;
+    var age = nowMs - p.received_ms;
+    return !(age >= 0 && age <= PAYOUT_SHOWN_FOR_MS);
+  }
+  // Whether any slot that is on screen right now, among those whose ids start
+  // with one of the prefixes, holds something old.
+  function payoutShownAndOld(prefixes, nowMs){
+    for(var id in payoutSlots){
+      var mine = prefixes.some(function(prefix){ return id.indexOf(prefix) === 0; });
+      if(!mine || !payoutSlotIsOld(id, nowMs)) continue;
+      var el = document.getElementById(id);
+      // offsetParent is null for anything inside a screen that is not showing.
+      if(el && el.offsetParent !== null) return true;
+    }
+    return false;
+  }
+
+  // PlayFund Admin: ask the Worker for every club again and put the fresh
+  // figures into the clubs already on screen and into every admin slot. The
+  // screen itself is left where it is.
+  async function refreshAdminPayouts(){
+    var res = await fetch(WORKER_URL + '/admin/clubs', { headers: { 'Authorization': 'Bearer ' + adminSession } });
+    if(!res.ok) return;
+    var data = stampPayouts(await res.json(), Date.now());
+    var clubs = {}, teams = {};
+    (data.clubs || []).forEach(function(club){
+      clubs[club.id] = club;
+      (club.teams || []).forEach(function(team){ teams[team.id] = team; });
+    });
+    (adminAllClubs || []).forEach(function(club){
+      var fresh = clubs[club.id];
+      club.payout = fresh ? fresh.payout : undefined;
+      if(fresh) club.payout_check = fresh.payout_check;
+      (club.teams || []).forEach(function(team){ team.payout = teams[team.id] ? teams[team.id].payout : undefined; });
+    });
+    var totals = data.totals || {};
+    var detail = clubs[adminDetailClubId];
+    var rosterTeam = state.adminCurrentTeam ? teams[state.adminCurrentTeam.id] : null;
+    for(var id in payoutSlots){
+      var slot = payoutSlots[id];
+      if(id === 'adminTotalFronted' || id === 'adminTotalCollected') slot.payout = totals.payout;
+      else if(id === 'adminDetailFronted' || id === 'adminDetailCollected') slot.payout = detail ? detail.payout : undefined;
+      else if(id === 'adminRosterFronted' || id === 'adminRosterCollected') slot.payout = rosterTeam ? rosterTeam.payout : undefined;
+      else if(id.indexOf('adminClubCardPayout-') === 0){ var c = clubs[id.slice('adminClubCardPayout-'.length)]; slot.payout = c ? c.payout : undefined; }
+      else if(id.indexOf('adminTeamCardPayout-') === 0){ var t = teams[id.slice('adminTeamCardPayout-'.length)]; slot.payout = t ? t.payout : undefined; }
+    }
+  }
+
+  // Runs every few seconds, when a club screen is opened, and whenever the tab
+  // is looked at again. First, any figure this page has held too long is taken
+  // down. Then, if such a slot is on screen, the page asks the Worker again,
+  // so a fresh figure, or the words for none, takes its place. A tab nobody is
+  // looking at does not ask: it asks the moment it is looked at.
   var payoutRefreshBusy = false;
   async function refreshPayouts(){
     if(payoutRefreshBusy) return;
     payoutRefreshBusy = true;
     try {
+      for(var old in payoutSlots) drawPayout(old);
+      if(document.hidden) return;
       var c = state.club;
-      var onClubScreen = payoutSlots.overviewPayoutAmt || payoutSlots.statCollected;
-      var held = c && c.payout && typeof c.payout.received_ms === 'number' ? Date.now() - c.payout.received_ms : -1;
-      if(c && c.code && onClubScreen && !(held >= 0 && held <= PAYOUT_SHOWN_FOR_MS)){
+      if(c && c.code && payoutShownAndOld(['overviewPayoutAmt', 'bucketFundedAmt', 'statCollected'], Date.now())){
         var token = await getClubSessionToken();
         var fresh = token ? await fetchClub(c.code, token) : null;
         if(fresh && state.club === c){
@@ -4226,6 +4282,7 @@ var usStates = ["Virginia"];
           if(payoutSlots.statCollected)     payoutSlots.statCollected.payout     = state.team ? state.team.payout : undefined;
         }
       }
+      if(adminSession && payoutShownAndOld(['admin'], Date.now())) await refreshAdminPayouts();
     } catch(e){
       console.error('refreshPayouts error:', e);
     } finally {
@@ -4233,7 +4290,7 @@ var usStates = ["Virginia"];
       for(var id in payoutSlots) drawPayout(id);
     }
   }
-  setInterval(refreshPayouts, 60 * 1000);
+  setInterval(refreshPayouts, PAYOUT_ASK_EVERY_MS);
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshPayouts(); });
 
   function openRoster(){

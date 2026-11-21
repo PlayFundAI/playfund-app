@@ -57,6 +57,10 @@ export function createWorld({ migrated = true } = {}) {
     // list of transfers and before the Worker receives it. Whatever it does
     // (a refund, a second check) the Worker is still holding the older list.
     whileListing: null,
+    // What the real database API does that a naive stand-in would not: it
+    // returns at most this many rows however many match, with no error, and
+    // it refuses a URL longer than this. A test can lower either.
+    limits: { maxRows: 1000, maxUrl: 8000 },
     processor: createProcessor()
   };
 
@@ -70,6 +74,7 @@ export function createWorld({ migrated = true } = {}) {
   function matches(row, col, expr) {
     if (expr.startsWith("eq.")) return String(row[col]) === expr.slice(3);
     if (expr.startsWith("in.(") && expr.endsWith(")")) return expr.slice(4, -1).split(",").includes(String(row[col]));
+    if (expr.startsWith("gt.")) return String(row[col]) > expr.slice(3);
     if (expr === "is.null") return row[col] == null;
     if (expr === "not.is.null") return row[col] != null;
     throw new Error(`stand-in database: the filter ${col}=${expr} is not supported`);
@@ -97,6 +102,8 @@ export function createWorld({ migrated = true } = {}) {
     const fault = world.faults.db && world.faults.db({ method, table, url, body: init.body });
     if (fault) return fault;
     if (table === "rpc/save_payout_check" && method === "POST") return savePayoutCheck(JSON.parse(init.body));
+    if (table === "rpc/weekly_metrics" && method === "POST") return reply(200, { period: { start: "2026-11-24", end: "2026-12-01", days: 7 }, site: {}, email: {}, app: [] });
+    if (url.href.length > world.limits.maxUrl) return reply(414, { message: "URI Too Long" });
     if (!(table in world.db)) throw new Error(`stand-in database: no table ${table}`);
     if (table === "payout_checks" && !world.migrated) {
       return reply(404, { code: "PGRST205", message: "Could not find the table 'public.payout_checks' in the schema cache" });
@@ -108,7 +115,7 @@ export function createWorld({ migrated = true } = {}) {
       if (key === "select") select = value;
       else if (key === "order") order = value;
       else if (key === "limit") limit = Number(value);
-      else if (key === "on_conflict") continue;
+      else if (key === "on_conflict" || key === "offset") continue;
       else filters.push([key, value]);
     }
     const unknownColumn = (cols) => table === "payments" ? cols.find((c) => !paymentColumns().includes(c)) : null;
@@ -121,10 +128,24 @@ export function createWorld({ migrated = true } = {}) {
       let out = rows.filter(hit);
       if (order) {
         const [col, dir] = order.split(".");
-        out = [...out].sort((a, b) => (a[col] < b[col] ? -1 : a[col] > b[col] ? 1 : 0) * (dir === "desc" ? -1 : 1));
+        const key = (row) => String(row[col]);
+        out = [...out].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) * (dir === "desc" ? -1 : 1));
       }
-      if (limit != null) out = out.slice(0, limit);
-      return reply(200, out.map((row) => cols ? Object.fromEntries(cols.map((c) => [c, row[c] === undefined ? null : row[c]])) : { ...row }));
+      // The row limit: silently, as the real API does it. The only sign is in
+      // the Content-Range header, and the total is only there when asked for.
+      const total = out.length;
+      const offset = Number(url.searchParams.get("offset") || 0);
+      const take = Math.min(limit == null ? Infinity : limit, world.limits.maxRows);
+      out = out.slice(offset, offset + take);
+      const counted = String((init.headers && init.headers.Prefer) || "").includes("count=exact");
+      const span = out.length ? `${offset}-${offset + out.length - 1}` : "*";
+      return new Response(
+        JSON.stringify(out.map((row) => cols ? Object.fromEntries(cols.map((c) => [c, row[c] === undefined ? null : row[c]])) : { ...row })),
+        {
+          status: counted && out.length < total ? 206 : 200,
+          headers: { "Content-Type": "application/json", "Content-Range": `${span}/${counted ? total : "*"}` }
+        }
+      );
     }
 
     const body = init.body ? JSON.parse(init.body) : {};

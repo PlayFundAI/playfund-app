@@ -12,6 +12,7 @@
 //   node --test worker/payouts.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   ADVERSE_EVENT_HOLD_MS,
@@ -340,4 +341,30 @@ test("a complete payment row is one whose numbers agree with each other", () => 
   assert.equal(isCompletePaymentRow(u.payments[0], "acct_other"), false);
   assert.equal(isCompletePaymentRow(u.payments[0], null), false);
   assert.equal(isCompletePaymentRow(null, u.accountId), false);
+});
+
+// The migration cannot be run here: there is no database to run it on. This
+// only reads the file, to hold in place the two things that were decided
+// about it.
+test("the migration stops before changing anything if a payment is already recorded twice", () => {
+  const sql = readFileSync(new URL("../migrations/2026-11-21-payout-tie-out.sql", import.meta.url), "utf8");
+  // Comments out, so only statements are looked at.
+  const statements = sql.split("\n").filter((line) => !line.trim().startsWith("--")).join("\n");
+  const firstChange = statements.search(/\b(alter table|create table|create or replace function|create unique index|revoke|grant)\b/i);
+  const guard = statements.search(/raise exception/i);
+  assert.ok(guard > 0, "the file has no check that stops it");
+  assert.ok(guard < firstChange, "the check has to come before the first change");
+  const check = statements.slice(0, firstChange);
+  assert.match(check, /from payments/);
+  assert.match(check, /status = 'succeeded'/);
+  assert.match(check, /group by stripe_payment_intent/);
+  assert.match(check, /having count\(\*\) > 1/);
+  // The message says it stopped early and where to look.
+  assert.match(check, /Stopped before changing anything/);
+  assert.match(check, /hint = '[^;]*select stripe_payment_intent, count\(\*\) from payments/);
+  // The rule itself is added plainly. It is not skipped with a notice.
+  assert.match(statements, /create unique index if not exists payments_one_succeeded_row_per_intent\s+on payments \(stripe_payment_intent\)\s+where status = 'succeeded';/);
+  assert.doesNotMatch(statements, /unique_violation|raise notice/i);
+  // And the file says how to confirm the rule is there afterwards.
+  assert.match(sql, /select indexname from pg_indexes/);
 });

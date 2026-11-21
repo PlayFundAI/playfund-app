@@ -94,7 +94,7 @@ export const REASONS = {
   processor_unexpected: "The payment processor returned a payment in a shape PlayFund does not recognise.",
   processor_unreadable: "The payment processor could not be read for this club's account.",
   processor_down: "The payment processor could not be reached.",
-  too_many_payments: "This club has more payments than one check can read.",
+  too_many_payments: "This club has more athletes or payments than one check can read.",
   db_unreadable: "PlayFund's own payment records could not be read.",
   store_unavailable: "Payout checks cannot be saved or read. The database migration for payout checks may not have been applied.",
   settling: "A payment has not appeared on both sides yet.",

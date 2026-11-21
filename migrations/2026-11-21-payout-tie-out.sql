@@ -31,6 +31,25 @@
 --
 -- Safe to run more than once.
 
+-- Before anything else: stop, loudly, if this file cannot be applied in full.
+-- The one thing that can prevent that is existing data: the rule in part 4
+-- cannot be added while the same payment is already recorded as succeeded on
+-- two rows. This looks first and changes nothing if it finds any.
+do $$
+begin
+  if exists (
+    select 1
+    from payments
+    where status = 'succeeded' and stripe_payment_intent is not null
+    group by stripe_payment_intent
+    having count(*) > 1
+  ) then
+    raise exception 'Stopped before changing anything. The payments table has the same payment recorded as succeeded on more than one row, so the one-row-per-payment rule cannot be added.'
+      using hint = 'List them with: select stripe_payment_intent, count(*) from payments where status = ''succeeded'' group by 1 having count(*) > 1;  Decide which row of each payment to keep, remove or re-label the others, then run this file again.';
+  end if;
+end
+$$;
+
 alter table payments add column if not exists stripe_charge_id text;
 alter table payments add column if not exists stripe_transfer_id text;
 alter table payments add column if not exists stripe_application_fee_id text;
@@ -129,20 +148,13 @@ $$;
 revoke execute on function save_payout_check(jsonb, boolean) from public, anon, authenticated;
 grant execute on function save_payout_check(jsonb, boolean) to service_role;
 
--- One payment, one "succeeded" row. If the table already holds the same
--- payment twice this rule cannot be added, and that is reported as a notice
--- instead of stopping the rest of this file. (The payout check reports such a
--- club to staff either way, and shows it no figure.)
-do $$
-begin
-  create unique index if not exists payments_one_succeeded_row_per_intent
-    on payments (stripe_payment_intent)
-    where status = 'succeeded';
-exception
-  when unique_violation then
-    raise notice 'payments already has one payment recorded as succeeded on more than one row. The one-row-per-payment rule was not added.';
-end
-$$;
+-- One payment, one "succeeded" row. The check at the top of this file has
+-- already confirmed that the existing rows allow it. If a duplicate slips in
+-- between that check and this line, this stops with an error, which is the
+-- right outcome: everything above is safe to run again once it is resolved.
+create unique index if not exists payments_one_succeeded_row_per_intent
+  on payments (stripe_payment_intent)
+  where status = 'succeeded';
 
 -- The API in front of the database keeps a list of tables and columns. Ask it
 -- to read the list again so the new ones are usable straight away.
@@ -152,6 +164,9 @@ notify pgrst, 'reload schema';
 --   select column_name from information_schema.columns
 --     where table_name = 'payments' and column_name like '%cents' order by 1;
 --   select count(*) from payout_checks;
+--   select indexname from pg_indexes
+--     where tablename = 'payments' and indexname = 'payments_one_succeeded_row_per_intent';
+--     should return one row.
 --   select save_payout_check('{"club_id":"migration-test","status":"failed","reason":"test","checked_at":"2026-01-01T00:00:00Z","not_before":"2026-01-01T00:00:00Z"}'::jsonb);
 --     should return true. Then remove the test row:
 --   delete from payout_checks where club_id = 'migration-test';

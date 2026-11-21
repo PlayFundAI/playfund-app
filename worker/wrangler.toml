@@ -20,7 +20,11 @@ MIN_FEE_BPS = "605"
 APP_URL = "https://www.playfundai.com/app/"
 WORKER_URL = "https://playfund-worker.playfund.workers.dev"
 
-# Three schedules, dispatched in the worker's scheduled() handler on event.cron:
+# Three schedules, dispatched in the worker's scheduled() handler on event.cron.
+# Each expression also appears in worker/index.js (DAILY_REMINDERS_CRON,
+# WEEKLY_METRICS_CRON, PAYOUT_CHECK_CRON) and has to match it character for
+# character: a schedule the Worker does not recognise runs nothing.
+# worker/payouts.worker.test.mjs fails if the two lists differ.
 #   0 13 * * *    daily reminder-email sweep  (runScheduledReminders)
 #   0 14 * * 1    Monday metrics digest       (runWeeklyMetrics)
 #   */10 * * * *  payout check                (runPayoutChecks)

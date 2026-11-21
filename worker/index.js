@@ -92,6 +92,79 @@ async function dbRows(env, path) {
   }
 }
 __name(dbRows, "dbRows");
+// Every row a query matches, proven complete, or a plain "could not".
+//
+// The database API stops at a row limit without saying so, and refuses a URL
+// that is too long. A list that was quietly cut short looks exactly like a
+// complete one, and for the payout check a short list is dangerous: payments
+// that are really there would look missing. So this never trusts a list on
+// its own. It asks the API to count the matching rows (Prefer: count=exact,
+// answered in the Content-Range header as "0-24/3573458"), reads a page at a
+// time from the last row it has, and returns ok only when the rows in hand
+// add up to that count. No count in the reply, a page that comes back empty
+// early, a row seen twice, or too many pages: all of those are ok: false.
+//
+// `path` must not carry its own order, limit or offset, and its select must
+// include the `orderBy` column, which has to be unique (the primary key).
+var DB_READ_PAGE = 1000;
+var DB_READ_MAX_PAGES = 5;
+// Ids sent in one "in.(...)" list. 100 ids keeps the URL to about 4,000
+// characters, well inside what the API accepts.
+var DB_ID_BATCH = 100;
+async function dbReadAll(env, path, opts = {}) {
+  const orderBy = opts.orderBy || "id";
+  const maxPages = opts.maxPages || DB_READ_MAX_PAGES;
+  const rows = [];
+  const seen = new Set();
+  let after = null;
+  for (let page = 0; page < maxPages; page++) {
+    if (opts.budget) opts.budget.used++;
+    const url = `${env.SUPABASE_URL}/rest/v1${path}${path.includes("?") ? "&" : "?"}order=${orderBy}.asc&limit=${DB_READ_PAGE}` +
+      (after === null ? "" : `&${orderBy}=gt.${encodeURIComponent(after)}`);
+    let res;
+    let body;
+    try {
+      res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "apikey": env.SUPABASE_SERVICE_KEY,
+          "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+          "Prefer": "count=exact"
+        }
+      });
+      const text = await res.text();
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text.slice(0, 200);
+      }
+    } catch (e) {
+      return { ok: false, status: 0, error: String(e) };
+    }
+    if (!res.ok || !Array.isArray(body)) return { ok: false, status: res.status, error: body };
+    // How many rows match from this page onwards, by the API's own count.
+    const range = res.headers.get("Content-Range") || "";
+    const counted = /\/\d+$/.test(range) ? Number(range.slice(range.lastIndexOf("/") + 1)) : NaN;
+    if (!Number.isSafeInteger(counted)) {
+      return { ok: false, status: res.status, error: `the reply carried no row count (Content-Range "${range}"), so it cannot be shown to be complete` };
+    }
+    for (const row of body) {
+      const key = row == null ? void 0 : row[orderBy];
+      if (key == null || seen.has(String(key))) {
+        return { ok: false, status: res.status, error: "the rows could not be read in order" };
+      }
+      seen.add(String(key));
+      rows.push(row);
+      after = String(key);
+    }
+    if (body.length === counted) return { ok: true, status: res.status, rows };
+    if (body.length > counted || body.length === 0) {
+      return { ok: false, status: res.status, error: `the reply had ${body.length} rows where ${counted} were counted` };
+    }
+  }
+  return { ok: false, status: 0, error: `more rows than ${maxPages} pages hold` };
+}
+__name(dbReadAll, "dbReadAll");
 // A write whose result is always looked at.
 async function dbWrite(env, method, path, body) {
   try {
@@ -888,11 +961,27 @@ __name(dbErrorText, "dbErrorText");
 // The succeeded payment rows for a set of athletes, with the processor record
 // columns. Always its own query: on a database that does not have those
 // columns yet, this fails and nothing else does.
+//
+// The athlete ids go in batches, so the URL never grows with the size of the
+// club, and every batch is read to a proven end (dbReadAll). With a budget,
+// it refuses up front if the batches would not fit in the requests left.
 async function readPaymentRecords(env, athleteIds, budget) {
-  if (!athleteIds.length) return { ok: true, rows: [] };
-  if (budget) budget.used++;
-  const res = await dbRows(env, `/payments?athlete_id=in.(${athleteIds.join(",")})&status=eq.succeeded&select=${PAYMENT_SELECT}`);
-  if (res.ok) return res;
+  const rows = [];
+  const batches = Math.ceil(athleteIds.length / DB_ID_BATCH);
+  if (budget && budget.used + batches + PAYOUT_CHECK_RESERVE > budget.max) {
+    return { ok: false, reason: "too_many_payments", detail: `${athleteIds.length} athletes need ${batches} reads, more than one check has left` };
+  }
+  for (let i = 0; i < athleteIds.length; i += DB_ID_BATCH) {
+    const ids = athleteIds.slice(i, i + DB_ID_BATCH);
+    const res = await dbReadAll(env, `/payments?athlete_id=in.(${ids.join(",")})&status=eq.succeeded&select=${PAYMENT_SELECT}`, { budget });
+    if (!res.ok) return paymentReadFailure(res);
+    rows.push(...res.rows);
+  }
+  return { ok: true, rows };
+}
+__name(readPaymentRecords, "readPaymentRecords");
+
+function paymentReadFailure(res) {
   const missing = /does not exist|schema cache|42703|PGRST20[45]/.test(JSON.stringify(res.error == null ? "" : res.error));
   return {
     ok: false,
@@ -900,7 +989,7 @@ async function readPaymentRecords(env, athleteIds, budget) {
     detail: `payment records: ${dbErrorText(res)}`
   };
 }
-__name(readPaymentRecords, "readPaymentRecords");
+__name(paymentReadFailure, "paymentReadFailure");
 
 // Save one club's result in payout_checks through save_payout_check (see the
 // migration). Every column is sent every time, so a failed check also wipes
@@ -1107,11 +1196,12 @@ async function computePayoutCheck(env, club, now, budget, known) {
   const accountId = club.stripe_account_id;
   if (!accountId) return null;
   const fail = (reason, detail) => ({ status: "failed", reason, detail });
+  // The caller already knows this club cannot be checked this time.
+  if (known.failure) return fail(known.failure.reason, known.failure.detail);
 
   let athletes = known.athletes;
   if (!athletes) {
-    budget.used++;
-    const res = await dbRows(env, `/athletes?club_id=eq.${club.id}&select=id,team_id,payment_status`);
+    const res = await dbReadAll(env, `/athletes?club_id=eq.${club.id}&select=id,team_id,payment_status`, { budget });
     if (!res.ok) return fail("db_unreadable", `athletes: ${dbErrorText(res)}`);
     athletes = res.rows;
   }
@@ -1219,13 +1309,27 @@ async function runPayoutCheck(env, club, known = {}, budget = { used: 0, max: 24
     // Passing again. Note it, so that the same problem coming back later is
     // reported again. A problem that was not about one club is noted the same
     // way it was reported: against no club.
-    budget.used++;
-    const cleared = await dbWrite(env, "POST", "/events", {
-      event_name: "payout_check_ok",
-      club_id: GLOBAL_REASONS.includes(previous.reason) ? null : club.id,
-      properties: { after: previous.reason || null }
-    });
-    if (!cleared.ok) console.error(`Could not record that ${club.code} passes its payout check again: ${dbErrorText(cleared)}`);
+    //
+    // Only where staff were told. A quiet reason (a payment still settling,
+    // old records being filled in) sent no email, so there is nothing to
+    // clear, and writing a row every time one passes would only fill the
+    // events table. The one exception: an email from an earlier problem may
+    // still be standing behind the quiet reason, so that is looked for first.
+    let outstanding = !QUIET_REASONS.includes(previous.reason);
+    if (!outstanding) {
+      budget.used++;
+      const last = await dbRows(env, `/events?event_name=in.(payout_check_alert,payout_check_ok)&club_id=eq.${club.id}&select=event_name&order=created_at.desc&limit=1`);
+      outstanding = last.ok && !!last.rows[0] && last.rows[0].event_name === "payout_check_alert";
+    }
+    if (outstanding) {
+      budget.used++;
+      const cleared = await dbWrite(env, "POST", "/events", {
+        event_name: "payout_check_ok",
+        club_id: GLOBAL_REASONS.includes(previous.reason) ? null : club.id,
+        properties: { after: previous.reason || null }
+      });
+      if (!cleared.ok) console.error(`Could not record that ${club.code} passes its payout check again: ${dbErrorText(cleared)}`);
+    }
   }
   return outcome;
 }
@@ -1233,52 +1337,81 @@ __name(runPayoutCheck, "runPayoutCheck");
 
 // The timed run. Checks the clubs with a processor account whose last check
 // is oldest, within the request budget.
+//
+// The reads are shared between the clubs of one run to save requests, and
+// every one of them is read to a proven end (dbReadAll): a list cut short
+// would make a club's real payments look missing. If the clubs chosen have
+// too many athletes between them for the requests available, the run takes
+// fewer clubs. The rest are first in line next time.
 async function runPayoutChecks(env) {
-  const budget = { used: 2, max: PAYOUT_CHECK_REQUEST_BUDGET };
+  const budget = { used: 0, max: PAYOUT_CHECK_REQUEST_BUDGET };
   const [clubsRes, checksRes] = await Promise.all([
-    dbRows(env, "/clubs?stripe_account_id=not.is.null&select=id,name,code,stripe_account_id"),
-    dbRows(env, "/payout_checks?select=club_id,status,reason,checked_at")
+    dbReadAll(env, "/clubs?stripe_account_id=not.is.null&select=id,name,code,stripe_account_id", { budget }),
+    dbReadAll(env, "/payout_checks?select=club_id,status,reason,checked_at", { budget, orderBy: "club_id" })
   ]);
   if (!clubsRes.ok) {
     console.error(`Payout checks: could not read clubs: ${dbErrorText(clubsRes)}`);
     return { ok: false, error: "clubs" };
   }
   if (!checksRes.ok) {
-    // No table to save into: nothing can be verified. Say so once and stop,
-    // instead of failing every club one at a time.
-    await alertPayoutCheck(env, null, { reason: "store_unavailable", detail: `payout_checks: ${dbErrorText(checksRes)}` }, budget);
-    return { ok: false, error: "store_unavailable" };
+    // No table to save into, or it cannot be read: nothing can be verified.
+    // Say so once and stop, instead of failing every club one at a time.
+    const missing = checksRes.status === 404;
+    const reason = missing ? "store_unavailable" : "db_unreadable";
+    await alertPayoutCheck(env, null, { reason, detail: `payout_checks: ${dbErrorText(checksRes)}` }, budget);
+    return { ok: false, error: reason };
   }
   const previousByClub = new Map(checksRes.rows.map((r) => [String(r.club_id), r]));
   const age = (prev) => prev ? Date.parse(prev.checked_at) || 0 : -1;
-  const due = clubsRes.rows
+  let due = clubsRes.rows
     .map((club) => ({ club, previous: previousByClub.get(String(club.id)) || null }))
     .sort((a, b) => age(a.previous) - age(b.previous))
     .slice(0, PAYOUT_CHECK_CLUBS_PER_RUN);
   if (!due.length) return { ok: true, checked: 0, verified: 0, failed: 0 };
 
-  budget.used++;
-  const athRes = await dbRows(env, `/athletes?club_id=in.(${due.map((d) => d.club.id).join(",")})&select=id,club_id,team_id,payment_status`);
-  if (!athRes.ok) {
-    await alertPayoutCheck(env, null, { reason: "db_unreadable", detail: `athletes: ${dbErrorText(athRes)}` }, budget);
-    return { ok: false, error: "db_unreadable" };
-  }
-  const payRes = await readPaymentRecords(env, athRes.rows.map((a) => a.id), budget);
-  if (!payRes.ok) {
-    await alertPayoutCheck(env, null, { reason: payRes.reason, detail: payRes.detail }, budget);
-    return { ok: false, error: payRes.reason };
-  }
-
   let checked = 0, verified = 0, failed = 0;
-  for (const { club, previous } of due) {
-    if (budget.max - budget.used < PAYOUT_CHECK_RESERVE) break;
-    const athletes = athRes.rows.filter((a) => String(a.club_id) === String(club.id));
-    const ids = new Set(athletes.map((a) => String(a.id)));
-    const payments = payRes.rows.filter((p) => ids.has(String(p.athlete_id)));
-    const outcome = await runPayoutCheck(env, club, { athletes, payments, previous }, budget);
+  const count = (outcome) => {
     checked++;
     if (outcome.status === "verified") verified++;
     else if (outcome.status === "failed") failed++;
+  };
+  // A read that fails here means none of these clubs can be checked this
+  // time. A check that cannot run must not leave an earlier pass standing, so
+  // each club is saved as failed, and staff get the one email for all clubs.
+  const failAll = async (failure) => {
+    for (const { club, previous } of due) {
+      if (budget.max - budget.used < 4) break;
+      count(await runPayoutCheck(env, club, { previous, failure }, budget));
+    }
+    console.error(`Payout checks: ${failure.reason} ${failure.detail}. ${failed} clubs saved as not checked.`);
+    return { ok: false, error: failure.reason, checked, verified, failed };
+  };
+
+  const athRes = await dbReadAll(env, `/athletes?club_id=in.(${due.map((d) => d.club.id).join(",")})&select=id,club_id,team_id,payment_status`, { budget });
+  if (!athRes.ok) return failAll({ reason: "db_unreadable", detail: `athletes: ${dbErrorText(athRes)}` });
+  const athletesOf = (club) => athRes.rows.filter((a) => String(a.club_id) === String(club.id));
+  // What the rest of the run will cost: the payment reads, then a list of
+  // transfers and a save for each club. Take clubs off the end until it fits.
+  const cost = (list) => Math.ceil(list.reduce((n, d) => n + athletesOf(d.club).length, 0) / DB_ID_BATCH) + list.length * 2;
+  while (due.length > 1 && budget.used + cost(due) + PAYOUT_CHECK_RESERVE > budget.max) due = due.slice(0, -1);
+
+  const dueAthletes = due.flatMap((d) => athletesOf(d.club));
+  const payRes = await readPaymentRecords(env, dueAthletes.map((a) => a.id), budget);
+  if (!payRes.ok && payRes.reason === "too_many_payments") {
+    // One club, too big for a run by itself. It is shown no figure, and staff
+    // are told which club.
+    const { club, previous } = due[0];
+    count(await runPayoutCheck(env, club, { previous, failure: payRes }, budget));
+    return { ok: true, checked, verified, failed };
+  }
+  if (!payRes.ok) return failAll(payRes);
+
+  for (const { club, previous } of due) {
+    if (budget.max - budget.used < PAYOUT_CHECK_RESERVE) break;
+    const athletes = athletesOf(club);
+    const ids = new Set(athletes.map((a) => String(a.id)));
+    const payments = payRes.rows.filter((p) => ids.has(String(p.athlete_id)));
+    count(await runPayoutCheck(env, club, { athletes, payments, previous }, budget));
   }
   console.log(`Payout checks: ${checked} of ${clubsRes.rows.length} clubs checked, ${verified} verified, ${failed} failed, ${budget.used} requests`);
   return { ok: true, checked, verified, failed };
@@ -1291,7 +1424,7 @@ async function clubPayoutResult(env, clubId) {
   try {
     const [clubRes, athRes, checkRes] = await Promise.all([
       dbRows(env, `/clubs?id=eq.${clubId}&select=id,stripe_account_id`),
-      dbRows(env, `/athletes?club_id=eq.${clubId}&select=id,team_id,payment_status`),
+      dbReadAll(env, `/athletes?club_id=eq.${clubId}&select=id,team_id,payment_status`),
       dbRows(env, `/payout_checks?club_id=eq.${clubId}&select=*`)
     ]);
     if (!clubRes.ok || !clubRes.rows[0] || !athRes.ok) return { verified: false };
@@ -1313,22 +1446,26 @@ async function clubPayoutResult(env, clubId) {
 }
 __name(clubPayoutResult, "clubPayoutResult");
 
-// The same for a list of clubs, in three queries in total. Returns a Map of
+// The same for a list of clubs, for the PlayFund Admin list. Returns a Map of
 // club id to result, and the saved check row for each club (for staff).
+//
+// Three reads, each of a whole table and each read to a proven end
+// (dbReadAll): every athlete, every succeeded payment, every saved check.
+// Whole tables, because a list of ids for every club would not fit in a URL.
+// If any of them cannot be read to the end, no club gets a figure here.
 async function clubsPayoutResults(env, clubs) {
   const results = new Map();
   const checks = new Map();
   for (const club of clubs) results.set(String(club.id), { verified: false });
   if (!clubs.length) return { results, checks };
   try {
-    const [athRes, checkRes] = await Promise.all([
-      dbRows(env, `/athletes?club_id=in.(${clubs.map((c) => c.id).join(",")})&select=id,club_id,team_id,payment_status`),
-      dbRows(env, "/payout_checks?select=*")
+    const [athRes, payRes, checkRes] = await Promise.all([
+      dbReadAll(env, "/athletes?select=id,club_id,team_id,payment_status"),
+      dbReadAll(env, `/payments?status=eq.succeeded&select=${PAYMENT_SELECT}`),
+      dbReadAll(env, "/payout_checks?select=*", { orderBy: "club_id" })
     ]);
     if (checkRes.ok) for (const row of checkRes.rows) checks.set(String(row.club_id), row);
-    if (!athRes.ok) return { results, checks };
-    const payRes = await readPaymentRecords(env, athRes.rows.map((a) => a.id));
-    if (!payRes.ok) return { results, checks };
+    if (!athRes.ok || !payRes.ok) return { results, checks };
     const now = /* @__PURE__ */ new Date();
     for (const club of clubs) {
       const athletes = athRes.rows.filter((a) => String(a.club_id) === String(club.id));
@@ -1705,6 +1842,9 @@ __name(runScheduledReminders, "runScheduledReminders");
 // Must match the weekly entry in worker/wrangler.toml. Mondays, 14:00 UTC,
 // which is 10am New York in summer and 9am in winter.
 var WEEKLY_METRICS_CRON = "0 14 * * 1";
+// The daily reminder sweep. Must match its entry in worker/wrangler.toml too:
+// the runtime hands back the expression exactly as written there.
+var DAILY_REMINDERS_CRON = "0 13 * * *";
 
 var METRIC_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -1886,7 +2026,15 @@ var index_default = {
       ctx.waitUntil(runPayoutChecks(env));
       return;
     }
-    ctx.waitUntil(runScheduledReminders(env));
+    if (event.cron === DAILY_REMINDERS_CRON) {
+      ctx.waitUntil(runScheduledReminders(env));
+      return;
+    }
+    // A schedule this file does not know. Do nothing, and say so. It used to
+    // fall through to the reminder sweep, so that adding or renaming a trigger
+    // in wrangler.toml without matching it here would have sent reminder
+    // emails on the new schedule.
+    console.error(`Scheduled run for "${event.cron}", which matches no schedule in worker/index.js. Nothing was run. Check the crons in worker/wrangler.toml against WEEKLY_METRICS_CRON, PAYOUT_CHECK_CRON and DAILY_REMINDERS_CRON.`);
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);

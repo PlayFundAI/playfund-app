@@ -65,7 +65,7 @@ test("the app page shows the Worker's figure or nothing", () => {
 test("the app page stops showing a figure it has held for too long", () => {
   const { payoutCents, stampPayouts, PAYOUT_SHOWN_FOR_MS } = pageHelpers();
   const figure = { verified: true, club_net_cents: 97070 };
-  assert.ok(PAYOUT_SHOWN_FOR_MS > 0 && PAYOUT_SHOWN_FOR_MS <= 15 * 60 * 1000, "a page should not hold a figure for longer than a quarter of an hour");
+  assert.ok(PAYOUT_SHOWN_FOR_MS > 0 && PAYOUT_SHOWN_FOR_MS <= 2 * 60 * 1000, "a page should not hold a figure for longer than a couple of minutes");
   assert.equal(payoutCents(sent(figure, NOW), "club_net_cents", NOW + PAYOUT_SHOWN_FOR_MS), 97070);
   assert.equal(payoutCents(sent(figure, NOW), "club_net_cents", NOW + PAYOUT_SHOWN_FOR_MS + 1), null);
   assert.equal(payoutCents(sent(figure, NOW), "club_net_cents", NOW + 24 * 60 * 60 * 1000), null);
@@ -88,135 +88,270 @@ test("the app page stops showing a figure it has held for too long", () => {
   assert.equal(stampPayouts(null, NOW), null);
 
   // Every reply that can carry a figure is marked as it arrives: a club, a
-  // new team, the admin list, and a team opened from the admin list.
-  assert.equal(page.match(/stampPayouts\(await res\.json\(\), Date\.now\(\)\)/g).length, 4);
+  // new team, the admin list (when opened and when asked again), and a team
+  // opened from the admin list.
+  assert.equal(page.match(/stampPayouts\(await res\.json\(\), Date\.now\(\)\)/g).length, 5);
   // And the page checks again by itself, without waiting to be reloaded.
-  assert.match(page, /setInterval\(refreshPayouts, 60 \* 1000\);/);
+  assert.match(page, /setInterval\(refreshPayouts, PAYOUT_ASK_EVERY_MS\);/);
   assert.match(page, /addEventListener\('visibilitychange'/);
 });
 
 // The page cannot be loaded here, so its refresh logic is run against a
-// stand-in for the browser: a few elements, a clock, and a Worker reply.
-function pageWithFakeBrowser({ club, token = "token", fetched }) {
+// stand-in for the browser: a few elements, a clock, and the Worker's replies.
+function pageWithFakeBrowser({ club = null, token = "token", fetched = () => null, adminSession = null, adminClubs = [], adminReply = null }) {
   const start = page.indexOf("  var PAYOUT_UNAVAILABLE_TEXT = ");
   const end = page.indexOf("  function openRoster(){", start);
   assert.ok(start > 0 && end > start, "the payout block was not found where expected in public/app/index.html");
   const elements = {};
-  const element = (id) => (elements[id] ||= { textContent: "", classes: new Set(), classList: null });
   const fake = {
     clock: { now: NOW },
     timers: [],
     listeners: {},
     fetches: 0,
-    text: (id) => element(id).textContent,
-    unavailable: (id) => element(id).classes.has("is-unavailable")
+    adminFetches: 0,
+    hiddenScreens: new Set(),
+    text: (id) => document.getElementById(id).textContent,
+    unavailable: (id) => document.getElementById(id).classes.has("is-unavailable")
   };
   const document = {
     hidden: false,
     getElementById(id) {
-      const el = element(id);
-      el.classList ||= {
-        toggle: (name, on) => (on ? el.classes.add(name) : el.classes.delete(name)),
-        remove: (name) => el.classes.delete(name)
-      };
-      return el;
+      if (!elements[id]) {
+        const el = { textContent: "", classes: new Set() };
+        el.classList = {
+          toggle: (name, on) => (on ? el.classes.add(name) : el.classes.delete(name)),
+          remove: (name) => el.classes.delete(name)
+        };
+        // null while the screen the element sits on is not the one showing.
+        Object.defineProperty(el, "offsetParent", { get: () => (fake.hiddenScreens.has(id) ? null : {}) });
+        elements[id] = el;
+      }
+      return elements[id];
     },
     addEventListener: (name, fn) => { fake.listeners[name] = fn; }
   };
-  const state = { club, team: null };
+  const state = { club, team: null, adminCurrentTeam: null };
   const api = new Function(
     "document", "state", "Date", "setInterval", "getClubSessionToken", "fetchClub", "console",
-    `${page.slice(start, end)}; return { showPayout, clearPayout, refreshPayouts, stampPayouts, payoutSlots, PAYOUT_UNAVAILABLE_TEXT, PAYOUT_UNAVAILABLE_SHORT, PAYOUT_SHOWN_FOR_MS };`
+    "fetch", "WORKER_URL", "adminSession", "adminAllClubs", "adminDetailClubId",
+    `${page.slice(start, end)}; return { showPayout, clearPayout, refreshPayouts, stampPayouts, payoutSlots, PAYOUT_UNAVAILABLE_TEXT, PAYOUT_UNAVAILABLE_SHORT, PAYOUT_SHOWN_FOR_MS, PAYOUT_ASK_EVERY_MS };`
   )(
     document, state, { now: () => fake.clock.now },
     (fn, ms) => fake.timers.push({ fn, ms }),
     async () => token,
     async (code, tok) => { fake.fetches++; return fetched(code, tok, fake.clock.now); },
-    { error() {} }
+    { error() {} },
+    async (url) => {
+      fake.adminFetches++;
+      assert.equal(url, "https://worker.invalid/admin/clubs");
+      const body = fake.adminReply ? fake.adminReply() : null;
+      return { ok: body !== null, json: async () => body };
+    },
+    "https://worker.invalid", adminSession, adminClubs, "club_1"
   );
+  fake.adminReply = adminReply;
   // The same object, so that counts kept on it stay live.
   return Object.assign(fake, api, { state, document });
 }
 
-test("a club dashboard left open asks the Worker again and never keeps an old figure", async () => {
+test("a club dashboard left open asks the Worker again about every minute and never keeps an old figure", async () => {
   const team = { id: "t1", payout: sent({ verified: true, club_net_cents: 97070 }) };
   const club = { code: "TESTCLB", payout: sent({ verified: true, club_net_cents: 97070 }), teams: [team] };
   let next = (now) => ({ payout: sent({ verified: true, club_net_cents: 189070 }, now), teams: [{ id: "t1", payout: sent({ verified: true, club_net_cents: 189070 }, now) }] });
   const p = pageWithFakeBrowser({ club, fetched: (code, tok, now) => next(now) });
   p.state.team = team;
+  const tick = async (ms) => { p.clock.now += ms; await p.timers[0].fn(); };
+
+  // Short enough that a withdrawn figure is gone within about 75 seconds.
+  assert.equal(p.PAYOUT_SHOWN_FOR_MS, 60 * 1000);
+  assert.equal(p.PAYOUT_ASK_EVERY_MS, 15 * 1000);
+  assert.equal(p.timers.length, 1);
+  assert.equal(p.timers[0].ms, p.PAYOUT_ASK_EVERY_MS);
 
   p.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_TEXT);
   p.showPayout("bucketFundedAmt", club.payout, "club_net_cents", "");
   p.showPayout("statCollected", team.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_TEXT);
   assert.equal(p.text("overviewPayoutAmt"), "$970.70");
-  assert.equal(p.timers.length, 1);
-  assert.equal(p.timers[0].ms, 60 * 1000);
 
-  // Within the time a figure may be held, the page does not ask again.
-  p.clock.now += 5 * 60 * 1000;
-  await p.timers[0].fn();
+  // For the first minute the page does not ask again.
+  for (let i = 0; i < 4; i++) await tick(p.PAYOUT_ASK_EVERY_MS);
   assert.equal(p.fetches, 0);
   assert.equal(p.text("overviewPayoutAmt"), "$970.70");
 
-  // Past it, the page asks, and shows what the Worker says now.
-  p.clock.now += p.PAYOUT_SHOWN_FOR_MS;
-  await p.timers[0].fn();
+  // At the next look at the clock it asks, and shows what the Worker says now.
+  await tick(p.PAYOUT_ASK_EVERY_MS);
   assert.equal(p.fetches, 1);
   assert.equal(p.text("overviewPayoutAmt"), "$1,890.70");
   assert.equal(p.text("bucketFundedAmt"), "$1,890.70");
   assert.equal(p.text("statCollected"), "$1,890.70");
 
-  // The Worker no longer vouches for a figure (a refund, say): the number goes.
+  // The Worker no longer vouches for a figure (a refund, say): the number
+  // goes, at most a minute and a quarter after the page last asked.
   next = (now) => ({ payout: sent({ verified: false }, now), teams: [{ id: "t1", payout: sent({ verified: false }, now) }] });
-  p.clock.now += p.PAYOUT_SHOWN_FOR_MS + 1;
-  // This time by coming back to the tab. The listener does not wait for the
-  // reply, so give the reply a moment to land.
-  p.listeners.visibilitychange();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(p.fetches, 2);
+  let waited = 0;
+  while (p.text("overviewPayoutAmt") === "$1,890.70") {
+    await tick(p.PAYOUT_ASK_EVERY_MS);
+    waited += p.PAYOUT_ASK_EVERY_MS;
+    assert.ok(waited <= 75 * 1000, "the old figure stayed up for more than 75 seconds");
+  }
   assert.equal(p.text("overviewPayoutAmt"), p.PAYOUT_UNAVAILABLE_TEXT);
   assert.equal(p.unavailable("overviewPayoutAmt"), true);
   assert.equal(p.text("bucketFundedAmt"), "");
   assert.equal(p.text("statCollected"), p.PAYOUT_UNAVAILABLE_TEXT);
 
-  // The Worker cannot be reached at all: the old figure is not kept.
-  const q = pageWithFakeBrowser({ club: { code: "TESTCLB", payout: sent({ verified: true, club_net_cents: 500 }), teams: [] }, fetched: () => null });
-  q.showPayout("overviewPayoutAmt", q.state.club.payout, "club_net_cents", q.PAYOUT_UNAVAILABLE_TEXT);
-  assert.equal(q.text("overviewPayoutAmt"), "$5.00");
-  q.clock.now += q.PAYOUT_SHOWN_FOR_MS + 1;
-  await q.timers[0].fn();
-  assert.equal(q.fetches, 1);
-  assert.equal(q.text("overviewPayoutAmt"), q.PAYOUT_UNAVAILABLE_TEXT);
-
-  // Signed out in the meantime: nothing to ask with, and the figure still goes.
-  const r = pageWithFakeBrowser({ club: { code: "TESTCLB", payout: sent({ verified: true, club_net_cents: 500 }), teams: [] }, token: null, fetched: () => { throw new Error("should not be asked"); } });
-  r.showPayout("overviewPayoutAmt", r.state.club.payout, "club_net_cents", r.PAYOUT_UNAVAILABLE_TEXT);
-  r.clock.now += r.PAYOUT_SHOWN_FOR_MS + 1;
-  await r.timers[0].fn();
-  assert.equal(r.fetches, 0);
-  assert.equal(r.text("overviewPayoutAmt"), r.PAYOUT_UNAVAILABLE_TEXT);
+  // With no figure on screen the page keeps asking, so one appears by itself
+  // once a check has passed again.
+  next = (now) => ({ payout: sent({ verified: true, club_net_cents: 97070 }, now), teams: [{ id: "t1", payout: sent({ verified: true, club_net_cents: 97070 }, now) }] });
+  for (let i = 0; i < 5; i++) await tick(p.PAYOUT_ASK_EVERY_MS);
+  assert.equal(p.text("overviewPayoutAmt"), "$970.70");
 });
 
-test("an admin screen left open stops showing figures it has held too long", async () => {
-  const p = pageWithFakeBrowser({ club: null, fetched: () => { throw new Error("admin screens do not refetch by themselves"); } });
-  const figure = sent({ verified: true, club_net_cents: 4600000, charge_cents: 5000000 });
-  p.showPayout("adminTotalFronted", figure, "club_net_cents", p.PAYOUT_UNAVAILABLE_SHORT);
-  p.showPayout("adminTotalCollected", figure, "charge_cents", p.PAYOUT_UNAVAILABLE_SHORT);
-  p.showPayout("adminClubCardPayout-club_1", figure, "club_net_cents", p.PAYOUT_UNAVAILABLE_SHORT);
+test("a dashboard in a tab nobody is looking at does not ask, and catches up the moment it is looked at", async () => {
+  const club = { code: "TESTCLB", payout: sent({ verified: true, club_net_cents: 500 }), teams: [] };
+  let answer = null;
+  const p = pageWithFakeBrowser({ club, fetched: async (code, tok, now) => answer(now) });
+  p.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_TEXT);
+
+  p.document.hidden = true;
+  p.clock.now += 30 * 60 * 1000;
+  await p.timers[0].fn();
+  assert.equal(p.fetches, 0, "a hidden tab does not keep asking the Worker");
+  // Even unseen, it has stopped holding the old figure.
+  assert.equal(p.text("overviewPayoutAmt"), p.PAYOUT_UNAVAILABLE_TEXT);
+
+  // Looked at again: the old figure is already gone before the Worker has
+  // answered, and the fresh one replaces the line of text when it arrives.
+  let release;
+  answer = (now) => new Promise((resolve) => { release = () => resolve({ payout: sent({ verified: true, club_net_cents: 700 }, now), teams: [] }); });
+  p.document.hidden = false;
+  p.listeners.visibilitychange();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(p.fetches, 1);
+  assert.equal(p.text("overviewPayoutAmt"), p.PAYOUT_UNAVAILABLE_TEXT);
+  release();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(p.text("overviewPayoutAmt"), "$7.00");
+
+  // The same when the tab stays in view but the page has not run for a while
+  // (a laptop asleep, say). The first thing it does on running again is take
+  // the old figure down. It does not wait for the Worker's reply to do that.
+  p.clock.now += 5 * 60 * 1000;
+  assert.equal(p.text("overviewPayoutAmt"), "$7.00");
+  answer = (now) => new Promise((resolve) => { release = () => resolve({ payout: sent({ verified: true, club_net_cents: 900 }, now), teams: [] }); });
+  const running = p.timers[0].fn();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(p.fetches, 2);
+  assert.equal(p.text("overviewPayoutAmt"), p.PAYOUT_UNAVAILABLE_TEXT, "the old figure is still up while the page waits for a reply");
+  release();
+  await running;
+  assert.equal(p.text("overviewPayoutAmt"), "$9.00");
+});
+
+test("a dashboard that cannot reach the Worker, or is signed out, does not keep its old figure", async () => {
+  const make = (options) => {
+    const club = { code: "TESTCLB", payout: sent({ verified: true, club_net_cents: 500 }), teams: [] };
+    const p = pageWithFakeBrowser({ club, ...options });
+    p.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_TEXT);
+    assert.equal(p.text("overviewPayoutAmt"), "$5.00");
+    return p;
+  };
+  // The Worker cannot be reached.
+  const down = make({ fetched: () => null });
+  down.clock.now += down.PAYOUT_SHOWN_FOR_MS + 1;
+  await down.timers[0].fn();
+  assert.equal(down.fetches, 1);
+  assert.equal(down.text("overviewPayoutAmt"), down.PAYOUT_UNAVAILABLE_TEXT);
+  // The request throws.
+  const broken = make({ fetched: () => { throw new Error("placeholder network error"); } });
+  broken.clock.now += broken.PAYOUT_SHOWN_FOR_MS + 1;
+  await broken.timers[0].fn();
+  assert.equal(broken.text("overviewPayoutAmt"), broken.PAYOUT_UNAVAILABLE_TEXT);
+  // Signed out in the meantime: nothing to ask with, and the figure still goes.
+  const out = make({ token: null, fetched: () => { throw new Error("should not be asked"); } });
+  out.clock.now += out.PAYOUT_SHOWN_FOR_MS + 1;
+  await out.timers[0].fn();
+  assert.equal(out.fetches, 0);
+  assert.equal(out.text("overviewPayoutAmt"), out.PAYOUT_UNAVAILABLE_TEXT);
+  // On another screen: the slot is not showing, so the page does not ask for it.
+  const away = make({ fetched: () => { throw new Error("should not be asked"); } });
+  away.hiddenScreens.add("overviewPayoutAmt");
+  away.clock.now += away.PAYOUT_SHOWN_FOR_MS + 1;
+  await away.timers[0].fn();
+  assert.equal(away.fetches, 0);
+});
+
+test("an admin screen left open asks again too, and never keeps figures it cannot refresh", async () => {
+  const figure = (net, charge, now = NOW) => sent({ verified: true, club_net_cents: net, charge_cents: charge }, now);
+  const clubOnScreen = { id: "club_1", payout: figure(4600000, 5000000), teams: [{ id: "team_1", payout: figure(4600000, 5000000) }] };
+  const p = pageWithFakeBrowser({ adminSession: "token-staff", adminClubs: [clubOnScreen] });
+  p.state.adminCurrentTeam = { id: "team_1" };
+  const draw = () => {
+    p.showPayout("adminTotalFronted", clubOnScreen.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_SHORT);
+    p.showPayout("adminTotalCollected", clubOnScreen.payout, "charge_cents", p.PAYOUT_UNAVAILABLE_SHORT);
+    p.showPayout("adminClubCardPayout-club_1", clubOnScreen.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_SHORT);
+    p.showPayout("adminDetailFronted", clubOnScreen.payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_SHORT);
+    p.showPayout("adminTeamCardPayout-team_1", clubOnScreen.teams[0].payout, "club_net_cents", p.PAYOUT_UNAVAILABLE_SHORT);
+    p.showPayout("adminRosterCollected", clubOnScreen.teams[0].payout, "charge_cents", p.PAYOUT_UNAVAILABLE_SHORT);
+  };
+  draw();
   assert.equal(p.text("adminTotalFronted"), "$46,000.00");
   assert.equal(p.text("adminTotalCollected"), "$50,000.00");
+
+  // A minute on, the page asks the Worker for every club again.
+  p.adminReply = () => ({
+    clubs: [{ id: "club_1", payout: { verified: true, club_net_cents: 4697070, charge_cents: 5100000 }, payout_check: { status: "verified" },
+      teams: [{ id: "team_1", payout: { verified: true, club_net_cents: 4697070, charge_cents: 5100000 } }] }],
+    totals: { payout: { verified: true, club_net_cents: 4697070, charge_cents: 5100000 } }
+  });
   p.clock.now += p.PAYOUT_SHOWN_FOR_MS + 1;
   await p.timers[0].fn();
-  assert.equal(p.fetches, 0);
-  for (const id of ["adminTotalFronted", "adminTotalCollected", "adminClubCardPayout-club_1"]) {
+  assert.equal(p.adminFetches, 1);
+  assert.equal(p.fetches, 0, "the club endpoint is not used for admin screens");
+  assert.equal(p.text("adminTotalFronted"), "$46,970.70");
+  assert.equal(p.text("adminTotalCollected"), "$51,000.00");
+  assert.equal(p.text("adminClubCardPayout-club_1"), "$46,970.70");
+  assert.equal(p.text("adminDetailFronted"), "$46,970.70");
+  assert.equal(p.text("adminTeamCardPayout-team_1"), "$46,970.70");
+  assert.equal(p.text("adminRosterCollected"), "$51,000.00");
+  // The clubs the page is holding were updated in place, for the next screen opened.
+  assert.equal(clubOnScreen.payout.club_net_cents, 4697070);
+  assert.equal(clubOnScreen.teams[0].payout.club_net_cents, 4697070);
+
+  // One club's figure is withdrawn: its slots and the total go, the screen stays.
+  p.adminReply = () => ({
+    clubs: [{ id: "club_1", payout: { verified: false }, payout_check: { status: "failed", reason: "refund" }, teams: [{ id: "team_1", payout: { verified: false } }] }],
+    totals: { payout: { verified: false, unverified_clubs: 1 } }
+  });
+  p.clock.now += p.PAYOUT_SHOWN_FOR_MS + 1;
+  await p.timers[0].fn();
+  for (const id of ["adminTotalFronted", "adminTotalCollected", "adminClubCardPayout-club_1", "adminDetailFronted", "adminTeamCardPayout-team_1", "adminRosterCollected"]) {
     assert.equal(p.text(id), p.PAYOUT_UNAVAILABLE_SHORT, id);
     assert.equal(p.unavailable(id), true, id);
   }
+  assert.equal(clubOnScreen.payout_check.reason, "refund");
+
+  // The Worker cannot be reached: nothing old is kept.
+  const q = pageWithFakeBrowser({ adminSession: "token-staff", adminClubs: [] });
+  q.showPayout("adminTotalFronted", figure(100, 110), "club_net_cents", q.PAYOUT_UNAVAILABLE_SHORT);
+  assert.equal(q.text("adminTotalFronted"), "$1.00");
+  q.clock.now += q.PAYOUT_SHOWN_FOR_MS + 1;
+  await q.timers[0].fn();
+  assert.equal(q.adminFetches, 1);
+  assert.equal(q.text("adminTotalFronted"), q.PAYOUT_UNAVAILABLE_SHORT);
+
+  // Signed out of admin: no request, and the figure still goes.
+  const r = pageWithFakeBrowser({ adminSession: null });
+  r.showPayout("adminTotalFronted", figure(100, 110), "club_net_cents", r.PAYOUT_UNAVAILABLE_SHORT);
+  r.clock.now += r.PAYOUT_SHOWN_FOR_MS + 1;
+  await r.timers[0].fn();
+  assert.equal(r.adminFetches, 0);
+  assert.equal(r.text("adminTotalFronted"), r.PAYOUT_UNAVAILABLE_SHORT);
+
   // A slot that is cleared for loading is forgotten, not redrawn from old data.
-  p.clearPayout("adminTotalFronted");
-  assert.equal(p.text("adminTotalFronted"), "");
-  await p.timers[0].fn();
-  assert.equal(p.text("adminTotalFronted"), "");
+  r.clearPayout("adminTotalFronted");
+  assert.equal(r.text("adminTotalFronted"), "");
+  await r.timers[0].fn();
+  assert.equal(r.text("adminTotalFronted"), "");
 });
 
 test("the app page does no fee arithmetic of its own", () => {
@@ -233,13 +368,23 @@ test("the app page does no fee arithmetic of its own", () => {
 });
 
 test("on the app page every received-money slot is filled only by the Worker's figure", () => {
+  // The payout block itself is the only code allowed to write into a slot,
+  // and it does so in exactly two places: drawing a slot and clearing one.
+  const blockStart = page.indexOf("  // ---------- payout figures ----------");
+  const blockEnd = page.indexOf("  function openRoster(){", blockStart);
+  assert.ok(blockStart > 0 && blockEnd > blockStart);
+  const block = page.slice(blockStart, blockEnd);
+  assert.equal(block.match(/\.textContent\s*=/g).length, 2);
+  assert.equal(block.match(/\.innerHTML\s*=/g), null);
+  const rest = page.slice(0, blockStart) + page.slice(blockEnd);
+
   for (const id of RECEIVED_MONEY_ELEMENTS) {
     // In the markup the slot starts empty: no "$0" waiting to be mistaken for a figure.
     const markup = page.match(new RegExp(`id="${id}">([^<]*)<`));
     assert.ok(markup, `${id} not found in the markup`);
     assert.equal(markup[1], "", `${id} has a default of "${markup[1]}"`);
-    // In the script it is only ever touched through showPayout or clearPayout.
-    const uses = [...page.matchAll(new RegExp(`['"]${id}['"]`, "g"))].map((m) => page.slice(page.lastIndexOf("\n", m.index) + 1, page.indexOf("\n", m.index)));
+    // Everywhere else in the script it is only ever touched through showPayout or clearPayout.
+    const uses = [...rest.matchAll(new RegExp(`['"]${id}['"]`, "g"))].map((m) => rest.slice(rest.lastIndexOf("\n", m.index) + 1, rest.indexOf("\n", m.index)));
     const scriptUses = uses.filter((line) => !line.includes(`id="${id}"`));
     assert.ok(scriptUses.length > 0, `${id} is never filled`);
     for (const line of scriptUses) {

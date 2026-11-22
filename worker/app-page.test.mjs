@@ -589,6 +589,32 @@ test("the admin screens no longer describe the figure as money PlayFund fronted 
   assert.doesNotMatch(page, /of advances recovered|Advances Recovered|Fronted to Club/);
 });
 
+// A guard on markup, not a substitute for looking at the page. The row was
+// first built side by side, where the button, a full-width flex box, took
+// the row and squeezed the message to one word a line.
+test("the staff Payout check row gives its message the full width and keeps its button small", () => {
+  const start = page.indexOf('<div class="admin-fin-label" style="margin-bottom:4px;">Payout check</div>');
+  assert.ok(start > 0, "the Payout check row was not found");
+  const rowOpen = page.lastIndexOf("<div", start - 1);
+  const row = page.slice(rowOpen, page.indexOf("</div>", page.indexOf("adminDetailPayoutCheckBtn", start)) + 6);
+  const tag = (id) => row.match(new RegExp(`<[a-z]+[^>]*id="${id}"[^>]*>`))[0];
+  // The row itself is not a flex row.
+  assert.equal(row.slice(0, row.indexOf(">") + 1), '<div class="admin-recovery-bar">');
+  // Label, then message, then button, each a direct child.
+  assert.ok(row.indexOf("adminDetailPayoutCheckMsg") < row.indexOf("adminDetailPayoutCheckBtn"));
+  assert.equal(row.match(/<div/g).length, 2, "the message or the button is wrapped in another box");
+  // The button is sized by its label: .btn alone would make it full width.
+  const button = tag("adminDetailPayoutCheckBtn");
+  assert.match(button, /class="btn btn-secondary"/);
+  assert.match(button, /display:inline-flex/);
+  assert.match(button, /width:auto/);
+  assert.doesNotMatch(button, /flex-shrink/);
+  // A long id in a failure message breaks inside the card.
+  assert.match(tag("adminDetailPayoutCheckMsg"), /overflow-wrap:anywhere/);
+  // The class it relies on overriding is still the full-width one.
+  assert.match(page, /\.btn \{\s*display: flex;[^}]*width: 100%;/);
+});
+
 test("the words shown in place of a figure make no claim", () => {
   const text = page.match(/PAYOUT_UNAVAILABLE_TEXT = '([^']+)'/)[1] + " " + page.match(/PAYOUT_UNAVAILABLE_SHORT = '([^']+)'/)[1];
   assert.doesNotMatch(text, /\d/, "no number, date or time");

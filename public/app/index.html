@@ -2110,13 +2110,19 @@
 
     <!-- Payout check. Whether this club's figures above have been matched
          against the payment processor's records, why not if not, and a way to
-         run the check now. PlayFund staff only: a club never sees a reason. -->
-    <div class="admin-recovery-bar" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-      <div>
-        <div class="admin-fin-label" style="margin-bottom:4px;">Payout check</div>
-        <p id="adminDetailPayoutCheckMsg" style="font-size:11px; min-height:14px; margin:0; color:var(--ink-soft);"></p>
-      </div>
-      <button class="btn btn-secondary" id="adminDetailPayoutCheckBtn" style="padding:6px 12px; font-size:12px; flex-shrink:0;" onclick="runAdminPayoutCheck()">Check now</button>
+         run the check now. PlayFund staff only: a club never sees a reason.
+
+         Stacked, not side by side: label, then the message, then the button.
+         A failed check's message is a full sentence with ids in it, so it
+         gets the whole width of the card and may break inside a long id.
+         The button is only as wide as its label. .btn is a full-width flex
+         box, and beside the message in a row it took the row for itself and
+         squeezed the message to one word a line, so its width and display
+         are both set here. -->
+    <div class="admin-recovery-bar">
+      <div class="admin-fin-label" style="margin-bottom:4px;">Payout check</div>
+      <p id="adminDetailPayoutCheckMsg" style="font-size:11px; line-height:1.5; min-height:14px; margin:0 0 10px; color:var(--ink-soft); overflow-wrap:anywhere;"></p>
+      <button class="btn btn-secondary" id="adminDetailPayoutCheckBtn" style="display:inline-flex; width:auto; padding:6px 12px; font-size:12px;" onclick="runAdminPayoutCheck()">Check now</button>
     </div>
 
     <!-- PlayFund fee -->

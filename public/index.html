@@ -122,8 +122,10 @@
      not at all on a phone: stacked, the tagline and both statements were Anton
      at 27, 34 and 24px with only a 1px line between them, so there was nothing
      to tell you where one idea ended.
-     The left column is the <h1> and the right an <h2>, which keeps exactly one
-     top-level heading in document order. */
+     Clubs come first in the markup, so they are on the left on desktop and on
+     top on a phone, and reading order matches what is seen. The first card is
+     the <h1> and the second an <h2>, which keeps exactly one top-level heading
+     in document order. */
   .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:960px;margin:0 auto}
   .split-col{border-radius:13px;padding:34px 30px 30px;text-align:center;
              display:flex;flex-direction:column}
@@ -392,15 +394,15 @@
   <div class="wrap">
     <p class="tagline">Changing how families pay for youth sports.</p>
     <div class="split">
-      <div class="split-col fam">
-        <svg class="split-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 20.5v-.5a6 6 0 0 1 12 0v.5"/><circle cx="17.6" cy="11.2" r="2.1"/><path d="M14.4 20.5v-.3a3.4 3.4 0 0 1 6.8 0v.3"/></svg>
-        <h1 class="split-head"><span class="split-who">Families</span><span class="split-say">Get flexible payment options.</span></h1>
-        <a class="btn btn-primary split-btn" href="/for-parents">Request PlayFund at My Club</a>
-      </div>
       <div class="split-col clb">
         <svg class="split-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 4H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2.2"/><rect x="9.2" y="2.6" width="5.6" height="3" rx="1.1"/><path d="M8.6 11.4h6.8M8.6 15.2h4.4"/></svg>
-        <h2 class="split-head"><span class="split-who">Clubs</span><span class="split-say">Get paid up front <span class="split-brk">no matter what.</span></span></h2>
+        <h1 class="split-head"><span class="split-who">Clubs</span><span class="split-say">Get paid up front <span class="split-brk">no matter what.</span></span></h1>
         <a class="btn btn-primary split-btn" href="#contact">Explore a Club Pilot</a>
+      </div>
+      <div class="split-col fam">
+        <svg class="split-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 20.5v-.5a6 6 0 0 1 12 0v.5"/><circle cx="17.6" cy="11.2" r="2.1"/><path d="M14.4 20.5v-.3a3.4 3.4 0 0 1 6.8 0v.3"/></svg>
+        <h2 class="split-head"><span class="split-who">Families</span><span class="split-say">Get flexible payment options.</span></h2>
+        <a class="btn btn-primary split-btn" href="/for-parents">Request PlayFund at My Club</a>
       </div>
     </div>
 
@@ -459,14 +461,14 @@
         <span class="path-t">Registration and payments, with the club paid up front.</span>
         <span class="path-s">Opening to pilot clubs</span>
       </a>
-      <a class="path-step" href="/vision#aid">
+      <a class="path-step" href="/vision#card">
         <span class="path-n">02</span>
-        <span class="path-t">Sponsors for the club, and aid it can account for.</span>
+        <span class="path-t">A rewards card for everything youth sports.</span>
         <span class="path-s">Exploring</span>
       </a>
-      <a class="path-step" href="/vision#card">
+      <a class="path-step" href="/vision#aid">
         <span class="path-n">03</span>
-        <span class="path-t">One card for everything else a season costs.</span>
+        <span class="path-t">Sponsors for the club, and aid it can account for.</span>
         <span class="path-s">Exploring</span>
       </a>
     </div>

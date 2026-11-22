@@ -5,6 +5,101 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
 <title>PlayFund</title>
+<script>
+  // Demo mode. Fetched only when the URL asks for it, so nothing about the
+  // stand-in layer ships to a real parent or club. See public/app/demo.js.
+  //
+  // A visit without a `demo` parameter stops at the first `return` and nothing
+  // else in this block runs. A visit with one must never turn into the real
+  // app, so before any other tag on the page is parsed this block:
+  //   1. holds the app's start (its `load` handler) until demo.js says it is
+  //      in place, and shows one sentence instead if that never happens;
+  //   2. writes a Content-Security-Policy that keeps scripts, frames, forms
+  //      and connections on this origin, plus the two font hosts;
+  //   3. makes fetch, XMLHttpRequest, sendBeacon, WebSocket and EventSource
+  //      refuse every other origin, as a second layer under the policy;
+  //   4. asks for demo.js by a path that works with or without the slash.
+  (function () {
+    var INLINE = false;   // demo/build-walkthrough.mjs sets this in the one-file build
+    var on = INLINE;
+    new URLSearchParams(window.location.search).forEach(function (v, k) {
+      if (k.toLowerCase() === 'demo') on = true;
+    });
+    if (!on) return;
+
+    // 1. The app starts from its `load` handler. This listener is the first
+    //    one registered and is a capturing one, so it runs before the app's.
+    var boot = window.PF_DEMO_BOOT = { ready: false, failed: false };
+    function fail() {
+      if (boot.failed) return;
+      boot.failed = true;
+      try { window.stop(); } catch (e) {}
+      document.documentElement.innerHTML =
+        '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+        '<title>PlayFund</title></head>' +
+        '<body style="margin:0;padding:48px 24px;font:16px/1.5 system-ui,sans-serif;color:#004643;background:#fff">' +
+        '<p id="pfDemoFailed" style="max-width:34em;margin:0 auto">Demo mode could not start, so nothing was loaded.</p></body>';
+    }
+    window.addEventListener('load', function (e) {
+      if (boot.ready && !boot.failed) return;
+      e.stopImmediatePropagation();
+      fail();
+    }, true);
+
+    // 2. Written into the document here, so it is in force before the parser
+    //    reaches the next tag.
+    var CSP = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; form-action 'self'; base-uri 'self'";
+    document.write('<meta http-equiv="Content-Security-Policy" content="' + CSP + '">');
+    if (!document.querySelector('meta[http-equiv="Content-Security-Policy"]')) { fail(); return; }
+
+    // 3. demo.js later puts its fixture layer in front of this fetch.
+    var here = window.location.origin;
+    function local(u) {
+      try { return here !== 'null' && new URL(String((u && u.url) || u), document.baseURI).origin === here; }
+      catch (e) { return false; }
+    }
+    function refused(u) { return new Error('Demo mode refused a request to ' + String((u && u.url) || u)); }
+    var nativeFetch = window.fetch;
+    window.fetch = function (input, init) {
+      return local(input) ? nativeFetch.call(window, input, init) : Promise.reject(refused(input));
+    };
+    var xhr = XMLHttpRequest.prototype, xhrOpen = xhr.open, xhrSend = xhr.send;
+    xhr.open = function (method, url) {
+      this.pfDemoLocal = local(url);
+      if (!this.pfDemoLocal) throw refused(url);
+      return xhrOpen.apply(this, arguments);
+    };
+    xhr.send = function () {
+      if (!this.pfDemoLocal) throw refused('an unopened address');
+      return xhrSend.apply(this, arguments);
+    };
+    var nativeBeacon = navigator.sendBeacon;
+    if (nativeBeacon) navigator.sendBeacon = function (url, data) {
+      return local(url) ? nativeBeacon.call(navigator, url, data) : false;
+    };
+    ['WebSocket', 'EventSource'].forEach(function (name) {
+      var Native = window[name];
+      if (!Native) return;
+      window[name] = function (url, options) {
+        if (!local(url)) throw refused(url);
+        return new Native(url, options);
+      };
+      window[name].prototype = Native.prototype;
+    });
+
+    // 4. /app/, /app and /app/index.html all resolve to /app/demo.js.
+    if (INLINE) return;
+    var dir = window.location.pathname;
+    var last = dir.slice(dir.lastIndexOf('/') + 1);
+    if (last.indexOf('.') !== -1 || last === 'index') dir = dir.slice(0, dir.length - last.length);
+    else if (last) dir += '/';
+    var script = document.createElement('script');
+    script.src = dir + 'demo.js';
+    script.async = false;
+    script.onerror = fail;
+    document.head.appendChild(script);
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -3829,7 +3924,16 @@ var usStates = ["Virginia"];
     document.getElementById('overviewClubName').textContent = c.name;
     document.getElementById('overviewLocation').textContent = c.city || '';
 
-    // Aggregate stats across all teams
+    // Aggregate stats across all teams: counts, and dues not yet paid.
+    //
+    // Nothing here works out money received. The hero and the "Funded" amount
+    // are the Worker's confirmed figure (see showPayout below). "Still
+    // deciding" and "Needs another option" are dues times athletes.
+    //
+    // An open choice, for whoever joins this with the demo branch for real:
+    // that branch made all three amounts dues, so that they add up to the
+    // dues figure in the hero's subline. Here "Funded" is what reached the
+    // club, so the three do not add up to total dues. See the pull request.
     var totalAthletes = 0, totalFunded = 0, totalPending = 0, totalDefaulted = 0;
     var totalDuesCents = 0, pendingCents = 0, defaultedCents = 0;
 
@@ -5122,7 +5226,11 @@ var usStates = ["Virginia"];
     }
   }
 
-  function safeFmtDate(d){ try { var dt = d instanceof Date ? d : new Date(d); if(isNaN(dt.getTime())) return String(d||''); return dt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); } catch(e){ return String(d||''); } }
+  // A schedule row with no date is deliberate, not missing data: the Klarna
+  // line says only that Klarna owns the dates, because we are never told them.
+  // new Date(null) is the epoch, not an invalid date, so this used to print
+  // "December 31, 1969" under every installment confirmation.
+  function safeFmtDate(d){ if(d == null || d === '') return ''; try { var dt = d instanceof Date ? d : new Date(d); if(isNaN(dt.getTime())) return String(d||''); return dt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); } catch(e){ return String(d||''); } }
 
   function renderScheduleRow(item){
     var isPaid = item.status === 'paid';
@@ -5131,7 +5239,7 @@ var usStates = ["Virginia"];
     return '<div class="payment-schedule-row">' +
       '<div class="payment-schedule-dot payment-schedule-dot--' + (isPaid ? 'paid' : 'upcoming') + '"></div>' +
       '<div class="payment-schedule-info">' +
-        '<div class="payment-schedule-date">' + dateStr + '</div>' +
+        (dateStr ? '<div class="payment-schedule-date">' + dateStr + '</div>' : '') +
         '<div class="payment-schedule-label">' + item.label + '</div>' +
         (item.txnId ? '<div class="payment-schedule-date" style="font-family:monospace;">Reference: ' + item.txnId + '</div>' : '') +
       '</div>' +

@@ -44,6 +44,10 @@
      &chrome=0                     hide the demo badge and overlay (screenshots)
      &pending=1                    add an athlete awaiting club approval
      &athlete=a-marcus-bell        the parent's emailed link, as a family gets it
+     &payout=none                  every payout figure withheld, to see the line
+                                   of text a club is shown in place of a number
+     &screen=admin-clubs           PlayFund staff screens, on the same made-up
+                                   club: also admin-club-detail, admin-team-roster
 
    Keys with &guide=1: → or space next · ← back · r reset · g hide · 1-9 jump
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -141,7 +145,10 @@
     guide:      flag('guide', false),
     auto:       flag('auto', false),
     pending:    flag('pending', false),
-    shot:       flag('shot', false)
+    shot:       flag('shot', false),
+    // Every payout figure withheld, as the app withholds one it cannot
+    // confirm, so the line of text shown in its place can be looked at.
+    payoutNone: word('payout', /^none$/) === 'none'
   };
 
   // Roster mix. Scales with &athletes= but keeps at least one of each bucket,
@@ -198,6 +205,50 @@
   var fees = duesBreakdown(cfg.dues);
   var duesCents = cfg.dues * 100;
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Money
+  //
+  // The one place in this file where a payment is divided. In the real app
+  // these numbers are the payment processor's, read back after each payment,
+  // and the page only ever shows the sum of them. Here the fixture plays the
+  // processor, so it divides each payment once, when the payment is made,
+  // and every figure the demo shows is a sum of those records: the headline
+  // is the sum of the club shares, a team's figure is the sum for its
+  // athletes, and paying for one more athlete moves the headline by exactly
+  // that family's club share.
+  //
+  // The rule is the product's (worker/fees.mjs): a family that pays in full
+  // carries card processing cost only, 2.9% plus 30c; a family on
+  // installments carries the club's rate. worker/demo.test.mjs fails if the
+  // two numbers below stop matching that file.
+  // ─────────────────────────────────────────────────────────────────────────
+  var PAY_IN_FULL_FEE_BPS = 290;
+  var PAY_IN_FULL_FEE_FIXED_CENTS = 30;
+
+  // `type` is 'full' or 'bnpl', as at checkout. Whole cents in and out, and
+  // the fee and the club's share always add back up to the amount.
+  function splitPayment(amountCents, type) {
+    var fee = type === 'bnpl'
+      ? Math.round(amountCents * cfg.feeBps / 10000)
+      : Math.min(amountCents, Math.round(amountCents * PAY_IN_FULL_FEE_BPS / 10000) + PAY_IN_FULL_FEE_FIXED_CENTS);
+    return { charge_cents: amountCents, application_fee_cents: fee, club_net_cents: amountCents - fee };
+  }
+
+  // The record of one family's payment: the team's dues at the moment of
+  // paying, divided as above. Kept on the athlete and never worked out again.
+  function paymentFor(a, type, when, reference) {
+    var amount = teamOf(a).dues_cents;
+    return Object.assign({
+      id: 'pay-' + a.id,
+      created_at: when,
+      amount_cents: amount,
+      status: 'succeeded',
+      payment_method: type === 'bnpl' ? 'klarna' : 'card',
+      installment_number: null,
+      stripe_payment_intent: reference
+    }, splitPayment(amount, type));
+  }
+
   var teams = [
     { id: 't-12u', name: '12U Travel', age_group: '12U' },
     { id: 't-14u', name: '14U Select', age_group: '14U' },
@@ -251,15 +302,7 @@
       payments: []
     };
     if (status === 'paid_full' || status === 'bnpl_active') {
-      a.payments = [{
-        id: 'pay-' + a.id,
-        created_at: '2026-11-04T18:20:00.000Z',
-        amount_cents: duesCents,
-        status: 'succeeded',
-        payment_method: a.payment_method,
-        installment_number: null,
-        stripe_payment_intent: refFor(a.id)
-      }];
+      a.payments = [paymentFor(a, status === 'paid_full' ? 'full' : 'bnpl', '2026-11-04T18:20:00.000Z', refFor(a.id))];
     }
     athletes.push(a);
     teams[teamIdx].athletes.push(a);
@@ -328,27 +371,94 @@
     });
     return c;
   }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Payout figures, in the shape the Worker sends them
+  //
+  // The app shows a figure only when the Worker says it is confirmed, and one
+  // line of text otherwise. { verified: true, ... } with whole cents is a
+  // figure; { verified: false } is none. The page marks each one with the
+  // time it asked, and stops showing it a minute later unless it has asked
+  // again, so these are always built fresh for each reply.
+  // ─────────────────────────────────────────────────────────────────────────
+  function isFunded(a) {
+    return ['paid_full', 'bnpl_active', 'bnpl_complete'].indexOf(a.payment_status) !== -1;
+  }
+  // The sum of the payment records of a list of athletes.
+  function payoutOf(list) {
+    if (cfg.payoutNone) return { verified: false };
+    var out = { verified: true, club_net_cents: 0, charge_cents: 0, payment_count: 0 };
+    list.forEach(function (a) {
+      (a.payments || []).forEach(function (pay) {
+        if (pay.status !== 'succeeded') return;
+        out.club_net_cents += pay.club_net_cents;
+        out.charge_cents += pay.charge_cents;
+        out.payment_count += 1;
+      });
+    });
+    return out;
+  }
+  function clubPayout() {
+    var out = payoutOf(athletes);
+    if (out.verified) out.checked_at = new Date().toISOString();
+    return out;
+  }
+  // What PlayFund staff are shown about the last check of the club.
+  function payoutCheck() {
+    var when = new Date().toISOString();
+    return cfg.payoutNone
+      ? { status: 'failed', reason: 'demo', message: 'Demo: this is how a club looks when its check has not passed.', detail: null, checked_at: when }
+      : { status: 'verified', reason: null, message: null, detail: null, checked_at: when };
+  }
+
   function authorizedClub() {
-    var c = Object.assign({}, club);
+    var c = Object.assign({}, club, { payout: clubPayout() });
     c.teams = teams.map(function (t) {
-      return Object.assign({}, t, { dues: t.dues_cents / 100 });
+      return Object.assign({}, t, { dues: t.dues_cents / 100, payout: payoutOf(t.athletes) });
     });
     return c;
   }
   function stats() {
-    var fundedN = 0, frontedCents = 0, collectedCents = 0;
-    athletes.forEach(function (a) {
-      if (['paid_full', 'bnpl_active', 'bnpl_complete'].indexOf(a.payment_status) !== -1) {
-        fundedN++;
-        frontedCents += Math.round(duesCents * (1 - cfg.feeBps / 10000));
-        collectedCents += duesCents;
-      }
-    });
     return {
       total_athletes: athletes.length,
-      funded_athletes: fundedN,
-      fronted_cents: frontedCents,
-      collected_cents: collectedCents
+      funded_athletes: athletes.filter(isFunded).length
+    };
+  }
+  // The reply to the staff list of clubs: one club, its teams, and the totals.
+  function adminClubs() {
+    var payout = clubPayout();
+    var pendingApprovals = athletes.filter(function (a) { return a.approval_status === 'pending'; }).length;
+    var fundedCount = athletes.filter(isFunded).length;
+    var row = Object.assign({}, club, {
+      stripe_connected: true,
+      needs_fee: false,
+      needs_stripe: false,
+      pending_approvals: pendingApprovals,
+      needs_action: pendingApprovals > 0,
+      team_count: teams.length,
+      athlete_count: athletes.length,
+      funded_count: fundedCount,
+      payout: payout,
+      payout_check: payoutCheck(),
+      teams: teams.map(function (t) {
+        return {
+          id: t.id, club_id: club.id, name: t.name, age_group: t.age_group, dues_cents: t.dues_cents,
+          athlete_count: t.athletes.length,
+          payout: payoutOf(t.athletes)
+        };
+      })
+    });
+    return {
+      clubs: [row],
+      totals: {
+        clubs: 1,
+        teams: teams.length,
+        athletes: athletes.length,
+        funded: fundedCount,
+        // A total exists only when every club has a figure. There is one club.
+        payout: payout.verified
+          ? { verified: true, club_net_cents: payout.club_net_cents, charge_cents: payout.charge_cents, payment_count: payout.payment_count }
+          : { verified: false, unverified_clubs: 1 }
+      }
     };
   }
   function findAthlete(id) {
@@ -496,7 +606,8 @@
         athletes: []
       };
       teams.push(t);
-      return after(600, { team: t }, 201);
+      // Like any team in a reply, it carries its payout figure: nothing yet.
+      return after(600, { team: Object.assign({}, t, { payout: payoutOf(t.athletes) }) }, 201);
     }
 
     if (method === 'POST' && path === '/athlete') {
@@ -557,8 +668,14 @@
       var gt = teamOf(ga);
       return after(200, {
         athlete: Object.assign({}, ga, { team_name: gt.name, dues: gt.dues_cents / 100 }),
+        // A family is sent what it paid, as in the real reply. How the
+        // payment was divided is not part of it.
         payments: (ga.payments || []).map(function (pp) {
-          return Object.assign({}, pp, { amount: pp.amount_cents / 100 });
+          return {
+            id: pp.id, created_at: pp.created_at, amount_cents: pp.amount_cents, status: pp.status,
+            payment_method: pp.payment_method, installment_number: pp.installment_number,
+            stripe_payment_intent: pp.stripe_payment_intent, amount: pp.amount_cents / 100
+          };
         })
       });
     }
@@ -576,7 +693,26 @@
     if (method === 'POST' && path === '/parent-request') return after(600, { success: true });
 
     if (method === 'GET' && path === '/admin/clubs') {
-      return after(400, { clubs: [Object.assign({}, club, { stats: stats() })] });
+      return after(400, adminClubs());
+    }
+    // The payments list on a club's staff page: what each family was charged.
+    if (method === 'GET' && (m = path.match(/^\/admin\/clubs\/([^/]+)\/payments$/))) {
+      var listed = [];
+      athletes.forEach(function (a) {
+        (a.payments || []).forEach(function (pay) {
+          listed.push({
+            id: pay.id, created_at: pay.created_at, amount_cents: pay.amount_cents, status: pay.status,
+            payment_method: pay.payment_method, installment_number: pay.installment_number, athlete_id: a.id,
+            amount: pay.amount_cents / 100, athlete_name: a.name, team_name: teamOf(a).name
+          });
+        });
+      });
+      listed.sort(function (x, y) { return x.created_at < y.created_at ? 1 : x.created_at > y.created_at ? -1 : 0; });
+      return after(300, { payments: listed });
+    }
+    // "Check now" on a club's staff page.
+    if (method === 'POST' && (m = path.match(/^\/admin\/clubs\/([^/]+)\/payout-check$/))) {
+      return after(700, { payout_check: payoutCheck(), payout: clubPayout() });
     }
 
     // Supabase is only reached for auth lookups; nothing in the demo needs one.
@@ -636,7 +772,8 @@
         mounted = document.querySelector(selector);
         if (!mounted) return;
         var type = (pendingCheckout && pendingCheckout.type) || 'full';
-        mounted.innerHTML = checkoutMarkup(type);
+        var payer = pendingCheckout && findAthlete(pendingCheckout.athleteId);
+        mounted.innerHTML = checkoutMarkup(type, payer ? teamOf(payer).dues_cents / 100 : cfg.dues);
         var pay = mounted.querySelector('[data-demo-pay]');
         if (pay) pay.addEventListener('click', function () {
           pay.disabled = true;
@@ -670,7 +807,7 @@
     return '$' + Math.round(n).toLocaleString('en-US');
   }
 
-  function checkoutMarkup(type) {
+  function checkoutMarkup(type, dues) {
     var head =
       '<div style="border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;">' +
         '<div style="background:var(--paper-dim); padding:10px 14px; font-size:11.5px; font-weight:700; letter-spacing:0.03em; color:var(--ink-soft); display:flex; justify-content:space-between; align-items:center;">' +
@@ -686,7 +823,7 @@
         '<div style="padding:18px 16px;">' +
           '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:4px;">Here the family is handed to our payment partner. Installments are subject to approval by our payment partner.</div>' +
           '<div style="font-size:19px; font-weight:800; color:var(--ink); margin:14px 0 4px;">Commonly 4 interest-free payments, if approved</div>' +
-          '<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:16px;">Season dues ' + money(cfg.dues) + '</div>' +
+          '<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:16px;">Season dues ' + money(dues) + '</div>' +
           '<button class="btn btn-primary" data-demo-pay style="width:100%;">Continue as if approved</button>' +
           '<div style="text-align:center; margin-top:12px;">' +
             '<a href="#" data-demo-decline style="font-size:12px; color:var(--ink-faint);">Show a family that is not approved</a>' +
@@ -703,22 +840,14 @@
           '<div class="field" style="flex:1;"><label>Expiry</label><input type="text" value="04 / 30" readonly style="background:var(--paper-dim); color:var(--ink-soft);"></div>' +
           '<div class="field" style="flex:1;"><label>CVC</label><input type="text" value="123" readonly style="background:var(--paper-dim); color:var(--ink-soft);"></div>' +
         '</div>' +
-        '<button class="btn btn-primary" data-demo-pay style="width:100%;">Pay ' + money(cfg.dues) + '</button>' +
+        '<button class="btn btn-primary" data-demo-pay style="width:100%;">Pay ' + money(dues) + '</button>' +
       '</div>' + foot;
   }
 
   function markPaid(a, type) {
     a.payment_status = type === 'bnpl' ? 'bnpl_active' : 'paid_full';
     a.payment_method = type === 'bnpl' ? 'klarna' : 'card';
-    a.payments = [{
-      id: 'pay-' + a.id,
-      created_at: new Date().toISOString(),
-      amount_cents: duesCents,
-      status: 'succeeded',
-      payment_method: a.payment_method,
-      installment_number: null,
-      stripe_payment_intent: refFor(a.id + '-paid')
-    }];
+    a.payments = [paymentFor(a, type === 'bnpl' ? 'bnpl' : 'full', new Date().toISOString(), refFor(a.id + '-paid'))];
   }
 
   var stripeStub = function () {
@@ -875,8 +1004,42 @@
   // by hand instead, the observer below notices the screen it produced and
   // moves the panel along.
   // ─────────────────────────────────────────────────────────────────────────
+  // What has reached the club, in dollars and cents, or null with &payout=none.
   function payout() {
-    return Math.round(stats().fronted_cents / 100);
+    var p = payoutOf(athletes);
+    return p.verified ? p.club_net_cents / 100 : null;
+  }
+
+  // The club as the app itself loads it: through the app's own request, as a
+  // signed-in club. That is what puts a time on every payout figure in it.
+  // The page will not show a figure it cannot date, so the fixture is never
+  // put straight into the app's state.
+  function loadClub() {
+    try { sessionStorage.setItem('pf_club_session', JSON.stringify(session())); } catch (e) {}
+    return window.fetchClub(club.code, session().access_token).then(function (loaded) {
+      window.state.club = loaded;
+      return loaded;
+    });
+  }
+  // One of that club's teams, as the app is holding it.
+  function appTeam(id) {
+    var held = window.state.club && window.state.club.teams;
+    return (held || []).filter(function (t) { return t.id === id; })[0] || null;
+  }
+  // Opens a team's roster, loading the club first if the app does not have it.
+  function openTeam(id, then) {
+    var ready = appTeam(id) ? Promise.resolve() : loadClub();
+    return ready.then(function () {
+      window.state.team = appTeam(id);
+      if (!window.state.team) return;
+      window.openRoster();
+      if (typeof then === 'function') then();
+    });
+  }
+  function waitFor(test, then, tries) {
+    var left = tries == null ? 40 : tries;
+    if (test()) { then(); return; }
+    if (left > 0) setTimeout(function () { waitFor(test, then, left - 1); }, 120);
   }
 
   // Opens the screen a family reaches from their emailed link.
@@ -952,10 +1115,7 @@
       say: 'Each team has a roster with every athlete’s payment status.',
       note: '',
       doing: 'The 14U Select roster.',
-      go: function () {
-        window.state.team = teams[1];
-        window.openRoster();
-      }
+      go: function () { openTeam(teams[1].id); }
     },
     {
       screen: 'roster',
@@ -997,10 +1157,7 @@
       say: 'Back on the club’s side, a family that has paid counts as funded.',
       note: 'It leaves “Still deciding”, and the figure at the top goes up.',
       doing: 'The club dashboard again.',
-      go: function () {
-        window.state.club = authorizedClub();
-        window.openClubOverview();
-      }
+      go: function () { loadClub().then(function () { window.openClubOverview(); }); }
     },
     {
       screen: 'decline',
@@ -1210,35 +1367,52 @@
       if (screen) {
         // Some screens need their data put in place before they are shown.
         if (/^(club-overview|roster|send-links|add-team|add-athlete-admin|club-settings|invite-admin|club-stripe-onboarding)$/.test(screen)) {
-          window.state.club = authorizedClub();
-          try { sessionStorage.setItem('pf_club_session', JSON.stringify(session())); } catch (e) {}
-          if (screen === 'club-overview') { window.openClubOverview(); return; }
-          if (screen === 'roster') { window.state.team = teams[1]; window.openRoster(); return; }
-          if (screen === 'add-athlete-admin') { window.state.team = teams[1]; window.showAddAthleteScreen(); return; }
-          // The roster with the send-links confirmation over it. The dialog's
-          // words are the app's own, which is the point: it is the product
-          // that says families are emailed, not the deck.
-          if (screen === 'send-links') {
-            window.state.team = teams[1];
-            window.openRoster();
-            setTimeout(function () {
-              // The backdrop is absolute, so on a phone, where the viewport is
-              // the whole screen, the sheet sits over what you are looking at.
-              // A screenshot window is as tall as the roster, which parks the
-              // sheet 2,000px below the fold. Pinning it to the viewport is
-              // what the club actually sees, not a liberty taken for the photo.
-              var st = document.createElement('style');
-              st.textContent = '#askBackdrop{position:fixed !important}';
-              document.head.appendChild(st);
-              window.ask({
-                title: 'Send payment links?',
-                body: "Every approved family who hasn't paid yet gets an email with a link to this team's dues.",
-                confirmLabel: 'Send links'
+          loadClub().then(function () {
+            if (screen === 'club-overview') { window.openClubOverview(); return; }
+            if (screen === 'roster') { openTeam(teams[1].id); return; }
+            if (screen === 'add-athlete-admin') { window.state.team = appTeam(teams[1].id); window.showAddAthleteScreen(); return; }
+            // The roster with the send-links confirmation over it. The dialog's
+            // words are the app's own, which is the point: it is the product
+            // that says families are emailed, not the deck.
+            if (screen === 'send-links') {
+              openTeam(teams[1].id, function () {
+                setTimeout(function () {
+                  // The backdrop is absolute, so on a phone, where the viewport is
+                  // the whole screen, the sheet sits over what you are looking at.
+                  // A screenshot window is as tall as the roster, which parks the
+                  // sheet 2,000px below the fold. Pinning it to the viewport is
+                  // what the club actually sees, not a liberty taken for the photo.
+                  var st = document.createElement('style');
+                  st.textContent = '#askBackdrop{position:fixed !important}';
+                  document.head.appendChild(st);
+                  window.ask({
+                    title: 'Send payment links?',
+                    body: "Every approved family who hasn't paid yet gets an email with a link to this team's dues.",
+                    confirmLabel: 'Send links'
+                  });
+                }, 260);
               });
-            }, 260);
-            return;
+              return;
+            }
+            if (screen === 'club-stripe-onboarding') { window.startStripeOnboarding(); return; }
+            window.showScreen(screen, true);
+          });
+          return;
+        }
+        // PlayFund staff screens, on the same made-up club. Opened the way the
+        // app opens them for a signed-in member of staff, so every figure on
+        // them arrives through the app's own request.
+        if (/^(admin-clubs|admin-club-detail|admin-team-roster)$/.test(screen)) {
+          try { sessionStorage.setItem('pf_admin_token', 'demo.admin.token'); } catch (e) {}
+          window.enterAdminMode();
+          if (screen !== 'admin-clubs') {
+            waitFor(function () { return window.adminAllClubs && window.adminAllClubs.length; }, function () {
+              var listed = window.adminAllClubs[0];
+              if (screen === 'admin-club-detail') window.openAdminClubDetail(listed);
+              else window.openAdminTeamRoster(listed, listed.teams[1] || listed.teams[0]);
+            });
           }
-          if (screen === 'club-stripe-onboarding') { window.startStripeOnboarding(); return; }
+          return;
         }
         if (/^(athlete-detail|confirm-now|confirm-terms|payment-history|payment-mgmt|decline|parent-home|combined-plan|scholarship-apply|embedded-checkout)$/.test(screen)) {
           parentLink('a-marcus-bell', function () {
@@ -1275,9 +1449,7 @@
         return;
       }
       if (role === 'club') {
-        window.state.club = authorizedClub();
-        try { sessionStorage.setItem('pf_club_session', JSON.stringify(session())); } catch (e) {}
-        window.openClubOverview();
+        loadClub().then(function () { window.openClubOverview(); });
         return;
       }
       if (cfg.guide) goTo(0);
@@ -1288,6 +1460,7 @@
   window.PF_DEMO = {
     cfg: cfg, club: club, teams: teams, athletes: athletes,
     stats: stats, payout: payout, markPaid: markPaid, reset: reset,
+    splitPayment: splitPayment,
     next: next, prev: prev, goTo: goTo, steps: steps
   };
 

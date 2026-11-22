@@ -47,7 +47,7 @@ function arg(name, dflt) {
 // build carries `demo=1&guide=1` and nothing else, and the fixture's own
 // defaults (Riverside, $1,000, 58 athletes) still come from demo.js.
 const defaults = new URLSearchParams({ demo: '1', guide: '1' });
-for (const name of ['club', 'city', 'sport', 'clubcode', 'dues', 'fee', 'athletes', 'admin', 'email', 'auto', 'hold', 'pending']) {
+for (const name of ['club', 'city', 'sport', 'clubcode', 'dues', 'fee', 'athletes', 'admin', 'email', 'auto', 'hold', 'pending', 'payout']) {
   const v = arg(name, null);
   if (v != null) defaults.set(name, v);
 }

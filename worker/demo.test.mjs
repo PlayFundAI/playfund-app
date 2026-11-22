@@ -418,3 +418,131 @@ test("the demo never puts a club straight into the app's state", () => {
   assert.equal(demoSource.match(/cfg\.feeBps\s*\/\s*10000/g).length, 1);
   assert.equal(demoSource.match(/PAY_IN_FULL_FEE_BPS\s*\/\s*10000/g).length, 1);
 });
+
+// The demo's own start-up, run with the page's real fetchClub and stand-ins
+// for the screens it opens. This is the path a person takes when they open
+// the demo address, and the part of demo.js that used to put the club
+// straight into the app's state.
+async function openDemo(query) {
+  const search = "?demo=1" + (query ? "&" + query : "");
+  const stored = {};
+  const storage = {
+    getItem: (k) => (k in stored ? stored[k] : null),
+    setItem: (k, v) => { stored[k] = String(v); },
+    removeItem: (k) => { delete stored[k]; }
+  };
+  const opened = [];
+  const listeners = {};
+  const element = () => ({ style: {}, classList: { add() {}, remove() {} }, appendChild() {}, addEventListener() {}, querySelector: () => null, textContent: "", innerHTML: "" });
+  const document = {
+    baseURI: "https://app.invalid/app/" + search, title: "", head: element(), body: element(), documentElement: element(),
+    createElement: element, getElementById: () => null, querySelector: () => null, addEventListener() {}
+  };
+  const window = {
+    PF_DEMO_BOOT: { ready: false, failed: false },
+    location: { search, href: document.baseURI, origin: "https://app.invalid", pathname: "/app/" },
+    fetch: (input) => Promise.reject(new Error(`Demo mode refused a request to ${String(input)}`)),
+    history: { pushState() {}, replaceState() {} },
+    addEventListener: (name, fn) => { (listeners[name] ||= []).push(fn); },
+    state: { club: null, team: null },
+    adminAllClubs: [],
+    openClubOverview: () => opened.push("club-overview"),
+    openRoster: () => opened.push("roster"),
+    showAddAthleteScreen: () => opened.push("add-athlete-admin"),
+    showScreen: (name) => opened.push(name),
+    startStripeOnboarding: () => opened.push("club-stripe-onboarding"),
+    ask: () => opened.push("ask"),
+    openAdminClubDetail: (club) => opened.push(["admin-club-detail", club]),
+    openAdminTeamRoster: (club, team) => opened.push(["admin-team-roster", club, team])
+  };
+  const atOnce = (fn) => { Promise.resolve().then(fn); return 0; };
+  new Function("window", "document", "console", "setTimeout", "localStorage", "sessionStorage", "requestAnimationFrame", demoSource)(
+    window, document, { log() {}, warn() {}, error() {} }, atOnce, storage, storage, atOnce
+  );
+  // The page's own fetchClub, talking to the demo's fetch.
+  window.fetchClub = new Function(
+    "Date", "fetch", "WORKER_URL", "clubCache", "formatDate", "console", "stampPayouts",
+    `${page.slice(fetchStart, fetchEnd)}; return fetchClub;`
+  )(Date, (input, init) => window.fetch(input, init), WORKER, {}, () => "", { error() {} }, pageHelpers.stampPayouts);
+  // The page's way into the staff screens: a saved token, then its own request for the list.
+  window.enterAdminMode = () => {
+    opened.push("admin-clubs");
+    window.adminSession = storage.getItem("pf_admin_token");
+    const askedAt = Date.now();
+    window.fetch(WORKER + "/admin/clubs", { headers: { Authorization: "Bearer " + window.adminSession } })
+      .then((res) => res.json())
+      .then((data) => { window.adminAllClubs = pageHelpers.stampPayouts(data, askedAt).clubs; });
+  };
+  for (const start of listeners.load || []) start({});
+  for (let i = 0; i < 60; i++) await new Promise((resolve) => setImmediate(resolve));
+  return { window, demo: window.PF_DEMO, opened, storage };
+}
+
+test("the demo opens each club screen through the page's own request, with a dated figure", async () => {
+  for (const query of ["screen=club-overview", "screen=roster", "screen=add-athlete-admin", "screen=add-team", "role=club"]) {
+    const { window, demo, opened, storage } = await openDemo(query);
+    const club = window.state.club;
+    assert.ok(club, `${query}: the app was given no club`);
+    // The figure arrived through the page's request, so it has a time on it
+    // and the page will show it.
+    assert.equal(typeof club.payout.received_ms, "number", query);
+    assert.equal(pageHelpers.payoutCents(club.payout, "club_net_cents", Date.now()), Math.round(demo.payout() * 100), query);
+    assert.ok(club.teams.every((t) => typeof t.payout.received_ms === "number"), query);
+    // Signed in as the club, which is what lets the page ask again by itself.
+    assert.ok(JSON.parse(storage.getItem("pf_club_session")).access_token, query);
+    const expected = query === "role=club" ? "club-overview" : query.slice("screen=".length);
+    assert.ok(opened.includes(expected), `${query}: opened ${JSON.stringify(opened)}`);
+    if (/roster|add-athlete-admin/.test(query)) {
+      // The team is the copy the app is holding, which carries its own figure.
+      assert.ok(club.teams.includes(window.state.team), query);
+      assert.equal(window.state.team.id, demo.teams[1].id, query);
+      assert.equal(typeof window.state.team.payout.received_ms, "number", query);
+    }
+  }
+});
+
+test("the guided steps hand the app its club and team the same way", async () => {
+  const { window, demo, opened } = await openDemo("screen=club-overview");
+  const settle = async () => { for (let i = 0; i < 40; i++) await new Promise((resolve) => setImmediate(resolve)); };
+  const roster = demo.steps.find((step) => step.screen === "roster" && step.go);
+  const back = demo.steps.filter((step) => step.screen === "club-overview" && step.go).pop();
+
+  roster.go();
+  await settle();
+  assert.ok(opened.includes("roster"));
+  assert.ok(window.state.club.teams.includes(window.state.team));
+  assert.equal(typeof window.state.team.payout.received_ms, "number");
+
+  // A family pays, and the presenter goes back to the dashboard: the app is
+  // given a fresh club, asked for again, with the new figure in it.
+  const before = window.state.club;
+  demo.markPaid(demo.athletes.find((a) => a.payment_status === "unpaid"), "full");
+  back.go();
+  await settle();
+  assert.notEqual(window.state.club, before);
+  assert.equal(pageHelpers.payoutCents(window.state.club.payout, "club_net_cents", Date.now()), Math.round(demo.payout() * 100));
+  assert.ok(window.state.club.payout.club_net_cents > before.payout.club_net_cents);
+});
+
+test("the demo opens the staff screens the app's own way, with figures on the club and its teams", async () => {
+  for (const [query, last] of [["screen=admin-clubs", "admin-clubs"], ["screen=admin-club-detail", "admin-club-detail"], ["screen=admin-team-roster", "admin-team-roster"]]) {
+    const { window, demo, opened, storage } = await openDemo(query);
+    assert.equal(opened[0], "admin-clubs", query);
+    assert.equal(storage.getItem("pf_admin_token"), "demo.admin.token", query);
+    assert.equal(window.adminAllClubs.length, 1, query);
+    const listed = window.adminAllClubs[0];
+    assert.equal(pageHelpers.payoutCents(listed.payout, "club_net_cents", Date.now()), Math.round(demo.payout() * 100), query);
+    if (last === "admin-clubs") { assert.equal(opened.length, 1, query); continue; }
+    const step = opened[opened.length - 1];
+    assert.equal(step[0], last, query);
+    assert.equal(step[1], listed, query);
+    if (last === "admin-team-roster") {
+      assert.equal(step[2].id, demo.teams[1].id, query);
+      assert.equal(typeof step[2].payout.received_ms, "number", query);
+    }
+  }
+  // With payout=none the staff screens open the same way, with nothing to show.
+  const none = await openDemo("screen=admin-club-detail&payout=none");
+  assert.deepEqual({ ...none.window.adminAllClubs[0].payout, received_ms: 0 }, { verified: false, received_ms: 0 });
+  assert.equal(none.window.adminAllClubs[0].payout_check.status, "failed");
+});

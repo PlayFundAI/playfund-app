@@ -1434,17 +1434,85 @@ test("each schedule runs its own job, and a schedule the Worker does not know ru
   assert.doesNotMatch(made(), digest);
   assert.equal(world.db.payout_checks.length, 1);
 
-  // Anything else: nothing at all is run, and it is said out loud. It used
-  // to fall through to the reminder emails.
-  for (const cron of ["*/5 * * * *", "0 12 * * *", "0 13 * * * ", " 0 13 * * *", "0 13 * * 1", "", undefined, null]) {
-    world.requests.length = 0;
-    logged.length = 0;
-    const mailBefore = world.mail.length;
-    await runTimer(worker, cron);
-    assert.equal(world.requests.length, 0, `"${cron}" made requests`);
-    assert.equal(world.mail.length, mailBefore, `"${cron}" sent mail`);
-    assert.match(logged.join("\n"), /matches no schedule/, `"${cron}" was not reported`);
+  // None of the three known schedules produces the "unknown schedule" email.
+  const unknownMail = () => world.mail.filter((m) => /a timer fired that the Worker does not recognise/.test(m.subject));
+  assert.equal(unknownMail().length, 0);
+  assert.equal(world.db.events.filter((e) => e.event_name === "unknown_schedule_alert").length, 0);
+
+  // Anything else: none of the three jobs is run, and it is said out loud,
+  // in the log and once in an email to staff. It used to fall through to the
+  // reminder emails.
+  const unknown = ["*/5 * * * *", "0 12 * * *", "0 13 * * * ", " 0 13 * * *", "0 13 * * 1", "", undefined, null];
+  for (const [i, cron] of unknown.entries()) {
+    for (const firing of ["first", "second", "third"]) {
+      world.requests.length = 0;
+      logged.length = 0;
+      await runTimer(worker, cron);
+      const where = `"${cron}", ${firing} firing`;
+      assert.doesNotMatch(made(), reminders, where);
+      assert.doesNotMatch(made(), digest, where);
+      assert.doesNotMatch(made(), checks, where);
+      assert.match(logged.join("\n"), /matches no schedule/, where);
+      // One email for this expression, however many times it fires.
+      assert.equal(unknownMail().length, i + 1, where);
+    }
+    const mail = unknownMail()[i];
+    assert.deepEqual(mail.to, ["admin@playfundai.com"]);
+    // It names the expression that fired, and says that nothing was run.
+    assert.ok(mail.html.includes(`<strong>${String(cron)}</strong>`), `"${cron}" is not named in the email`);
+    assert.match(mail.html, /Nothing was run\./);
+    assert.doesNotMatch(mail.subject + mail.html, /\u2014/, "no em dashes in anything staff read");
   }
+  assert.equal(world.db.payout_checks.length, 1, "an unknown schedule ran payout checks");
+  assert.equal(world.mail.filter((m) => /^PlayFund weekly metrics/.test(m.subject)).length, 1, "an unknown schedule sent the digest");
+
+  // The known schedules still send no such email after all that.
+  await runTimer(worker, "0 13 * * *");
+  await runTimer(worker, "0 14 * * 1");
+  await timer();
+  assert.equal(unknownMail().length, unknown.length);
+});
+
+test("telling staff about an unknown schedule never throws, never repeats blindly, and cannot be silenced from a page", async (t) => {
+  begin(t);
+  const unknownMail = () => world.mail.filter((m) => /a timer fired that the Worker does not recognise/.test(m.subject));
+  const rows = () => world.db.events.filter((e) => e.event_name === "unknown_schedule_alert");
+
+  // The events table cannot be read: not knowing whether the email already
+  // went, it is not sent, and the run still ends quietly.
+  world.faults.db = ({ method, table }) => method === "GET" && table === "events" ? new Response('{"message":"placeholder failure"}', { status: 500 }) : null;
+  await runTimer(worker, "*/7 * * * *");
+  assert.equal(unknownMail().length, 0);
+  world.faults.db = null;
+
+  // The mail service refuses it: nothing is recorded, so the next firing tries again.
+  const real = world.fetch;
+  world.fetch = async (input, init = {}) => String(typeof input === "string" ? input : input.url) === "https://api.resend.com/emails"
+    ? new Response('{"message":"placeholder refusal"}', { status: 422 })
+    : real(input, init);
+  await runTimer(worker, "*/7 * * * *");
+  assert.equal(rows().length, 0);
+  world.fetch = real;
+  await runTimer(worker, "*/7 * * * *");
+  assert.equal(unknownMail().length, 1);
+  assert.equal(rows().length, 1);
+  assert.deepEqual(rows()[0].properties, { cron: "*/7 * * * *" });
+
+  // Everything it touches throws: the run still does not.
+  world.fetch = async () => { throw new Error("placeholder network failure"); };
+  await runTimer(worker, "*/9 * * * *");
+  world.fetch = real;
+  assert.equal(unknownMail().length, 1);
+
+  // A page cannot write the "already told" row to keep staff from hearing about a schedule.
+  const posted = await call(worker, "POST", "/events", {
+    origin: "https://www.playfundai.com",
+    body: { event_name: "unknown_schedule_alert", properties: { cron: "*/9 * * * *" } }
+  });
+  assert.equal(posted.status, 200);
+  assert.equal(rows().length, 1);
+  await runTimer(worker, "*/9 * * * *");
+  assert.equal(unknownMail().length, 2);
 });
 
 test("one timed run stays under the request limit and gets round every club in time", async (t) => {

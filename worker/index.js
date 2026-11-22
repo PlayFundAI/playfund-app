@@ -2010,6 +2010,54 @@ async function runWeeklyMetrics(env, days) {
 }
 __name(runWeeklyMetrics, "runWeeklyMetrics");
 
+// A timer fired with an expression this Worker does not recognise. Nothing is
+// run for it (see scheduled below). A log line alone would go unread, so
+// PlayFund staff are told as well, once per expression, with the same
+// send-once pattern as the other staff alerts: a row in the events table,
+// looked for before sending.
+//
+// Never throws, and never starts any of the three jobs. A failure in here
+// must not turn into anything else.
+async function alertUnknownSchedule(env, cron) {
+  try {
+    const expression = String(cron).slice(0, 60);
+    const existing = await dbRows(env, "/events?event_name=eq.unknown_schedule_alert&select=properties&order=created_at.desc&limit=50");
+    if (!existing.ok) {
+      // Not knowing whether the mail already went, do not send it on every firing.
+      console.error(`Unknown schedule alert not sent (could not read events) for "${expression}"`);
+      return;
+    }
+    if (existing.rows.some((row) => row.properties && row.properties.cron === expression)) return;
+    const RESEND_API_KEY = env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) return;
+    const sent = await resendSend(env, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "PlayFund Alerts <admin@playfundai.com>",
+        to: ["admin@playfundai.com"],
+        subject: "ACTION NEEDED: a timer fired that the Worker does not recognise",
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
+  <p style="margin:0 0 16px;font-size:15px;color:#B42318;">The Worker was started by a timer with the schedule <strong>${escapeHtml(expression)}</strong>, which is not one it knows. <strong>Nothing was run.</strong></p>
+  <p style="margin:0 0 8px;font-size:14px;color:#374151;">The schedules it knows are the daily reminder sweep (${escapeHtml(DAILY_REMINDERS_CRON)}), the Monday digest (${escapeHtml(WEEKLY_METRICS_CRON)}) and the payout check (${escapeHtml(PAYOUT_CHECK_CRON)}).</p>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">The usual cause is a schedule added or changed in worker/wrangler.toml, or in the hosting dashboard, without the matching line in worker/index.js. Whatever that timer was meant to do is not happening.</p>
+  <p style="margin:0;font-size:12px;color:#9CA3AF;">Sent once for this schedule.</p>
+</div>`
+      })
+    });
+    if (!sent.ok) return;
+    const logged = await dbWrite(env, "POST", "/events", {
+      event_name: "unknown_schedule_alert",
+      club_id: null,
+      properties: { cron: expression }
+    });
+    if (!logged.ok) console.error(`Unknown schedule alert sent but not recorded, so it may be sent again: ${dbErrorText(logged)}`);
+  } catch (e) {
+    console.error("alertUnknownSchedule failed:", e);
+  }
+}
+__name(alertUnknownSchedule, "alertUnknownSchedule");
+
 var index_default = {
   async scheduled(event, env, ctx) {
     // Two triggers share this handler, so it dispatches on the expression that
@@ -2030,11 +2078,13 @@ var index_default = {
       ctx.waitUntil(runScheduledReminders(env));
       return;
     }
-    // A schedule this file does not know. Do nothing, and say so. It used to
-    // fall through to the reminder sweep, so that adding or renaming a trigger
-    // in wrangler.toml without matching it here would have sent reminder
-    // emails on the new schedule.
+    // A schedule this file does not know. Run none of the three jobs, and say
+    // so: in the log, and once in an email to staff, since nobody reads the
+    // log. It used to fall through to the reminder sweep, so that adding or
+    // renaming a trigger in wrangler.toml without matching it here would have
+    // sent reminder emails on the new schedule.
     console.error(`Scheduled run for "${event.cron}", which matches no schedule in worker/index.js. Nothing was run. Check the crons in worker/wrangler.toml against WEEKLY_METRICS_CRON, PAYOUT_CHECK_CRON and DAILY_REMINDERS_CRON.`);
+    ctx.waitUntil(alertUnknownSchedule(env, event.cron));
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -2101,10 +2151,12 @@ var index_default = {
       // underscores. A pattern rather than an allowlist, so adding an event
       // does not mean editing two files and finding out it silently vanished.
       if (!/^[a-z0-9_.]{1,60}$/.test(event_name)) return err("Invalid event_name");
-      // These names record whether staff have been told that a club's payout
-      // figure is hidden (see alertPayoutCheck). Only the Worker writes them.
-      // Accepting one from a page would let anyone silence that alert.
-      if (event_name.startsWith("payout_check")) return json({ success: true });
+      // These names record whether staff have been told something: that a
+      // club's payout figure is hidden (see alertPayoutCheck), or that a timer
+      // fired on a schedule the Worker does not know (alertUnknownSchedule).
+      // Only the Worker writes them. Accepting one from a page would let
+      // anyone silence that alert.
+      if (event_name.startsWith("payout_check") || event_name === "unknown_schedule_alert") return json({ success: true });
 
       let props = properties && typeof properties === "object" && !Array.isArray(properties) ? properties : {};
       // Caps so a loop on a public page cannot write unbounded rows.

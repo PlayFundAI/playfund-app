@@ -113,8 +113,10 @@
      not at all on a phone: stacked, the tagline and both statements were Anton
      at 27, 34 and 24px with only a 1px line between them, so there was nothing
      to tell you where one idea ended.
-     The left column is the <h1> and the right an <h2>, which keeps exactly one
-     top-level heading in document order. */
+     Clubs come first in the markup, so they are on the left on desktop and on
+     top on a phone, and reading order matches what is seen. The first card is
+     the <h1> and the second an <h2>, which keeps exactly one top-level heading
+     in document order. */
   .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:960px;margin:0 auto}
   .split-col{border-radius:13px;padding:34px 30px 30px;text-align:center;
              display:flex;flex-direction:column}
@@ -340,6 +342,9 @@
   .v-art{min-width:0}
   .v-prob{color:var(--ink-soft);font-size:16.5px;line-height:1.6;max-width:50ch}
   .v-prob b{color:var(--ink);font-weight:600}
+  /* --ink-soft is 4.83:1 on white and 4.48:1 on the tinted band, just under
+     the 4.5 that body text needs. This grey is 4.62:1 there. */
+  .tint .v-prob,.tint .v-step{color:#667085}
   .v-points{display:flex;flex-direction:column;gap:13px;margin:0;padding:0;list-style:none}
   .v-points li{display:flex;gap:11px;font-size:15.5px;line-height:1.55}
   .v-points li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green);
@@ -390,6 +395,9 @@
   .ledger-row > span:first-child{flex:1;min-width:0}
   .ledger-tag{flex-shrink:0;font-size:12.5px;font-weight:700;color:var(--ink);
               background:var(--paper-dim);border-radius:999px;padding:3px 11px}
+  /* On a phone the tag leaves the label too little room and every row wraps.
+     The panel title already says what the rows are, so the tag goes. */
+  @media (max-width:520px){ .ledger-tag{display:none} }
 
   /* ── The path ─────────────────────────────────────────────────────────────
      Three steps from what exists to what does not. The first is a solid ink
@@ -518,12 +526,11 @@
       <div class="v-meta"><span class="v-step">02</span><span class="exploring">Exploring</span></div>
       <h2>A rewards card for everything youth sports.</h2>
       <p class="v-prob">
-        Registration is only part of what a season costs a family.
-        <b>A PlayFund card would earn rewards on all of it, all year.</b>
+        Dues are the part PlayFund handles today. <b>A sports card would earn
+        rewards on the rest of what a season costs.</b>
       </p>
       <ul class="v-points">
-        <li>Families would earn rewards on anything youth sports: gear, tournament fees, travel, gas, hotels and camps.</li>
-        <li>Next season&rsquo;s registration would earn rewards too.</li>
+        <li>Families would earn rewards on anything youth sports: gear, travel, gas, hotels, events and next season&rsquo;s registration.</li>
         <li>Rewards would be funded by partners, not by the club.</li>
       </ul>
     </div>
@@ -543,16 +550,15 @@
             <div>
               <div class="pfcard-num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
               <div class="pfcard-foot" style="margin-top:9px">
-                <span>Youth sports rewards card</span>
+                <span>Season rewards card</span>
               </div>
             </div>
           </div>
 
           <div class="ledger">
             <div class="ledger-row"><span>Gear and equipment</span><span class="ledger-tag">Rewards</span></div>
-            <div class="ledger-row"><span>Tournament and event fees</span><span class="ledger-tag">Rewards</span></div>
             <div class="ledger-row"><span>Travel, gas and hotels</span><span class="ledger-tag">Rewards</span></div>
-            <div class="ledger-row"><span>Camps and clinics</span><span class="ledger-tag">Rewards</span></div>
+            <div class="ledger-row"><span>Tournaments and events</span><span class="ledger-tag">Rewards</span></div>
             <div class="ledger-row"><span>Next season&rsquo;s registration</span><span class="ledger-tag">Rewards</span></div>
           </div>
 

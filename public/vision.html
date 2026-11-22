@@ -19,7 +19,7 @@
 <meta name="twitter:title" content="PlayFund&rsquo;s vision for youth sports">
 <meta name="twitter:description" content="Ideas we are exploring beyond registration and payments. Not available today.">
 <meta name="twitter:image" content="https://www.playfundai.com/share-club.png">
-<meta name="description" content="Where PlayFund wants to go after registration and payments: help finding sponsors, aid a club can account for, and one card for the rest of what a season costs. These are ideas we are exploring, not features we offer today.">
+<meta name="description" content="Where PlayFund wants to go after registration and payments: a rewards card for everything youth sports, help finding sponsors, and aid a club can account for. These are ideas we are exploring, not features we offer today.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -364,9 +364,10 @@
   .row-name{font-size:14.5px;font-weight:500;flex:1;min-width:0}
   .row-amt{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 
-  /* The rewards mock shows a card and the kinds of spending it would cover. It
-     shows no figure anywhere, deliberately: an amount earned beside an amount
-     spent states a rate, and there is no rate to state. */
+  /* The rewards mock shows a card and the kinds of spending it would earn on.
+     It shows no figure anywhere, deliberately: an amount earned beside an
+     amount spent states a rate, and there is no rate to state. The tag on each
+     row is the word alone for the same reason. */
   .pfcard{background:linear-gradient(135deg,var(--ink) 0%,#0A5F59 100%);border-radius:13px;
           padding:17px 19px 15px;color:#fff;max-width:320px;aspect-ratio:1.586;
           display:flex;flex-direction:column;justify-content:space-between;
@@ -384,8 +385,11 @@
   .ledger-row{display:flex;align-items:center;gap:11px;padding:11px 0;
               border-bottom:1px solid var(--line);font-size:15px}
   .ledger-row::before{content:"";width:7px;height:7px;border-radius:50%;
-                      background:var(--line);flex-shrink:0}
+                      background:var(--green);flex-shrink:0}
   .ledger-row:last-child{border-bottom:0}
+  .ledger-row > span:first-child{flex:1;min-width:0}
+  .ledger-tag{flex-shrink:0;font-size:12.5px;font-weight:700;color:var(--ink);
+              background:var(--paper-dim);border-radius:999px;padding:3px 11px}
 
   /* ── The path ─────────────────────────────────────────────────────────────
      Three steps from what exists to what does not. The first is a solid ink
@@ -462,14 +466,14 @@
         <span class="path-t">Registration and payments, with the club paid up front.</span>
         <span class="path-s">Opening to pilot clubs</span>
       </a>
-      <a class="path-step" href="#aid">
+      <a class="path-step" href="#card">
         <span class="path-n">02</span>
-        <span class="path-t">Sponsors for the club, and aid it can account for.</span>
+        <span class="path-t">A rewards card for everything youth sports.</span>
         <span class="path-s">Exploring</span>
       </a>
-      <a class="path-step" href="#card">
+      <a class="path-step" href="#aid">
         <span class="path-n">03</span>
-        <span class="path-t">One card for everything else a season costs.</span>
+        <span class="path-t">Sponsors for the club, and aid it can account for.</span>
         <span class="path-s">Exploring</span>
       </a>
     </div>
@@ -508,10 +512,62 @@
   </div>
 </section>
 
-<section id="aid">
+<section id="card">
   <div class="wrap v-sec">
     <div class="v-copy">
       <div class="v-meta"><span class="v-step">02</span><span class="exploring">Exploring</span></div>
+      <h2>A rewards card for everything youth sports.</h2>
+      <p class="v-prob">
+        Registration is only part of what a season costs a family.
+        <b>A PlayFund card would earn rewards on all of it, all year.</b>
+      </p>
+      <ul class="v-points">
+        <li>Families would earn rewards on anything youth sports: gear, tournament fees, travel, gas, hotels and camps.</li>
+        <li>Next season&rsquo;s registration would earn rewards too.</li>
+        <li>Rewards would be funded by partners, not by the club.</li>
+      </ul>
+    </div>
+
+    <div class="v-art">
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Where the card would earn rewards</span>
+          <span class="exploring">Exploring</span>
+        </div>
+        <div class="card-body">
+          <div class="pfcard">
+            <div class="pfcard-top">
+              <span class="pfcard-mark">PLAY<span>FUND</span></span>
+              <span class="pfcard-chip"></span>
+            </div>
+            <div>
+              <div class="pfcard-num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
+              <div class="pfcard-foot" style="margin-top:9px">
+                <span>Youth sports rewards card</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ledger">
+            <div class="ledger-row"><span>Gear and equipment</span><span class="ledger-tag">Rewards</span></div>
+            <div class="ledger-row"><span>Tournament and event fees</span><span class="ledger-tag">Rewards</span></div>
+            <div class="ledger-row"><span>Travel, gas and hotels</span><span class="ledger-tag">Rewards</span></div>
+            <div class="ledger-row"><span>Camps and clinics</span><span class="ledger-tag">Rewards</span></div>
+            <div class="ledger-row"><span>Next season&rsquo;s registration</span><span class="ledger-tag">Rewards</span></div>
+          </div>
+
+          <p class="card-note">
+            An illustration. The card is not available today.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tint" id="aid">
+  <div class="wrap v-sec">
+    <div class="v-copy">
+      <div class="v-meta"><span class="v-step">03</span><span class="exploring">Exploring</span></div>
       <h2>Sponsors for the club, and aid it can account for.</h2>
       <p class="v-prob">
         Many clubs find sponsors one favor at a time, and aid decisions are
@@ -556,56 +612,6 @@
             An illustration, not a real club. A sponsor would see counts and
             categories only, never a named athlete.
           </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="tint" id="card">
-  <div class="wrap v-sec">
-    <div class="v-copy">
-      <div class="v-meta"><span class="v-step">03</span><span class="exploring">Exploring</span></div>
-      <h2>One card for everything else a season costs.</h2>
-      <p class="v-prob">
-        Dues are the part PlayFund handles today. <b>A sports card would cover the
-        rest of the year and earn on it.</b>
-      </p>
-      <ul class="v-points">
-        <li>Gear, travel, gas, hotels, events and next season&rsquo;s registration.</li>
-        <li>Rewards would be funded by partners, not by the club.</li>
-      </ul>
-    </div>
-
-    <div class="v-art">
-      <div class="card">
-        <div class="card-head">
-          <span class="card-title">What the card would cover</span>
-          <span class="exploring">Exploring</span>
-        </div>
-        <div class="card-body">
-          <div class="pfcard">
-            <div class="pfcard-top">
-              <span class="pfcard-mark">PLAY<span>FUND</span></span>
-              <span class="pfcard-chip"></span>
-            </div>
-            <div>
-              <div class="pfcard-num">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
-              <div class="pfcard-foot" style="margin-top:9px">
-                <span>Season rewards card</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="ledger">
-            <div class="ledger-row"><span>Gear and equipment</span></div>
-            <div class="ledger-row"><span>Travel, gas and hotels</span></div>
-            <div class="ledger-row"><span>Tournaments and events</span></div>
-            <div class="ledger-row"><span>Next season&rsquo;s registration</span></div>
-          </div>
-
-          <p class="card-note">
-            An illustration. The card is not available today.</p>
         </div>
       </div>
     </div>

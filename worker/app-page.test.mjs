@@ -90,7 +90,16 @@ test("the app page stops showing a figure it has held for too long", () => {
   // Every reply that can carry a figure is marked as it arrives: a club, a
   // new team, the admin list (when opened and when asked again), and a team
   // opened from the admin list.
-  assert.equal(page.match(/stampPayouts\(await res\.json\(\), Date\.now\(\)\)/g).length, 5);
+  // Each is marked with the time the page asked, taken before the request
+  // goes out, never with the time the reply landed.
+  assert.equal(page.match(/stampPayouts\(await res\.json\(\), askedAt\)/g).length, 5);
+  assert.equal(page.match(/stampPayouts\(await res\.json\(\), Date\.now\(\)\)/g), null);
+  for (const m of page.matchAll(/stampPayouts\(await res\.json\(\), askedAt\)/g)) {
+    const before = page.slice(Math.max(0, m.index - 700), m.index);
+    const asked = before.lastIndexOf("var askedAt = Date.now();");
+    const sent = before.lastIndexOf("await fetch(");
+    assert.ok(asked !== -1 && sent !== -1 && asked < sent, "the time is not taken before the request is sent");
+  }
   // And the page checks again by itself, without waiting to be reloaded.
   assert.match(page, /setInterval\(refreshPayouts, PAYOUT_ASK_EVERY_MS\);/);
   assert.match(page, /addEventListener\('visibilitychange'/);
@@ -150,6 +159,8 @@ function pageWithFakeBrowser({ club = null, token = "token", fetched = () => nul
     async (url) => {
       fake.adminFetches++;
       assert.equal(url, "https://worker.invalid/admin/clubs");
+      // A reply that takes a while: the clock moves on before it lands.
+      fake.clock.now += fake.adminReplyTakesMs || 0;
       const body = fake.adminReply ? fake.adminReply() : null;
       return { ok: body !== null, json: async () => body };
     },
@@ -285,6 +296,68 @@ test("with no figure on screen the page keeps asking, so one appears by itself",
   answer = (now) => ({ payout: sent({ verified: true, club_net_cents: 97070 }, now), teams: [] });
   for (let i = 0; i < 4; i++) { p.clock.now += p.PAYOUT_ASK_EVERY_MS; await p.timers[0].fn(); }
   assert.equal(p.text("overviewPayoutAmt"), "$970.70");
+});
+
+test("a figure's time limit runs from when the page asked, not from when a slow reply landed", async () => {
+  // The page's own fetchClub, lifted out and run with a Worker that takes 20
+  // seconds to answer.
+  const blockStart = page.indexOf("  var PAYOUT_UNAVAILABLE_TEXT = ");
+  const blockEnd = page.indexOf("  function openRoster(){", blockStart);
+  const fetchStart = page.indexOf("  async function fetchClub(code, token) {");
+  const fetchEnd = page.indexOf("  function formatDate(iso) {", fetchStart);
+  assert.ok(fetchStart > 0 && fetchEnd > fetchStart, "fetchClub was not found where expected in public/app/index.html");
+  const clock = { now: NOW };
+  const texts = {};
+  const document = {
+    hidden: false,
+    getElementById: (id) => (texts[id] ||= { textContent: "", offsetParent: {}, classList: { toggle() {}, remove() {} } }),
+    addEventListener() {}
+  };
+  const SLOW = 20 * 1000;
+  const lifted = new Function(
+    "document", "state", "Date", "setInterval", "getClubSessionToken", "console", "fetch", "WORKER_URL",
+    "adminSession", "adminAllClubs", "adminDetailClubId", "clubCache", "formatDate",
+    `${page.slice(blockStart, blockEnd)}\n${page.slice(fetchStart, fetchEnd)}; return { fetchClub, showPayout, refreshPayouts, PAYOUT_UNAVAILABLE_TEXT, PAYOUT_SHOWN_FOR_MS };`
+  )(
+    document, { club: null, team: null }, { now: () => clock.now }, () => {}, async () => "token", { error() {} },
+    async () => {
+      clock.now += SLOW;
+      return { ok: true, json: async () => ({ club: { code: "TESTCLB", payout: { verified: true, club_net_cents: 97070 }, teams: [{ id: "t1", dues_cents: 100000, payout: { verified: true, club_net_cents: 97070 } }] } }) };
+    },
+    "https://worker.invalid", null, [], null, {}, () => ""
+  );
+  const club = await lifted.fetchClub("TESTCLB", "token");
+  assert.equal(clock.now, NOW + SLOW);
+  // Marked with the moment the page asked.
+  assert.equal(club.payout.received_ms, NOW);
+  assert.equal(club.teams[0].payout.received_ms, NOW);
+
+  lifted.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", lifted.PAYOUT_UNAVAILABLE_TEXT);
+  assert.equal(texts.overviewPayoutAmt.textContent, "$970.70");
+  // Sixty seconds after the page asked, which is forty after the reply
+  // landed, the figure is at its limit. A moment later it is down. It does
+  // not get sixty seconds on top of the twenty the reply took.
+  clock.now = NOW + lifted.PAYOUT_SHOWN_FOR_MS;
+  lifted.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", lifted.PAYOUT_UNAVAILABLE_TEXT);
+  assert.equal(texts.overviewPayoutAmt.textContent, "$970.70");
+  clock.now = NOW + lifted.PAYOUT_SHOWN_FOR_MS + 1;
+  lifted.showPayout("overviewPayoutAmt", club.payout, "club_net_cents", lifted.PAYOUT_UNAVAILABLE_TEXT);
+  assert.equal(texts.overviewPayoutAmt.textContent, lifted.PAYOUT_UNAVAILABLE_TEXT);
+  assert.ok(clock.now < NOW + SLOW + lifted.PAYOUT_SHOWN_FOR_MS, "the figure outlived sixty seconds from when the page asked");
+
+  // A reply slower than the limit itself arrives already too old to show.
+  clock.now = NOW;
+  const tooSlow = new Function(
+    "Date", "fetch", "WORKER_URL", "clubCache", "formatDate", "console", "stampPayouts",
+    `${page.slice(fetchStart, fetchEnd)}; return fetchClub;`
+  );
+  const helpers = pageHelpers();
+  const late = await tooSlow(
+    { now: () => clock.now },
+    async () => { clock.now += 90 * 1000; return { ok: true, json: async () => ({ club: { code: "TESTCLB", payout: { verified: true, club_net_cents: 97070 }, teams: [] } }) }; },
+    "https://worker.invalid", {}, () => "", { error() {} }, helpers.stampPayouts
+  )("TESTCLB", "token");
+  assert.equal(helpers.payoutCents(late.payout, "club_net_cents", clock.now), null);
 });
 
 test("a dashboard in a tab nobody is looking at does not ask, and catches up the moment it is looked at", async () => {
@@ -424,6 +497,19 @@ test("an admin screen left open asks again too, and never keeps figures it canno
     assert.equal(p.unavailable(id), true, id);
   }
   assert.equal(clubOnScreen.payout_check.reason, "refund");
+
+  // A slow reply on an admin screen is also dated from when the page asked.
+  const slow = pageWithFakeBrowser({ adminSession: "token-staff", adminClubs: [] });
+  slow.showPayout("adminTotalFronted", figure(100, 110), "club_net_cents", slow.PAYOUT_UNAVAILABLE_SHORT);
+  slow.adminReply = () => ({ clubs: [], totals: { payout: { verified: true, club_net_cents: 200, charge_cents: 220 } } });
+  slow.adminReplyTakesMs = 20 * 1000;
+  slow.clock.now += 45 * 1000;
+  const askedAt = slow.clock.now;
+  await slow.timers[0].fn();
+  assert.equal(slow.adminFetches, 1);
+  assert.equal(slow.text("adminTotalFronted"), "$2.00");
+  assert.equal(slow.payoutSlots.adminTotalFronted.payout.received_ms, askedAt);
+  assert.equal(slow.clock.now, askedAt + 20 * 1000);
 
   // The Worker cannot be reached: nothing old is kept.
   const q = pageWithFakeBrowser({ adminSession: "token-staff", adminClubs: [] });

@@ -2010,6 +2010,13 @@ async function runWeeklyMetrics(env, days) {
 }
 __name(runWeeklyMetrics, "runWeeklyMetrics");
 
+// How long after a payment row is written another delivery of the same
+// payment is taken to be still at work on it. A second delivery that arrives
+// inside this time, while the athlete is not yet marked paid, does not finish
+// the job itself: two deliveries finishing it at once is two receipts. It asks
+// to be sent again, and by then the first has either finished or failed.
+var PAYMENT_DELIVERY_IN_PROGRESS_MS = 60 * 1000;
+
 // Why the database refused to insert a row into `payments`, and so what the
 // webhook should do about it. The table has rules of its own: one row per
 // event id, an athlete that must exist, a known status, an amount. A refusal
@@ -2017,8 +2024,9 @@ __name(runWeeklyMetrics, "runWeeklyMetrics");
 // so asking the processor to send it again only produces three days of
 // failures. Only a failure that could pass next time is worth a retry.
 //
-//   "duplicate"   the row is already there (error 23505). Carry on as for an
-//                 event that has been delivered before.
+//   "duplicate"   the row is already there (error 23505). For a failed
+//                 payment that is the end of it. For a succeeded one, another
+//                 delivery of the same payment is at work: see the webhook.
 //   "no_athlete"  the athlete no longer exists (error 23503). The payment
 //                 cannot be recorded against anyone.
 //   "rejected"    the row breaks another rule of the table (a missing amount,
@@ -3990,12 +3998,13 @@ var index_default = {
         // itself, not by the event: the processor can deliver one event more
         // than once, and can also describe one payment in two separate events
         // with different ids. A payment succeeds once, so one row.
-        const existing = await dbRows(
+        const findRow = () => dbRows(
           env,
-          `/payments?stripe_payment_intent=eq.${encodeURIComponent(pi.id)}&status=eq.succeeded&select=id`
+          `/payments?stripe_payment_intent=eq.${encodeURIComponent(pi.id)}&status=eq.succeeded&select=id,created_at`
         );
+        const existing = await findRow();
         if (!existing.ok) return askForRetry("looking for an existing payment row", existing);
-        let duplicate = existing.rows.length > 0;
+        const duplicate = existing.rows.length > 0;
         // For a payment that cannot be recorded here at all: the money has
         // still moved, so the club's payout check is started from the account
         // the payment went to. It will find a transfer with no payment row
@@ -4033,8 +4042,24 @@ var index_default = {
               await checkClubPaidInto();
               return json({ received: true, recorded: false });
             }
-            // Already there: another delivery of this payment got in first.
-            duplicate = true;
+            // Refused as already there. Another delivery of this payment got
+            // its row in between the look above and this insert, and is at
+            // work right now on the status and the receipt. This delivery
+            // must not do the same work beside it: that is two receipts. It
+            // asks to be sent again. The later delivery finds the row by its
+            // payment id and finishes anything the first did not.
+            //
+            // That is only safe if a later delivery will find the row. Look
+            // once more: if there is still no succeeded row for this payment,
+            // the row in the way is something else (one relabelled by hand,
+            // say), a retry would be refused the same way every time, and
+            // this is a payment that cannot be recorded.
+            const again = await findRow();
+            if (!again.ok) return askForRetry("looking again for the payment row", again);
+            if (again.rows.length) return askForRetry("recording the payment: another delivery of it is being handled", inserted);
+            console.error(`Stripe webhook ${eventId}: payment ${pi.id} could NOT be recorded and will not be retried (a row for this event is already there, and it is not a succeeded payment). ${dbErrorText(inserted)}`);
+            await checkClubPaidInto();
+            return json({ received: true, recorded: false });
           }
         }
         const athleteRes = await dbRows(
@@ -4052,6 +4077,18 @@ var index_default = {
           return json(duplicate ? { received: true, duplicate: true } : { received: true });
         }
         const alreadyFunded = FUNDED_STATUSES.includes(athlete.payment_status);
+        if (duplicate && !alreadyFunded) {
+          // The row is there and the athlete is not marked paid. Either an
+          // earlier delivery failed part-way, and this one should finish the
+          // job, or another delivery is part-way through it at this moment.
+          // A row written in the last minute means the second: leave it to
+          // that delivery, and ask to be sent again. One row, one status,
+          // one receipt.
+          const writtenMs = Date.parse(existing.rows[0].created_at);
+          if (Number.isFinite(writtenMs) && Date.now() - writtenMs < PAYMENT_DELIVERY_IN_PROGRESS_MS) {
+            return askForRetry("finishing the payment: another delivery of it is being handled", null);
+          }
+        }
         // The address the parent actually typed at checkout. Backfill it when
         // the athlete has none -- an athlete added without a parent email is
         // invisible to every email path (receipts, reminders, payment links),

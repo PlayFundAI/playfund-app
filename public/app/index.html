@@ -2928,9 +2928,12 @@ var usStates = ["Virginia"];
     if (!token && clubCache[code]) return clubCache[code];
     try {
       var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : undefined;
+      // A figure's time limit runs from when the page asked, not from when
+      // the answer landed: a slow answer is already that much older.
+      var askedAt = Date.now();
       var res = await fetch(WORKER_URL + '/club/' + code, opts);
       if (!res.ok) return null;
-      var data = stampPayouts(await res.json(), Date.now());
+      var data = stampPayouts(await res.json(), askedAt);
       if (!data.club) return null;
       // Normalize to match the shape the rest of the app expects
       var club = data.club;
@@ -3696,6 +3699,7 @@ var usStates = ["Virginia"];
     errEl.textContent = 'Saving\u2026'; errEl.classList.add('loading-msg');
 
     try {
+      var askedAt = Date.now();
       var res = await fetch(WORKER_URL + '/team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + clubSession.access_token },
@@ -3711,7 +3715,7 @@ var usStates = ["Virginia"];
           dues_due_date: dueDate
         })
       });
-      var data = stampPayouts(await res.json(), Date.now());
+      var data = stampPayouts(await res.json(), askedAt);
       if(!res.ok){ errEl.textContent = data.error || 'Failed to add team.'; errEl.classList.remove('loading-msg'); return; }
 
       var newTeam = Object.assign({}, data.team, {
@@ -4165,7 +4169,10 @@ var usStates = ["Virginia"];
   }
 
   // Marks every payout figure inside something the Worker has just sent with
-  // the time it arrived. Called on each reply that can carry one.
+  // the time the page asked for it. Called on each reply that can carry one.
+  // The time is taken before the request goes out, so a figure's limit runs
+  // from when the page asked: a reply that took twenty seconds to arrive has
+  // forty left, not sixty.
   function stampPayouts(node, nowMs){
     if(!node || typeof node !== 'object') return node;
     if(Array.isArray(node)){
@@ -4238,9 +4245,10 @@ var usStates = ["Virginia"];
   // figures into the clubs already on screen and into every admin slot. The
   // screen itself is left where it is.
   async function refreshAdminPayouts(){
+    var askedAt = Date.now();
     var res = await fetch(WORKER_URL + '/admin/clubs', { headers: { 'Authorization': 'Bearer ' + adminSession } });
     if(!res.ok) return;
-    var data = stampPayouts(await res.json(), Date.now());
+    var data = stampPayouts(await res.json(), askedAt);
     var clubs = {}, teams = {};
     (data.clubs || []).forEach(function(club){
       clubs[club.id] = club;
@@ -5957,10 +5965,11 @@ var usStates = ["Virginia"];
     document.getElementById('adminClubList').innerHTML = '';
 
     try {
+      var askedAt = Date.now();
       var res = await fetch(WORKER_URL + '/admin/clubs', {
         headers: { 'Authorization': 'Bearer ' + adminSession }
       });
-      var data = stampPayouts(await res.json(), Date.now());
+      var data = stampPayouts(await res.json(), askedAt);
       if(!res.ok){
         document.getElementById('adminClubList').innerHTML =
           '<p style="color:var(--unpaid); font-size:14px; text-align:center; padding:32px 0;">' + (data.error || 'Failed to load clubs.') + '</p>';
@@ -6341,8 +6350,9 @@ var usStates = ["Virginia"];
     showScreen('admin-team-roster');
 
     try {
+      var askedAt = Date.now();
       var res = await fetch(WORKER_URL + '/club/' + club.code, { headers: { 'Authorization': 'Bearer ' + adminSession } });
-      var data = stampPayouts(await res.json(), Date.now());
+      var data = stampPayouts(await res.json(), askedAt);
       var liveTeam = (data.club.teams || []).find(function(t){ return t.id === team.id; });
       if(!liveTeam){ document.getElementById('adminRosterList').innerHTML = '<p>Team not found.</p>'; return; }
 

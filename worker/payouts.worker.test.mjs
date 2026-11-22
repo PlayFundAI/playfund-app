@@ -963,16 +963,104 @@ test("a new payment recorded while a check is running: no figure until a check h
   assertTies((await clubView(club)).payout, club.stripe_account_id);
 });
 
-test("two deliveries of one payment at the same moment: one row, one receipt, and no retry loop", async (t) => {
-  begin(t);
+// A payment started through the Worker's own checkout, taken by the stand-in
+// processor, and not yet reported to the Worker.
+async function unreportedPayment(club, athlete) {
+  await call(worker, "POST", `/athlete/${athlete.id}/checkout`, { body: { payment_type: "full" } });
+  const pay = world.processor.createPayment(world.processor.openSession);
+  world.processor.openSession = null;
+  return { pay, event: world.processor.intentObject(pay) };
+}
+const receipts = () => world.mail.filter((m) => /^Receipt:/.test(m.subject));
+
+test("two deliveries of one payment at the same moment: one row, the athlete paid, exactly one receipt", async (t) => {
+  for (const secondEventId of ["evt_first", "evt_another_event_for_it"]) {
+    const { wait } = begin(t);
+    const club = world.addClub();
+    const [athlete] = club.teams[0].athletes;
+    const { event } = await unreportedPayment(club, athlete);
+    // The write of the athlete's status takes a moment, as it does for real,
+    // so the two deliveries are genuinely at work at the same time.
+    const real = world.fetch;
+    world.fetch = async (input, init = {}) => {
+      const url = String(typeof input === "string" ? input : input.url);
+      if ((init.method || "GET") === "PATCH" && url.includes("/rest/v1/athletes?")) await new Promise((resolve) => setTimeout(resolve, 30));
+      return real(input, init);
+    };
+    const answers = await Promise.all([
+      sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: "evt_first" }),
+      sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: secondEventId })
+    ]);
+    const where = `second delivery as ${secondEventId}`;
+    // One of them did the work. The other was refused its row by the table,
+    // did nothing more, and asked to be sent again.
+    assert.deepEqual(answers.map((r) => r.status).sort(), [200, 500], where);
+    assert.equal(world.db.payments.length, 1, where);
+    assert.equal(world.db.athletes[0].payment_status, "paid_full", where);
+    assert.equal(receipts().length, 1, where);
+
+    // The one that was sent away comes back, and finds everything done.
+    world.fetch = real;
+    wait(5 * MINUTE);
+    const later = await sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: secondEventId });
+    assert.equal(later.status, 200, where);
+    assert.deepEqual(await later.json(), { received: true, duplicate: true }, where);
+    assert.equal(world.db.payments.length, 1, where);
+    assert.equal(receipts().length, 1, where);
+    assertTies((await clubView(club)).payout, club.stripe_account_id);
+    t.mock.timers.reset();
+  }
+});
+
+test("a second delivery that arrives while the first is still saving the status does not finish the job beside it", async (t) => {
+  const { wait } = begin(t);
   const club = world.addClub();
   const [athlete] = club.teams[0].athletes;
-  const pay = await payFor(worker, world, athlete, "full");
+  const { event } = await unreportedPayment(club, athlete);
+  // The first delivery has written the payment row and is about to save the
+  // athlete's status. At that point a second delivery arrives and is handled
+  // from start to finish. It finds the row, and the athlete not yet paid.
+  const real = world.fetch;
+  let second = null;
+  world.fetch = async (input, init = {}) => {
+    const url = String(typeof input === "string" ? input : input.url);
+    if (!second && (init.method || "GET") === "PATCH" && url.includes("/rest/v1/athletes?") && String(init.body).includes("payment_status")) {
+      second = "arriving";
+      second = await sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: "evt_second" });
+      // The second delivery left the status and the receipt alone.
+      assert.equal(world.db.athletes[0].payment_status, "unpaid");
+      assert.equal(receipts().length, 0);
+    }
+    return real(input, init);
+  };
+  const first = await sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: "evt_first" });
+  world.fetch = real;
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 500);
   assert.equal(world.db.payments.length, 1);
-  // A second delivery looks for an existing row a moment too early and finds
-  // none, as it would if both arrived together. Once as a second event for
-  // the same payment, once as the very same event again.
-  for (const eventId of ["evt_the_other_delivery", paymentRow(pay).stripe_event_id]) {
+  assert.equal(world.db.athletes[0].payment_status, "paid_full");
+  assert.equal(receipts().length, 1);
+
+  wait(5 * MINUTE);
+  const later = await sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: "evt_second" });
+  assert.equal(later.status, 200);
+  assert.equal(receipts().length, 1);
+  assertTies((await clubView(club)).payout, club.stripe_account_id);
+});
+
+test("a delivery whose payment row is refused as already there asks to be sent again and does nothing else", async (t) => {
+  const { wait } = begin(t);
+  const club = world.addClub();
+  const [athlete] = club.teams[0].athletes;
+  const { event } = await unreportedPayment(club, athlete);
+  // The first delivery has written the row, and nothing after it yet.
+  world.db.payments.push({
+    id: "payments_first", created_at: new Date().toISOString(), currency: "usd", athlete_id: athlete.id,
+    stripe_payment_intent: event.id, stripe_event_id: "evt_first", amount_cents: event.amount_received, status: "succeeded", payment_method: "card"
+  });
+  // The second delivery looked for the row a moment before it was written,
+  // so it found none, and its own insert is then refused by the table.
+  for (const eventId of ["evt_first", "evt_another_event_for_it"]) {
     let lied = false;
     world.faults.db = ({ method, table, url }) => {
       if (!lied && method === "GET" && table === "payments" && url.search.includes("stripe_payment_intent=eq.")) {
@@ -981,18 +1069,40 @@ test("two deliveries of one payment at the same moment: one row, one receipt, an
       }
       return null;
     };
-    const second = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay), { eventId });
+    world.requests.length = 0;
+    const res = await sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId });
     world.faults.db = null;
-    // The table's own rules refuse the second row. That is "already
-    // recorded", not a failure: a 500 here would be sent again for three
-    // days and refused every time.
-    assert.equal(second.status, 200, eventId);
-    assert.deepEqual(await second.json(), { received: true, duplicate: true }, eventId);
+    assert.equal(res.status, 500, eventId);
+    // It stopped there: no status, no receipt, no processor call, no check.
     assert.equal(world.db.payments.length, 1, eventId);
-    assert.equal(world.mail.filter((m) => /^Receipt:/.test(m.subject)).length, 1, eventId);
+    assert.equal(world.db.athletes[0].payment_status, "unpaid", eventId);
+    assert.equal(receipts().length, 0, eventId);
+    assert.equal(world.requests.some((r) => r.includes("api.stripe.com") || r.includes("api.resend.com") || r.includes("/rest/v1/athletes")), false, eventId);
   }
+  // Sent again later, it finds the row by its payment id and finishes the
+  // job the first delivery never did: one status, one receipt.
+  wait(5 * MINUTE);
+  const later = await sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: "evt_another_event_for_it" });
+  assert.equal(later.status, 200);
+  assert.equal(world.db.payments.length, 1);
   assert.equal(world.db.athletes[0].payment_status, "paid_full");
-  assertTies((await clubView(club)).payout, club.stripe_account_id);
+  assert.equal(receipts().length, 1);
+});
+
+test("a refused duplicate with no succeeded row behind it is not sent back for ever", async (t) => {
+  const { club, first } = await paidClub(t);
+  // The payment's row has been relabelled by hand. A delivery of its event
+  // now finds no succeeded row, tries to insert one, and is refused because
+  // the event id is taken. No retry could ever change that.
+  paymentRow(first).status = "refunded";
+  const eventId = world.db.payments.find((r) => r.stripe_payment_intent === first.intentId).stripe_event_id;
+  const res = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(first), { eventId });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { received: true, recorded: false });
+  assert.equal(world.db.payments.filter((r) => r.stripe_payment_intent === first.intentId).length, 1);
+  assert.equal(receipts().length, 2, "no new receipt");
+  // The processor still shows the money, the app no longer counts the row: no figure.
+  await assertHiddenEverywhere(club);
 });
 
 test("an athlete changes team: no figure until the split between teams has been checked again", async (t) => {
@@ -1080,7 +1190,7 @@ test("the payment insert fails: the processor is asked to send it again, and the
 });
 
 test("the status update fails: the payment is kept, and the retry finishes the job with one receipt", async (t) => {
-  begin(t);
+  const { wait } = begin(t);
   const club = world.addClub();
   const [athlete] = club.teams[0].athletes;
   await call(worker, "POST", `/athlete/${athlete.id}/checkout`, { body: { payment_type: "full" } });
@@ -1097,11 +1207,20 @@ test("the status update fails: the payment is kept, and the retry finishes the j
   await assertHiddenEverywhere(club);
 
   world.faults.db = null;
+  // Sent again straight away, the Worker cannot yet tell a delivery that
+  // failed from one that is still at work, so it does not finish the job.
+  const tooSoon = await sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: "evt_same" });
+  assert.equal(tooSoon.status, 500);
+  assert.equal(world.db.athletes[0].payment_status, "unpaid");
+  assert.equal(world.mail.filter((m) => /^Receipt:/.test(m.subject)).length, 0);
+  // Sent again later, as the processor does, it finishes what was left.
+  wait(2 * MINUTE);
   const retried = await sendWebhook(worker, world, "payment_intent.succeeded", event, { eventId: "evt_same" });
   assert.equal(retried.status, 200);
   assert.equal(world.db.payments.length, 1);
   assert.equal(world.db.athletes[0].payment_status, "paid_full");
   assert.equal(world.mail.filter((m) => /^Receipt:/.test(m.subject)).length, 1);
+  await timer();
   assertTies((await clubView(club)).payout, club.stripe_account_id);
 });
 

@@ -1,5 +1,6 @@
 // Checks that the Worker actually uses worker/fees.mjs where money is divided:
-// the checkout it creates, and the payout figure it reports to a club.
+// the checkout it creates. What a club is then shown as received is a
+// different matter, read back from the processor: see payouts.worker.test.mjs.
 //
 // Nothing here touches a real service. Every outgoing request the Worker makes
 // is answered by the stand-in below, which is installed for the whole file and
@@ -9,8 +10,12 @@
 //   node --test            from the repo root, runs every *.test.mjs
 //
 // Needs Node 22.12 or newer, which can load index.js as a module directly.
+//
+// To run the same tests against a bundled build of the Worker, set
+// WORKER_UNDER_TEST to the bundled file's path.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { pathToFileURL } from "node:url";
 
 const ENV = {
   SUPABASE_URL: "https://database.invalid",
@@ -36,7 +41,9 @@ globalThis.fetch = async (input, init = {}) => {
   throw new Error(`The Worker tried to reach ${url}, which this test does not expect`);
 };
 
-const { default: worker } = await import("./index.js");
+const { default: worker } = await import(
+  process.env.WORKER_UNDER_TEST ? pathToFileURL(process.env.WORKER_UNDER_TEST).href : "./index.js"
+);
 
 // One family starting checkout for one athlete. Returns the Worker's reply and
 // every checkout the Worker asked the processor to create.
@@ -153,63 +160,4 @@ test("a rate that cannot be charged stops installments before the processor is c
   assert.equal(status, 500);
   assert.equal(created.length, 0);
   assert.match(body.error, /Nothing has been charged/);
-});
-
-test("club dashboard: the payout figure follows how each family paid", async () => {
-  routes = [
-    [`${DB}/clubs?`, () => ({ data: [{ id: "club_1", name: "Test Club", code: "TESTCLB", fee_bps: 800, fee_agreed_at: "2026-11-01T00:00:00Z" }] })],
-    [`${DB}/teams?`, () => ({ data: [{ id: "team_1", name: "12U", dues_cents: 100000 }] })],
-    [`${ENV.SUPABASE_URL}/auth/v1/user`, () => ({ data: { id: "user_1" } })],
-    [`${DB}/user_profiles?`, () => ({ data: [{ role: "club_admin", club_id: "club_1", team_id: null }] })],
-    [`${DB}/athletes?`, () => ({ data: [
-      { id: "ath_1", name: "Paid In Full", team_id: "team_1", payment_status: "paid_full" },
-      { id: "ath_2", name: "On Installments", team_id: "team_1", payment_status: "bnpl_active" },
-      { id: "ath_3", name: "Installments Done", team_id: "team_1", payment_status: "bnpl_complete" },
-      { id: "ath_4", name: "Not Paid", team_id: "team_1", payment_status: "unpaid" }
-    ] })],
-    [`${DB}/payments?`, () => ({ data: [] })]
-  ];
-  const res = await worker.fetch(
-    new Request("https://worker.invalid/club/TESTCLB", { headers: { Authorization: "Bearer placeholder-token" } }),
-    ENV
-  );
-  assert.equal(res.status, 200);
-  const { stats } = await res.json();
-  assert.equal(stats.funded_athletes, 3);
-  // $970.70 for the family that paid in full, $920.00 for each family on installments.
-  assert.equal(stats.fronted_cents, 97070 + 92000 + 92000);
-});
-
-test("admin view: each club's payout figure follows how each family paid, at that club's rate", async () => {
-  routes = [
-    [`${ENV.SUPABASE_URL}/auth/v1/user`, () => ({ data: { id: "user_1" } })],
-    [`${DB}/user_profiles?`, () => ({ data: [{ role: "playfund_admin" }] })],
-    [`${DB}/clubs?`, () => ({ data: [
-      { id: "club_1", name: "Standard Rate Club", code: "CLUBONE", fee_bps: 800, fee_agreed_at: "2026-11-01T00:00:00Z", stripe_account_id: "acct_placeholder" },
-      { id: "club_2", name: "Other Rate Club", code: "CLUBTWO", fee_bps: 650, fee_agreed_at: "2026-11-01T00:00:00Z", stripe_account_id: "acct_placeholder" }
-    ] })],
-    [`${DB}/teams?`, () => ({ data: [
-      { id: "team_1", club_id: "club_1", name: "12U", dues_cents: 100000 },
-      { id: "team_2", club_id: "club_2", name: "14U", dues_cents: 100000 }
-    ] })],
-    [`${DB}/athletes?`, () => ({ data: [
-      { id: "ath_1", team_id: "team_1", payment_status: "paid_full" },
-      { id: "ath_2", team_id: "team_1", payment_status: "bnpl_active" },
-      { id: "ath_3", team_id: "team_1", payment_status: "unpaid" },
-      { id: "ath_4", team_id: "team_2", payment_status: "paid_full" },
-      { id: "ath_5", team_id: "team_2", payment_status: "bnpl_complete" }
-    ] })],
-    [`${DB}/payments?`, () => ({ data: [] })]
-  ];
-  const res = await worker.fetch(
-    new Request("https://worker.invalid/admin/clubs", { headers: { Authorization: "Bearer placeholder-token" } }),
-    ENV
-  );
-  assert.equal(res.status, 200);
-  const { clubs, totals } = await res.json();
-  const byCode = Object.fromEntries(clubs.map((c) => [c.code, c]));
-  // Pay in full is $970.70 at both clubs. Installments follow each club's own rate.
-  assert.equal(byCode.CLUBONE.fronted_cents, 97070 + 92000);
-  assert.equal(byCode.CLUBTWO.fronted_cents, 97070 + 93500);
-  assert.equal(totals.fronted_cents, 97070 + 92000 + 97070 + 93500);
 });

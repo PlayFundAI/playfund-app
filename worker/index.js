@@ -6,9 +6,26 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 import {
   applicationFeeCents,
   clubFeeBps,
-  payoutFloor,
-  payoutForStatusCents
+  payoutFloor
 } from "./fees.mjs";
+// Whether a payout figure may be shown at all, and the check behind it. See
+// payouts.mjs, payouts.test.mjs and payouts.worker.test.mjs.
+import {
+  ADVERSE_EVENT_HOLD_MS,
+  FUNDED_STATUSES,
+  GLOBAL_REASONS,
+  PAYMENT_SELECT,
+  QUIET_REASONS,
+  REASONS,
+  idOf,
+  payoutFingerprint,
+  payoutForAll,
+  payoutForClub,
+  payoutForTeam,
+  readProcessorPayment,
+  tieOut,
+  verifiedPayout
+} from "./payouts.mjs";
 
 // index.js
 // Stripe Payment Method Configuration scoped to "pay in full": card + bank
@@ -61,6 +78,103 @@ async function supabase(env, method, path, body) {
   }
 }
 __name(supabase, "supabase");
+// A read whose result is only used if it worked: `ok` is true only for a 2xx
+// answer that is a list of rows. A network error or timeout comes back as
+// ok: false instead of throwing. The payout code uses this everywhere, so that
+// a failed read can only ever lead to "no figure".
+async function dbRows(env, path) {
+  try {
+    const res = await supabase(env, "GET", path);
+    if (!res.ok || !Array.isArray(res.data)) return { ok: false, status: res.status, error: res.data };
+    return { ok: true, status: res.status, rows: res.data };
+  } catch (e) {
+    return { ok: false, status: 0, error: String(e) };
+  }
+}
+__name(dbRows, "dbRows");
+// Every row a query matches, proven complete, or a plain "could not".
+//
+// The database API stops at a row limit without saying so, and refuses a URL
+// that is too long. A list that was quietly cut short looks exactly like a
+// complete one, and for the payout check a short list is dangerous: payments
+// that are really there would look missing. So this never trusts a list on
+// its own. It asks the API to count the matching rows (Prefer: count=exact,
+// answered in the Content-Range header as "0-24/3573458"), reads a page at a
+// time from the last row it has, and returns ok only when the rows in hand
+// add up to that count. No count in the reply, a page that comes back empty
+// early, a row seen twice, or too many pages: all of those are ok: false.
+//
+// `path` must not carry its own order, limit or offset, and its select must
+// include the `orderBy` column, which has to be unique (the primary key).
+var DB_READ_PAGE = 1000;
+var DB_READ_MAX_PAGES = 5;
+// Ids sent in one "in.(...)" list. 100 ids keeps the URL to about 4,000
+// characters, well inside what the API accepts.
+var DB_ID_BATCH = 100;
+async function dbReadAll(env, path, opts = {}) {
+  const orderBy = opts.orderBy || "id";
+  const maxPages = opts.maxPages || DB_READ_MAX_PAGES;
+  const rows = [];
+  const seen = new Set();
+  let after = null;
+  for (let page = 0; page < maxPages; page++) {
+    if (opts.budget) opts.budget.used++;
+    const url = `${env.SUPABASE_URL}/rest/v1${path}${path.includes("?") ? "&" : "?"}order=${orderBy}.asc&limit=${DB_READ_PAGE}` +
+      (after === null ? "" : `&${orderBy}=gt.${encodeURIComponent(after)}`);
+    let res;
+    let body;
+    try {
+      res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "apikey": env.SUPABASE_SERVICE_KEY,
+          "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+          "Prefer": "count=exact"
+        }
+      });
+      const text = await res.text();
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text.slice(0, 200);
+      }
+    } catch (e) {
+      return { ok: false, status: 0, error: String(e) };
+    }
+    if (!res.ok || !Array.isArray(body)) return { ok: false, status: res.status, error: body };
+    // How many rows match from this page onwards, by the API's own count.
+    const range = res.headers.get("Content-Range") || "";
+    const counted = /\/\d+$/.test(range) ? Number(range.slice(range.lastIndexOf("/") + 1)) : NaN;
+    if (!Number.isSafeInteger(counted)) {
+      return { ok: false, status: res.status, error: `the reply carried no row count (Content-Range "${range}"), so it cannot be shown to be complete` };
+    }
+    for (const row of body) {
+      const key = row == null ? void 0 : row[orderBy];
+      if (key == null || seen.has(String(key))) {
+        return { ok: false, status: res.status, error: "the rows could not be read in order" };
+      }
+      seen.add(String(key));
+      rows.push(row);
+      after = String(key);
+    }
+    if (body.length === counted) return { ok: true, status: res.status, rows };
+    if (body.length > counted || body.length === 0) {
+      return { ok: false, status: res.status, error: `the reply had ${body.length} rows where ${counted} were counted` };
+    }
+  }
+  return { ok: false, status: 0, error: `more rows than ${maxPages} pages hold` };
+}
+__name(dbReadAll, "dbReadAll");
+// A write whose result is always looked at.
+async function dbWrite(env, method, path, body) {
+  try {
+    const res = await supabase(env, method, path, body);
+    return res.ok ? { ok: true, status: res.status, data: res.data } : { ok: false, status: res.status, error: res.data };
+  } catch (e) {
+    return { ok: false, status: 0, error: String(e) };
+  }
+}
+__name(dbWrite, "dbWrite");
 function randomClubCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -105,6 +219,38 @@ async function stripe(env, method, path, params) {
   return { ok: res.ok, status: res.status, data };
 }
 __name(stripe, "stripe");
+// A read from the processor for the payout check. Unlike stripe() above it
+// gives up after a few seconds and never throws, because the only safe thing
+// to do with a slow or failed answer here is to show no figure.
+var PROCESSOR_TIMEOUT_MS = 8000;
+// AbortSignal.timeout where the runtime has it, and the long-standing
+// AbortController otherwise, so that a runtime without the newer helper does
+// not turn every processor read into a failure.
+function timeoutSignal(ms) {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") return AbortSignal.timeout(ms);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+__name(timeoutSignal, "timeoutSignal");
+async function processorGet(env, path) {
+  try {
+    const res = await fetch(`https://api.stripe.com/v1${path}`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}` },
+      signal: timeoutSignal(PROCESSOR_TIMEOUT_MS)
+    });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+    }
+    return { ok: res.ok && data !== null && typeof data === "object", status: res.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: null, error: String(e) };
+  }
+}
+__name(processorGet, "processorGet");
 async function stripeV2(env, method, path, body) {
   const res = await fetch(`https://api.stripe.com/v2${path}`, {
     method,
@@ -770,6 +916,668 @@ async function alertIfClubAwaitingFee(env, club) {
 }
 __name(alertIfClubAwaitingFee, "alertIfClubAwaitingFee");
 
+// ---------------------------------------------------------------------------
+// Payout checks.
+//
+// A club is shown a figure for the money it has received only when that figure
+// has been matched against the payment processor's own records. The rule and
+// the comparison are in payouts.mjs. What follows is the reading and writing
+// around them: recording what the processor says about a payment when it
+// succeeds, running the comparison for a club, saving the result, and telling
+// staff when it fails.
+//
+// The check runs after every recorded payment for that club, on a timer, and
+// when a PlayFund admin asks for it. Its result is saved in payout_checks, so
+// that loading a dashboard never has to call the processor.
+// ---------------------------------------------------------------------------
+
+// Must match an entry in worker/wrangler.toml, the same way the weekly digest
+// has to. payouts.worker.test.mjs fails if the two differ.
+var PAYOUT_CHECK_CRON = "*/10 * * * *";
+// One timed run checks the clubs whose last check is oldest, this many at
+// most. Together with the schedule above this has to get round every club
+// with a processor account well inside PAYOUT_CHECK_MAX_AGE_MS (payouts.mjs),
+// or figures would come and go.
+var PAYOUT_CHECK_CLUBS_PER_RUN = 12;
+// The processor returns at most 100 transfers a page. A club with more
+// payments than this many pages is not shown a figure.
+var PAYOUT_CHECK_MAX_PAGES = 3;
+// Outgoing requests one run may make. The Worker's plan allows about 50 per
+// invocation, so a run stops starting new clubs before it gets there.
+var PAYOUT_CHECK_REQUEST_BUDGET = 44;
+// What one club can cost at worst: three pages, a save and its retry, an alert.
+var PAYOUT_CHECK_RESERVE = 9;
+
+function escapeHtml(text) {
+  return String(text == null ? "" : text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+__name(escapeHtml, "escapeHtml");
+
+function dbErrorText(res) {
+  return `http ${res.status} ${JSON.stringify(res.error == null ? "" : res.error).slice(0, 200)}`;
+}
+__name(dbErrorText, "dbErrorText");
+
+// The succeeded payment rows for a set of athletes, with the processor record
+// columns. Always its own query: on a database that does not have those
+// columns yet, this fails and nothing else does.
+//
+// The athlete ids go in batches, so the URL never grows with the size of the
+// club, and every batch is read to a proven end (dbReadAll). With a budget,
+// it refuses up front if the batches would not fit in the requests left.
+async function readPaymentRecords(env, athleteIds, budget) {
+  const rows = [];
+  const batches = Math.ceil(athleteIds.length / DB_ID_BATCH);
+  if (budget && budget.used + batches + PAYOUT_CHECK_RESERVE > budget.max) {
+    return { ok: false, reason: "too_many_payments", detail: `${athleteIds.length} athletes need ${batches} reads, more than one check has left` };
+  }
+  for (let i = 0; i < athleteIds.length; i += DB_ID_BATCH) {
+    const ids = athleteIds.slice(i, i + DB_ID_BATCH);
+    const res = await dbReadAll(env, `/payments?athlete_id=in.(${ids.join(",")})&status=eq.succeeded&select=${PAYMENT_SELECT}`, { budget });
+    if (!res.ok) return paymentReadFailure(res);
+    rows.push(...res.rows);
+  }
+  return { ok: true, rows };
+}
+__name(readPaymentRecords, "readPaymentRecords");
+
+function paymentReadFailure(res) {
+  const missing = /does not exist|schema cache|42703|PGRST20[45]/.test(JSON.stringify(res.error == null ? "" : res.error));
+  return {
+    ok: false,
+    reason: missing ? "store_unavailable" : "db_unreadable",
+    detail: `payment records: ${dbErrorText(res)}`
+  };
+}
+__name(paymentReadFailure, "paymentReadFailure");
+
+// Save one club's result in payout_checks through save_payout_check (see the
+// migration). Every column is sent every time, so a failed check also wipes
+// the totals of the one before it.
+//
+// The database refuses to replace a newer result with an older one, in one
+// statement. That matters when a refund is reported while a check is already
+// running: the check read the processor before the refund, and must not put
+// the old figure back when it finishes. `force` is for the refund report
+// itself, which replaces whatever is there.
+//
+// Returns { ok: true, applied } where applied is false if a newer result was
+// already saved and this one was dropped, or { ok: false } if nothing is known
+// to have been saved.
+async function savePayoutCheck(env, row, force = false) {
+  try {
+    const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/save_payout_check`, {
+      method: "POST",
+      headers: {
+        "apikey": env.SUPABASE_SERVICE_KEY,
+        "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ p: row, p_force: force })
+    });
+    const text = await res.text();
+    if (!res.ok) return { ok: false, status: res.status, error: text.slice(0, 200) };
+    let applied = null;
+    try {
+      applied = JSON.parse(text);
+    } catch {
+    }
+    // The database API returns a single value as the body itself. Accept the
+    // one-row list form as well, as runWeeklyMetrics does.
+    if (Array.isArray(applied) && applied.length === 1) applied = applied[0];
+    if (applied && typeof applied === "object") applied = applied.save_payout_check;
+    if (applied !== true && applied !== false) {
+      return { ok: false, status: res.status, error: `unexpected reply: ${text.slice(0, 100)}` };
+    }
+    return { ok: true, status: res.status, applied };
+  } catch (e) {
+    return { ok: false, status: 0, error: String(e) };
+  }
+}
+__name(savePayoutCheck, "savePayoutCheck");
+
+// Written when a payment succeeds: what the processor's own objects say was
+// charged, taken as a fee and left with the club. Nothing here is worked out
+// from a rate. Returns true if the record was written.
+//
+// Never throws and never undoes anything. The payment row and the athlete's
+// status are already saved by the time this runs. If this fails for any
+// reason, including the columns not existing yet, the payment stays recorded
+// exactly as it always was and the club is simply shown no figure until a
+// check fills the record in.
+async function recordProcessorPayment(env, eventId, pi, club) {
+  try {
+    if (!club || !club.stripe_account_id || !pi || typeof pi.id !== "string") return false;
+    const res = await processorGet(
+      env,
+      `/payment_intents/${encodeURIComponent(pi.id)}?expand%5B%5D=latest_charge.transfer&expand%5B%5D=latest_charge.application_fee`
+    );
+    const charge = res.ok ? res.data.latest_charge : null;
+    if (!charge || typeof charge !== "object") {
+      console.error(`Payout record not written for ${pi.id}: could not read the charge (http ${res.status}). A later check will fill it in.`);
+      return false;
+    }
+    const read = readProcessorPayment({ charge, transfer: charge.transfer, fee: charge.application_fee }, club.stripe_account_id);
+    if (!read.ok || read.payment_intent !== pi.id || read.record.charge_cents !== pi.amount_received) {
+      console.error(`Payout record not written for ${pi.id}: ${read.ok ? "the charge does not match the event" : `${read.reason} ${read.detail}`}`);
+      return false;
+    }
+    const { stripe_payment_intent, ...fields } = read.record;
+    const written = await dbWrite(env, "PATCH", `/payments?stripe_event_id=eq.${encodeURIComponent(eventId)}`, {
+      ...fields,
+      processor_recorded_at: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    if (!written.ok) {
+      console.error(`Payout record not written for ${pi.id}: ${dbErrorText(written)}. The payment itself is recorded. If the columns are missing, apply migrations/2026-11-21-payout-tie-out.sql.`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("recordProcessorPayment failed:", e);
+    return false;
+  }
+}
+__name(recordProcessorPayment, "recordProcessorPayment");
+
+// Every transfer the processor lists for one club's account, each with the
+// charge it came from and that charge's application fee. Reads to the end of
+// the list or reports failure: a partial list is never returned.
+async function listProcessorTransfers(env, accountId, budget) {
+  const transfers = [];
+  let startingAfter = null;
+  for (let page = 0; page < PAYOUT_CHECK_MAX_PAGES; page++) {
+    const qs = new URLSearchParams({ destination: accountId, limit: "100" });
+    qs.append("expand[]", "data.source_transaction.application_fee");
+    if (startingAfter) qs.set("starting_after", startingAfter);
+    budget.used++;
+    const res = await processorGet(env, `/transfers?${qs}`);
+    const body = res.data;
+    if (!res.ok || body.object !== "list" || !Array.isArray(body.data) || typeof body.has_more !== "boolean") {
+      const message = body && body.error && body.error.message ? ` ${body.error.message}` : "";
+      // No answer, a server error or "slow down" is the processor being out of
+      // reach, which is the same for every club. Anything else is about this
+      // club's account.
+      const down = res.status === 0 || res.status === 429 || res.status >= 500;
+      return {
+        ok: false,
+        reason: down ? "processor_down" : "processor_unreadable",
+        detail: `listing transfers: http ${res.status}${res.error ? ` ${res.error}` : ""}${message}`.slice(0, 300)
+      };
+    }
+    transfers.push(...body.data);
+    if (!body.has_more) return { ok: true, transfers };
+    const last = body.data[body.data.length - 1];
+    if (!last || typeof last.id !== "string") {
+      return { ok: false, reason: "processor_unreadable", detail: "listing transfers: a page with more to come was empty" };
+    }
+    startingAfter = last.id;
+  }
+  return { ok: false, reason: "too_many_payments", detail: `more than ${PAYOUT_CHECK_MAX_PAGES * 100} transfers` };
+}
+__name(listProcessorTransfers, "listProcessorTransfers");
+
+// Tell PlayFund staff that a club's figure is hidden, once per club and
+// problem. Same pattern as alertIfClubAwaitingFee: a row in the events table
+// records that the mail went, and is looked for before sending.
+//
+// `club` is null for a problem that is not about one club (the database
+// cannot be read, or the migration has not been applied).
+//
+// A payout_check_ok row is written when a club passes again, so that the same
+// problem coming back later is reported again.
+async function alertPayoutCheck(env, club, outcome, budget) {
+  try {
+    const scope = club ? `club_id=eq.${club.id}` : "club_id=is.null";
+    if (budget) budget.used++;
+    const last = await dbRows(
+      env,
+      `/events?event_name=in.(payout_check_alert,payout_check_ok)&${scope}&select=event_name,properties&order=created_at.desc&limit=1`
+    );
+    if (!last.ok) {
+      // Not knowing whether the mail already went, do not send it on every run.
+      console.error(`Payout check alert not sent (could not read events): ${outcome.reason} ${club ? club.code : "all clubs"}`);
+      return;
+    }
+    const previous = last.rows[0];
+    if (previous && previous.event_name === "payout_check_alert" && previous.properties && previous.properties.reason === outcome.reason) return;
+    const RESEND_API_KEY = env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) return;
+    const what = REASONS[outcome.reason] || "The check did not pass.";
+    // A problem that is not about one club gets one email, worded for all.
+    const forAll = {
+      store_unavailable: ["payout checks cannot be saved", "No club is being shown a payout figure, because the results of payout checks cannot be saved or read.", "The usual cause is that migrations/2026-11-21-payout-tie-out.sql has not been applied to the database."],
+      db_unreadable: ["PlayFund's records cannot be read", "Clubs are being shown no payout figure, because PlayFund's own payment records could not be read for the check.", "Figures come back by themselves once a check can read the database again."],
+      processor_down: ["the payment processor cannot be reached", "Each club is shown no payout figure from the moment its check fails, because Stripe could not be reached to confirm it.", "Figures come back by themselves once a check can reach Stripe again."]
+    }[outcome.reason] || ["payout checks cannot run", "Clubs are being shown no payout figure, because payout checks cannot run.", "Figures come back by themselves once a check passes."];
+    const subject = club
+      ? `ACTION NEEDED: payout figure hidden for ${club.name}`
+      : `ACTION NEEDED: payout figures hidden, ${forAll[0]}`;
+    const who = club
+      ? `<strong>${escapeHtml(club.name)}</strong> (club code ${escapeHtml(club.code || "unknown")}) is being shown no payout figure, because the last check of its payments against Stripe did not pass.`
+      : escapeHtml(forAll[1]);
+    const next = club
+      ? `To see the latest result or run the check again: PlayFund Admin, then ${escapeHtml(club.name)}, then "Payout check".`
+      : escapeHtml(forAll[2]);
+    if (budget) budget.used += 2;
+    const sent = await resendSend(env, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "PlayFund Alerts <admin@playfundai.com>",
+        to: ["admin@playfundai.com"],
+        subject,
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
+  <p style="margin:0 0 16px;font-size:15px;color:#B42318;">${who}</p>
+  <p style="margin:0 0 8px;font-size:14px;color:#374151;"><strong>What the check found:</strong> ${escapeHtml(what)}</p>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;"><strong>Detail:</strong> ${escapeHtml(outcome.detail || "none")}</p>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">In place of the number the club sees a short line of text. Nothing has been sent to the club and this check moves no money. The figure comes back only when a later check passes.</p>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">${next}</p>
+  <p style="margin:0;font-size:12px;color:#9CA3AF;">Sent once for this ${club ? "club and " : ""}problem.</p>
+</div>`
+      })
+    });
+    if (!sent.ok) return;
+    if (budget) budget.used++;
+    const logged = await dbWrite(env, "POST", "/events", {
+      event_name: "payout_check_alert",
+      club_id: club ? club.id : null,
+      properties: { reason: outcome.reason, code: club ? club.code || null : null }
+    });
+    if (!logged.ok) console.error(`Payout check alert sent but not recorded, so it may be sent again: ${dbErrorText(logged)}`);
+  } catch (e) {
+    console.error("alertPayoutCheck failed:", e);
+  }
+}
+__name(alertPayoutCheck, "alertPayoutCheck");
+
+// The comparison for one club, up to but not including saving it. Returns
+// null for a club with no processor account, which has nothing to compare.
+async function computePayoutCheck(env, club, now, budget, known) {
+  const accountId = club.stripe_account_id;
+  if (!accountId) return null;
+  const fail = (reason, detail) => ({ status: "failed", reason, detail });
+  // The caller already knows this club cannot be checked this time.
+  if (known.failure) return fail(known.failure.reason, known.failure.detail);
+
+  let athletes = known.athletes;
+  if (!athletes) {
+    const res = await dbReadAll(env, `/athletes?club_id=eq.${club.id}&select=id,team_id,payment_status`, { budget });
+    if (!res.ok) return fail("db_unreadable", `athletes: ${dbErrorText(res)}`);
+    athletes = res.rows;
+  }
+  let payments = known.payments;
+  if (!payments) {
+    const res = await readPaymentRecords(env, athletes.map((a) => a.id), budget);
+    if (!res.ok) return fail(res.reason, res.detail);
+    payments = res.rows;
+  }
+
+  const listed = await listProcessorTransfers(env, accountId, budget);
+  if (!listed.ok) return fail(listed.reason, listed.detail);
+
+  const result = tieOut({ accountId, athletes, payments, transfers: listed.transfers, now });
+
+  // Fill in payment rows that have no processor record yet. A verified result
+  // does not stand until every one of these has been written.
+  let pending = 0;
+  for (const fill of result.backfill) {
+    if (budget.max - budget.used <= PAYOUT_CHECK_RESERVE) {
+      pending++;
+      continue;
+    }
+    budget.used++;
+    const written = await dbWrite(env, "PATCH", `/payments?id=eq.${encodeURIComponent(fill.id)}`, fill.fields);
+    if (!written.ok) {
+      return fail("store_unavailable", `could not write the processor record for ${fill.stripe_payment_intent}: ${dbErrorText(written)}`);
+    }
+  }
+  if (result.status !== "verified") return result;
+  if (pending) return fail("backfill_pending", `${pending} payment records still to fill in`);
+  return { ...result, fingerprint: await payoutFingerprint(accountId, result.rows, athletes) };
+}
+__name(computePayoutCheck, "computePayoutCheck");
+
+// Check one club against the processor, save the result, and tell staff if it
+// failed. Never throws. Returns { status, reason, detail, checked_at }, where
+// status is "verified", "failed", "skipped" (a club with no processor account)
+// or "superseded" (a newer result was saved while this check was running, so
+// this one was dropped and changed nothing).
+//
+// `known` may carry what the caller has already read: `athletes`, `payments`,
+// and `previous` (the club's current payout_checks row, or null).
+async function runPayoutCheck(env, club, known = {}, budget = { used: 0, max: 24 }) {
+  // The moment the check starts. Everything it learns from the processor is
+  // from this moment or later, and the saved result can only replace one that
+  // is older than this.
+  const now = /* @__PURE__ */ new Date();
+  let previous = known.previous;
+  if (previous === void 0) {
+    budget.used++;
+    const res = await dbRows(env, `/payout_checks?club_id=eq.${club.id}&select=status,reason`);
+    previous = res.ok ? res.rows[0] || null : null;
+  }
+  let result;
+  try {
+    result = await computePayoutCheck(env, club, now, budget, known);
+  } catch (e) {
+    result = { status: "failed", reason: "processor_unreadable", detail: `the check stopped: ${String(e)}`.slice(0, 300) };
+  }
+  if (result === null) return { status: "skipped" };
+
+  const verified = result.status === "verified";
+  const row = {
+    club_id: String(club.id),
+    status: verified ? "verified" : "failed",
+    reason: verified ? null : result.reason,
+    detail: verified ? null : String(result.detail || "").slice(0, 500),
+    checked_at: now.toISOString(),
+    not_before: now.toISOString(),
+    stripe_account_id: club.stripe_account_id,
+    payment_count: verified ? result.summary.payment_count : 0,
+    charge_cents: verified ? result.summary.charge_cents : 0,
+    application_fee_cents: verified ? result.summary.application_fee_cents : 0,
+    club_net_cents: verified ? result.summary.club_net_cents : 0,
+    fingerprint: verified ? result.fingerprint : null
+  };
+  budget.used++;
+  let saved = await savePayoutCheck(env, row);
+  if (!saved.ok) {
+    // Once more. A failed check that is not saved would leave an older
+    // "verified" row standing until it ages out.
+    budget.used++;
+    saved = await savePayoutCheck(env, row);
+  }
+  if (saved.ok && !saved.applied) {
+    // Something newer is already saved: a later check, or a refund, dispute
+    // or reversal reported while this one was running. This result describes
+    // an older moment and is dropped, with no email and no change.
+    console.log(`Payout check for ${club.code} dropped: a newer result was saved while it ran`);
+    return { status: "superseded", reason: null, detail: null, checked_at: row.checked_at };
+  }
+  let outcome = { status: row.status, reason: row.reason, detail: row.detail, checked_at: row.checked_at };
+  if (!saved.ok) {
+    outcome = { status: "failed", reason: "store_unavailable", detail: `could not save the check: ${dbErrorText(saved)}`, checked_at: row.checked_at };
+    console.error(`Payout check for ${club.code} could not be saved: ${dbErrorText(saved)}`);
+  }
+
+  if (outcome.status === "failed") {
+    console.error(`Payout check failed for ${club.code}: ${outcome.reason} ${outcome.detail}`);
+    if (!QUIET_REASONS.includes(outcome.reason)) {
+      await alertPayoutCheck(env, GLOBAL_REASONS.includes(outcome.reason) ? null : club, outcome, budget);
+    }
+  } else if (previous && previous.status === "failed") {
+    // Passing again. Note it, so that the same problem coming back later is
+    // reported again. A problem that was not about one club is noted the same
+    // way it was reported: against no club.
+    //
+    // Only where staff were told. A quiet reason (a payment still settling,
+    // old records being filled in) sent no email, so there is nothing to
+    // clear, and writing a row every time one passes would only fill the
+    // events table. The one exception: an email from an earlier problem may
+    // still be standing behind the quiet reason, so that is looked for first.
+    let outstanding = !QUIET_REASONS.includes(previous.reason);
+    if (!outstanding) {
+      budget.used++;
+      const last = await dbRows(env, `/events?event_name=in.(payout_check_alert,payout_check_ok)&club_id=eq.${club.id}&select=event_name&order=created_at.desc&limit=1`);
+      outstanding = last.ok && !!last.rows[0] && last.rows[0].event_name === "payout_check_alert";
+    }
+    if (outstanding) {
+      budget.used++;
+      const cleared = await dbWrite(env, "POST", "/events", {
+        event_name: "payout_check_ok",
+        club_id: GLOBAL_REASONS.includes(previous.reason) ? null : club.id,
+        properties: { after: previous.reason || null }
+      });
+      if (!cleared.ok) console.error(`Could not record that ${club.code} passes its payout check again: ${dbErrorText(cleared)}`);
+    }
+  }
+  return outcome;
+}
+__name(runPayoutCheck, "runPayoutCheck");
+
+// The timed run. Checks the clubs with a processor account whose last check
+// is oldest, within the request budget.
+//
+// The reads are shared between the clubs of one run to save requests, and
+// every one of them is read to a proven end (dbReadAll): a list cut short
+// would make a club's real payments look missing. If the clubs chosen have
+// too many athletes between them for the requests available, the run takes
+// fewer clubs. The rest are first in line next time.
+async function runPayoutChecks(env) {
+  const budget = { used: 0, max: PAYOUT_CHECK_REQUEST_BUDGET };
+  const [clubsRes, checksRes] = await Promise.all([
+    dbReadAll(env, "/clubs?stripe_account_id=not.is.null&select=id,name,code,stripe_account_id", { budget }),
+    dbReadAll(env, "/payout_checks?select=club_id,status,reason,checked_at", { budget, orderBy: "club_id" })
+  ]);
+  if (!clubsRes.ok) {
+    console.error(`Payout checks: could not read clubs: ${dbErrorText(clubsRes)}`);
+    return { ok: false, error: "clubs" };
+  }
+  if (!checksRes.ok) {
+    // No table to save into, or it cannot be read: nothing can be verified.
+    // Say so once and stop, instead of failing every club one at a time.
+    const missing = checksRes.status === 404;
+    const reason = missing ? "store_unavailable" : "db_unreadable";
+    await alertPayoutCheck(env, null, { reason, detail: `payout_checks: ${dbErrorText(checksRes)}` }, budget);
+    return { ok: false, error: reason };
+  }
+  const previousByClub = new Map(checksRes.rows.map((r) => [String(r.club_id), r]));
+  const age = (prev) => prev ? Date.parse(prev.checked_at) || 0 : -1;
+  let due = clubsRes.rows
+    .map((club) => ({ club, previous: previousByClub.get(String(club.id)) || null }))
+    .sort((a, b) => age(a.previous) - age(b.previous))
+    .slice(0, PAYOUT_CHECK_CLUBS_PER_RUN);
+  if (!due.length) return { ok: true, checked: 0, verified: 0, failed: 0 };
+
+  let checked = 0, verified = 0, failed = 0;
+  const count = (outcome) => {
+    checked++;
+    if (outcome.status === "verified") verified++;
+    else if (outcome.status === "failed") failed++;
+  };
+  // A read that fails here means none of these clubs can be checked this
+  // time. A check that cannot run must not leave an earlier pass standing, so
+  // each club is saved as failed, and staff get the one email for all clubs.
+  const failAll = async (failure) => {
+    for (const { club, previous } of due) {
+      if (budget.max - budget.used < 4) break;
+      count(await runPayoutCheck(env, club, { previous, failure }, budget));
+    }
+    console.error(`Payout checks: ${failure.reason} ${failure.detail}. ${failed} clubs saved as not checked.`);
+    return { ok: false, error: failure.reason, checked, verified, failed };
+  };
+
+  const athRes = await dbReadAll(env, `/athletes?club_id=in.(${due.map((d) => d.club.id).join(",")})&select=id,club_id,team_id,payment_status`, { budget });
+  if (!athRes.ok) return failAll({ reason: "db_unreadable", detail: `athletes: ${dbErrorText(athRes)}` });
+  const athletesOf = (club) => athRes.rows.filter((a) => String(a.club_id) === String(club.id));
+  // What the rest of the run will cost: the payment reads, then a list of
+  // transfers and a save for each club. Take clubs off the end until it fits.
+  const cost = (list) => Math.ceil(list.reduce((n, d) => n + athletesOf(d.club).length, 0) / DB_ID_BATCH) + list.length * 2;
+  while (due.length > 1 && budget.used + cost(due) + PAYOUT_CHECK_RESERVE > budget.max) due = due.slice(0, -1);
+
+  const dueAthletes = due.flatMap((d) => athletesOf(d.club));
+  const payRes = await readPaymentRecords(env, dueAthletes.map((a) => a.id), budget);
+  if (!payRes.ok && payRes.reason === "too_many_payments") {
+    // One club, too big for a run by itself. It is shown no figure, and staff
+    // are told which club.
+    const { club, previous } = due[0];
+    count(await runPayoutCheck(env, club, { previous, failure: payRes }, budget));
+    return { ok: true, checked, verified, failed };
+  }
+  if (!payRes.ok) return failAll(payRes);
+
+  for (const { club, previous } of due) {
+    if (budget.max - budget.used < PAYOUT_CHECK_RESERVE) break;
+    const athletes = athletesOf(club);
+    const ids = new Set(athletes.map((a) => String(a.id)));
+    const payments = payRes.rows.filter((p) => ids.has(String(p.athlete_id)));
+    count(await runPayoutCheck(env, club, { athletes, payments, previous }, budget));
+  }
+  console.log(`Payout checks: ${checked} of ${clubsRes.rows.length} clubs checked, ${verified} verified, ${failed} failed, ${budget.used} requests`);
+  return { ok: true, checked, verified, failed };
+}
+__name(runPayoutChecks, "runPayoutChecks");
+
+// Whether one club may be shown a figure right now, from the database alone.
+// Any failed read means no figure.
+async function clubPayoutResult(env, clubId) {
+  try {
+    const [clubRes, athRes, checkRes] = await Promise.all([
+      dbRows(env, `/clubs?id=eq.${clubId}&select=id,stripe_account_id`),
+      dbReadAll(env, `/athletes?club_id=eq.${clubId}&select=id,team_id,payment_status`),
+      dbRows(env, `/payout_checks?club_id=eq.${clubId}&select=*`)
+    ]);
+    if (!clubRes.ok || !clubRes.rows[0] || !athRes.ok) return { verified: false };
+    const payRes = await readPaymentRecords(env, athRes.rows.map((a) => a.id));
+    if (!payRes.ok) return { verified: false };
+    return await verifiedPayout({
+      club: clubRes.rows[0],
+      athletes: athRes.rows,
+      payments: payRes.rows,
+      // undefined when the saved checks could not be read: not the same as
+      // knowing there is none.
+      check: checkRes.ok ? checkRes.rows[0] || null : void 0,
+      now: /* @__PURE__ */ new Date()
+    });
+  } catch (e) {
+    console.error("clubPayoutResult failed:", e);
+    return { verified: false };
+  }
+}
+__name(clubPayoutResult, "clubPayoutResult");
+
+// The same for a list of clubs, for the PlayFund Admin list. Returns a Map of
+// club id to result, and the saved check row for each club (for staff).
+//
+// Three reads, each of a whole table and each read to a proven end
+// (dbReadAll): every athlete, every succeeded payment, every saved check.
+// Whole tables, because a list of ids for every club would not fit in a URL.
+// If any of them cannot be read to the end, no club gets a figure here.
+async function clubsPayoutResults(env, clubs) {
+  const results = new Map();
+  const checks = new Map();
+  for (const club of clubs) results.set(String(club.id), { verified: false });
+  if (!clubs.length) return { results, checks };
+  try {
+    const [athRes, payRes, checkRes] = await Promise.all([
+      dbReadAll(env, "/athletes?select=id,club_id,team_id,payment_status"),
+      dbReadAll(env, `/payments?status=eq.succeeded&select=${PAYMENT_SELECT}`),
+      dbReadAll(env, "/payout_checks?select=*", { orderBy: "club_id" })
+    ]);
+    if (checkRes.ok) for (const row of checkRes.rows) checks.set(String(row.club_id), row);
+    if (!athRes.ok || !payRes.ok) return { results, checks };
+    const now = /* @__PURE__ */ new Date();
+    for (const club of clubs) {
+      const athletes = athRes.rows.filter((a) => String(a.club_id) === String(club.id));
+      const ids = new Set(athletes.map((a) => String(a.id)));
+      results.set(String(club.id), await verifiedPayout({
+        club,
+        athletes,
+        payments: payRes.rows.filter((p) => ids.has(String(p.athlete_id))),
+        check: checkRes.ok ? checks.get(String(club.id)) || null : void 0,
+        now
+      }));
+    }
+  } catch (e) {
+    console.error("clubsPayoutResults failed:", e);
+    for (const club of clubs) results.set(String(club.id), { verified: false });
+  }
+  return { results, checks };
+}
+__name(clubsPayoutResults, "clubsPayoutResults");
+
+// Events from the processor that mean a figure can no longer be trusted. On
+// any of them the club's figure is hidden at once, without waiting for the
+// next check. The check then keeps it hidden for as long as the processor
+// still shows the refund, dispute or reversal.
+//
+//   charge.refunded            a refund, full or partial
+//   charge.dispute.created     a dispute
+//   transfer.reversed          money taken back out of the club's account
+//   application_fee.refunded   PlayFund's fee given back, in full or in part
+//
+// https://docs.stripe.com/api/events/types
+var PAYOUT_ADVERSE_EVENTS = {
+  "charge.refunded": "refund",
+  "charge.dispute.created": "dispute",
+  "transfer.reversed": "transfer_reversed",
+  "application_fee.refunded": "fee_refunded"
+};
+
+// Which club an adverse event is about. Returns { ok, club }: ok is false
+// only when a read failed, so the caller can ask the processor to send the
+// event again instead of dropping it.
+async function clubForProcessorEvent(env, eventType, obj) {
+  let accountId = null;
+  let paymentIntent = null;
+  if (eventType === "charge.refunded") {
+    accountId = idOf(obj.transfer_data && obj.transfer_data.destination);
+    paymentIntent = idOf(obj.payment_intent);
+  } else if (eventType === "charge.dispute.created") {
+    paymentIntent = idOf(obj.payment_intent);
+  } else if (eventType === "transfer.reversed") {
+    accountId = idOf(obj.destination);
+  } else if (eventType === "application_fee.refunded") {
+    accountId = idOf(obj.account);
+  }
+  const select = "select=id,name,code,stripe_account_id";
+  if (accountId && /^acct_[A-Za-z0-9]+$/.test(accountId)) {
+    const res = await dbRows(env, `/clubs?stripe_account_id=eq.${accountId}&${select}`);
+    if (!res.ok) return { ok: false };
+    if (res.rows[0]) return { ok: true, club: res.rows[0] };
+  }
+  if (paymentIntent && /^pi_[A-Za-z0-9_]+$/.test(paymentIntent)) {
+    const payRes = await dbRows(env, `/payments?stripe_payment_intent=eq.${paymentIntent}&select=athlete_id&limit=1`);
+    if (!payRes.ok) return { ok: false };
+    if (!payRes.rows[0]) return { ok: true, club: null };
+    const athRes = await dbRows(env, `/athletes?id=eq.${payRes.rows[0].athlete_id}&select=club_id`);
+    if (!athRes.ok) return { ok: false };
+    if (!athRes.rows[0]) return { ok: true, club: null };
+    const clubRes = await dbRows(env, `/clubs?id=eq.${athRes.rows[0].club_id}&${select}`);
+    if (!clubRes.ok) return { ok: false };
+    return { ok: true, club: clubRes.rows[0] || null };
+  }
+  return { ok: true, club: null };
+}
+__name(clubForProcessorEvent, "clubForProcessorEvent");
+
+// Hide a club's figure because the processor has reported a refund, dispute
+// or reversal. Returns true once no "verified" row can still be standing.
+//
+// The saved row replaces whatever is there, and cannot itself be replaced by
+// any check that started before ADVERSE_EVENT_HOLD_MS from now. So a check
+// that was already running, on what the processor said before this event,
+// cannot bring the figure back when it finishes.
+async function hidePayoutAfterProcessorEvent(env, club, reason, detail) {
+  const now = Date.now();
+  const row = {
+    club_id: String(club.id),
+    status: "failed",
+    reason,
+    detail,
+    checked_at: new Date(now).toISOString(),
+    not_before: new Date(now + ADVERSE_EVENT_HOLD_MS).toISOString(),
+    stripe_account_id: club.stripe_account_id || null,
+    payment_count: 0,
+    charge_cents: 0,
+    application_fee_cents: 0,
+    club_net_cents: 0,
+    fingerprint: null
+  };
+  let saved = await savePayoutCheck(env, row, true);
+  if (!saved.ok) saved = await savePayoutCheck(env, row, true);
+  await alertPayoutCheck(env, club, { reason, detail });
+  if (saved.ok) return true;
+  console.error(`Could not save the hidden payout state for ${club.code}: ${dbErrorText(saved)}`);
+  // Not saved. That only matters if a verified row exists to be shown.
+  const current = await dbRows(env, `/payout_checks?club_id=eq.${club.id}&select=status`);
+  if (current.ok) return !(current.rows[0] && current.rows[0].status === "verified");
+  // 404 is the answer for a table that does not exist: nothing to hide yet.
+  return current.status === 404;
+}
+__name(hidePayoutAfterProcessorEvent, "hidePayoutAfterProcessorEvent");
+
+
 async function sendClubWelcomeEmail(env, club, setupUrl) {
   const RESEND_API_KEY = env.RESEND_API_KEY;
   if (!RESEND_API_KEY || !club.admin_email) return;
@@ -1034,6 +1842,9 @@ __name(runScheduledReminders, "runScheduledReminders");
 // Must match the weekly entry in worker/wrangler.toml. Mondays, 14:00 UTC,
 // which is 10am New York in summer and 9am in winter.
 var WEEKLY_METRICS_CRON = "0 14 * * 1";
+// The daily reminder sweep. Must match its entry in worker/wrangler.toml too:
+// the runtime hands back the expression exactly as written there.
+var DAILY_REMINDERS_CRON = "0 13 * * *";
 
 var METRIC_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -1199,6 +2010,88 @@ async function runWeeklyMetrics(env, days) {
 }
 __name(runWeeklyMetrics, "runWeeklyMetrics");
 
+// How long after a payment row is written another delivery of the same
+// payment is taken to be still at work on it. A second delivery that arrives
+// inside this time, while the athlete is not yet marked paid, does not finish
+// the job itself: two deliveries finishing it at once is two receipts. It asks
+// to be sent again, and by then the first has either finished or failed.
+var PAYMENT_DELIVERY_IN_PROGRESS_MS = 60 * 1000;
+
+// Why the database refused to insert a row into `payments`, and so what the
+// webhook should do about it. The table has rules of its own: one row per
+// event id, an athlete that must exist, a known status, an amount. A refusal
+// on one of those will be refused again however many times the event is sent,
+// so asking the processor to send it again only produces three days of
+// failures. Only a failure that could pass next time is worth a retry.
+//
+//   "duplicate"   the row is already there (error 23505). For a failed
+//                 payment that is the end of it. For a succeeded one, another
+//                 delivery of the same payment is at work: see the webhook.
+//   "no_athlete"  the athlete no longer exists (error 23503). The payment
+//                 cannot be recorded against anyone.
+//   "rejected"    the row breaks another rule of the table (a missing amount,
+//                 an unknown status, an id that is not an id).
+//   "conflict"    refused as conflicting with what is there, without saying
+//                 which of the first two it was. Treated as not worth a retry.
+//   "retry"       anything else: the database was down, slow or unreachable.
+function paymentInsertRefusal(res) {
+  const code = res && res.error && typeof res.error === "object" ? String(res.error.code || "") : "";
+  if (code === "23505") return "duplicate";
+  if (code === "23503") return "no_athlete";
+  if (code === "23502" || code === "23514" || code === "22P02") return "rejected";
+  if (res && res.status === 409) return "conflict";
+  return "retry";
+}
+__name(paymentInsertRefusal, "paymentInsertRefusal");
+
+// A timer fired with an expression this Worker does not recognise. Nothing is
+// run for it (see scheduled below). A log line alone would go unread, so
+// PlayFund staff are told as well, once per expression, with the same
+// send-once pattern as the other staff alerts: a row in the events table,
+// looked for before sending.
+//
+// Never throws, and never starts any of the three jobs. A failure in here
+// must not turn into anything else.
+async function alertUnknownSchedule(env, cron) {
+  try {
+    const expression = String(cron).slice(0, 60);
+    const existing = await dbRows(env, "/events?event_name=eq.unknown_schedule_alert&select=properties&order=created_at.desc&limit=50");
+    if (!existing.ok) {
+      // Not knowing whether the mail already went, do not send it on every firing.
+      console.error(`Unknown schedule alert not sent (could not read events) for "${expression}"`);
+      return;
+    }
+    if (existing.rows.some((row) => row.properties && row.properties.cron === expression)) return;
+    const RESEND_API_KEY = env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) return;
+    const sent = await resendSend(env, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "PlayFund Alerts <admin@playfundai.com>",
+        to: ["admin@playfundai.com"],
+        subject: "ACTION NEEDED: a timer fired that the Worker does not recognise",
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
+  <p style="margin:0 0 16px;font-size:15px;color:#B42318;">The Worker was started by a timer with the schedule <strong>${escapeHtml(expression)}</strong>, which is not one it knows. <strong>Nothing was run.</strong></p>
+  <p style="margin:0 0 8px;font-size:14px;color:#374151;">The schedules it knows are the daily reminder sweep (${escapeHtml(DAILY_REMINDERS_CRON)}), the Monday digest (${escapeHtml(WEEKLY_METRICS_CRON)}) and the payout check (${escapeHtml(PAYOUT_CHECK_CRON)}).</p>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">The usual cause is a schedule added or changed in worker/wrangler.toml, or in the hosting dashboard, without the matching line in worker/index.js. Whatever that timer was meant to do is not happening.</p>
+  <p style="margin:0;font-size:12px;color:#9CA3AF;">Sent once for this schedule.</p>
+</div>`
+      })
+    });
+    if (!sent.ok) return;
+    const logged = await dbWrite(env, "POST", "/events", {
+      event_name: "unknown_schedule_alert",
+      club_id: null,
+      properties: { cron: expression }
+    });
+    if (!logged.ok) console.error(`Unknown schedule alert sent but not recorded, so it may be sent again: ${dbErrorText(logged)}`);
+  } catch (e) {
+    console.error("alertUnknownSchedule failed:", e);
+  }
+}
+__name(alertUnknownSchedule, "alertUnknownSchedule");
+
 var index_default = {
   async scheduled(event, env, ctx) {
     // Two triggers share this handler, so it dispatches on the expression that
@@ -1209,12 +2102,39 @@ var index_default = {
       ctx.waitUntil(runWeeklyMetrics(env));
       return;
     }
-    ctx.waitUntil(runScheduledReminders(env));
+    // The payout check has its own trigger so that it gets its own allowance
+    // of outgoing requests, separate from the reminder sweep.
+    if (event.cron === PAYOUT_CHECK_CRON) {
+      ctx.waitUntil(runPayoutChecks(env));
+      return;
+    }
+    if (event.cron === DAILY_REMINDERS_CRON) {
+      ctx.waitUntil(runScheduledReminders(env));
+      return;
+    }
+    // A schedule this file does not know. Run none of the three jobs, and say
+    // so: in the log, and once in an email to staff, since nobody reads the
+    // log. It used to fall through to the reminder sweep, so that adding or
+    // renaming a trigger in wrangler.toml without matching it here would have
+    // sent reminder emails on the new schedule.
+    console.error(`Scheduled run for "${event.cron}", which matches no schedule in worker/index.js. Nothing was run. Check the crons in worker/wrangler.toml against WEEKLY_METRICS_CRON, PAYOUT_CHECK_CRON and DAILY_REMINDERS_CRON.`);
+    ctx.waitUntil(alertUnknownSchedule(env, event.cron));
   },
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
+    // A club's payout check runs after the reply has gone, where the runtime
+    // allows it, so a slow processor never delays the answer to a webhook or a
+    // page. Its outcome is never the outcome of the request that started it.
+    const afterReply = (work) => {
+      const done = Promise.resolve().then(work).catch((e) => console.error("Payout check could not run:", e));
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(done);
+        return Promise.resolve();
+      }
+      return done;
+    };
     if (method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS });
     }
@@ -1265,6 +2185,12 @@ var index_default = {
       // underscores. A pattern rather than an allowlist, so adding an event
       // does not mean editing two files and finding out it silently vanished.
       if (!/^[a-z0-9_.]{1,60}$/.test(event_name)) return err("Invalid event_name");
+      // These names record whether staff have been told something: that a
+      // club's payout figure is hidden (see alertPayoutCheck), or that a timer
+      // fired on a schedule the Worker does not know (alertUnknownSchedule).
+      // Only the Worker writes them. Accepting one from a page would let
+      // anyone silence that alert.
+      if (event_name.startsWith("payout_check") || event_name === "unknown_schedule_alert") return json({ success: true });
 
       let props = properties && typeof properties === "object" && !Array.isArray(properties) ? properties : {};
       // Caps so a loop on a public page cannot write unbounded rows.
@@ -1580,6 +2506,31 @@ var index_default = {
         }
       });
     }
+    // Run one club's payout check now and return the result. For PlayFund
+    // staff: the same check runs by itself after every payment and on a timer.
+    if (method === "POST" && path.startsWith("/admin/clubs/") && path.endsWith("/payout-check")) {
+      const clubId = path.split("/")[3];
+      if (!clubId || !/^[A-Za-z0-9_-]+$/.test(clubId)) return err("Club ID required");
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace("Bearer ", "").trim();
+      if (!token) return err("Authorization required", 401);
+      const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${token}` }
+      });
+      if (!userRes.ok) return err("Invalid token", 401);
+      const userData = await userRes.json();
+      const profileRes = await supabase(env, "GET", `/user_profiles?id=eq.${userData.id}&select=role`);
+      if (profileRes.data?.[0]?.role !== "playfund_admin") return err("Forbidden", 403);
+      const clubRes = await dbRows(env, `/clubs?id=eq.${clubId}&select=id,name,code,stripe_account_id`);
+      if (!clubRes.ok) return err("Could not read the club", 500);
+      const club = clubRes.rows[0];
+      if (!club) return err("Club not found", 404);
+      const outcome = await runPayoutCheck(env, club);
+      return json({
+        payout_check: outcome.status === "skipped" ? null : outcome,
+        payout: payoutForClub(await clubPayoutResult(env, club.id))
+      });
+    }
     if (method === "POST" && path.startsWith("/admin/clubs/") && path.endsWith("/backfill-klarna")) {
       const clubId = path.split("/")[3];
       if (!clubId) return err("Club ID required");
@@ -1767,16 +2718,9 @@ var index_default = {
         );
         allAthletes = athRes.data || [];
       }
-      const athleteIds = allAthletes.map((a) => a.id);
-      let allPayments = [];
-      if (athleteIds.length) {
-        const paymentsRes = await supabase(
-          env,
-          "GET",
-          `/payments?select=athlete_id,amount_cents&athlete_id=in.(${athleteIds.join(",")})&status=eq.succeeded`
-        );
-        allPayments = paymentsRes.data || [];
-      }
+      // What each club has received, or no figure at all. Nothing below works
+      // a payout out from dues or a rate: see payouts.mjs for the rule.
+      const { results: payoutResults, checks: payoutChecks } = await clubsPayoutResults(env, clubs);
       const teamsByClub = new Map();
       allTeams.forEach((t) => {
         if (!teamsByClub.has(t.club_id)) teamsByClub.set(t.club_id, []);
@@ -1787,27 +2731,16 @@ var index_default = {
         if (!athletesByTeam.has(a.team_id)) athletesByTeam.set(a.team_id, []);
         athletesByTeam.get(a.team_id).push(a);
       });
-      const collectedByAthlete = new Map();
-      allPayments.forEach((p) => {
-        collectedByAthlete.set(p.athlete_id, (collectedByAthlete.get(p.athlete_id) || 0) + (p.amount_cents || 0));
-      });
-      const FUNDED_STATUSES = ["paid_full", "bnpl_active", "bnpl_complete"];
       const enriched = clubs.map((club) => {
         const teams = teamsByClub.get(club.id) || [];
         const athletes = teams.flatMap((t) => athletesByTeam.get(t.id) || []);
         const funded = athletes.filter((a) => FUNDED_STATUSES.includes(a.payment_status)).length;
-        let fronted_cents = 0;
-        let collected_cents = 0;
-        athletes.forEach((a) => {
-          if (FUNDED_STATUSES.includes(a.payment_status)) {
-            const team = teams.find((t) => t.id === a.team_id);
-            if (team) fronted_cents += payoutForStatusCents({ duesCents: team.dues_cents, paymentStatus: a.payment_status, feeBps: clubFeeBps(club) });
-          }
-          collected_cents += collectedByAthlete.get(a.id) || 0;
-        });
+        const payoutResult = payoutResults.get(String(club.id));
+        const savedCheck = payoutChecks.get(String(club.id));
         const teamsWithCounts = teams.map((t) => ({
           ...t,
-          athlete_count: (athletesByTeam.get(t.id) || []).length
+          athlete_count: (athletesByTeam.get(t.id) || []).length,
+          payout: payoutForTeam(payoutResult, t.id)
         }));
         // Everything blocking this club from operating, computed here so the
         // admin UI can show a work queue instead of making someone open all
@@ -1826,8 +2759,19 @@ var index_default = {
           team_count: teams.length,
           athlete_count: athletes.length,
           funded_count: funded,
-          fronted_cents,
-          collected_cents,
+          // The figure, or { verified: false }. Never an estimate.
+          payout: payoutForClub(payoutResult),
+          // Staff only: the last check and, if it failed, why. This endpoint
+          // is behind the playfund_admin check above.
+          payout_check: savedCheck
+            ? {
+                status: savedCheck.status,
+                reason: savedCheck.reason,
+                message: savedCheck.reason ? REASONS[savedCheck.reason] || null : null,
+                detail: savedCheck.detail,
+                checked_at: savedCheck.checked_at
+              }
+            : null,
           teams: teamsWithCounts
         };
       });
@@ -1835,10 +2779,10 @@ var index_default = {
         clubs: acc.clubs + 1,
         teams: acc.teams + c.team_count,
         athletes: acc.athletes + c.athlete_count,
-        funded: acc.funded + c.funded_count,
-        fronted_cents: acc.fronted_cents + c.fronted_cents,
-        collected_cents: acc.collected_cents + c.collected_cents
-      }), { clubs: 0, teams: 0, athletes: 0, funded: 0, fronted_cents: 0, collected_cents: 0 });
+        funded: acc.funded + c.funded_count
+      }), { clubs: 0, teams: 0, athletes: 0, funded: 0 });
+      // A total across clubs exists only when every club has a figure.
+      totals.payout = payoutForAll(clubs.map((club) => payoutResults.get(String(club.id))));
       return json({ clubs: enriched, totals });
     }
     if (method === "GET" && path.startsWith("/admin/clubs/") && path.endsWith("/payments")) {
@@ -1983,6 +2927,15 @@ var index_default = {
       const acctRes = await stripe(env, "GET", `/accounts/${club.stripe_account_id}`);
       if (!acctRes.ok) return err("Failed to fetch Stripe account status", 500);
       if (acctRes.data.charges_enabled) await alertIfClubAwaitingFee(env, club);
+      // A club that has just connected its account has never been checked, so
+      // it would be shown no figure until the timer came round. Run its first
+      // check now. Only ever the first: once a result is saved this does
+      // nothing, so this endpoint cannot be used to make the Worker call the
+      // processor over and over.
+      const firstCheck = await dbRows(env, `/payout_checks?club_id=eq.${club.id}&select=club_id`);
+      if (firstCheck.ok && !firstCheck.rows.length) {
+        await afterReply(() => runPayoutCheck(env, club, { previous: null }));
+      }
       return json({
         connected: true,
         charges_enabled: !!acctRes.data.charges_enabled,
@@ -2030,9 +2983,9 @@ var index_default = {
       }
       if (!authorized) {
         // fee_bps is the commercial rate between PlayFund and this club. It is
-        // selected above because the authorized branch needs it for payout
-        // math, but it must not reach an unauthenticated caller -- a parent
-        // only needs a club code to reach this endpoint.
+        // selected above for the authorized branch, which returns the club's
+        // own record to its admins, but it must not reach an unauthenticated
+        // caller -- a parent only needs a club code to reach this endpoint.
         const { fee_bps, fee_agreed_at, ...publicClub } = club;
         return json({
           club: {
@@ -2052,35 +3005,24 @@ var index_default = {
         );
         athletes = athletesRes.data || [];
       }
+      // What this club has received, or no figure at all. It is not worked
+      // out from dues or the club's rate: it is the sum of what the processor
+      // recorded for each payment, and it is sent only while the last check
+      // against the processor still stands. See payouts.mjs for the rule.
+      const payoutResult = await clubPayoutResult(env, club.id);
       const teamsWithAthletes = teams.map((team) => ({
         ...team,
         dues: team.dues_cents / 100,
-        athletes: athletes.filter((a) => a.team_id === team.id)
+        athletes: athletes.filter((a) => a.team_id === team.id),
+        payout: payoutForTeam(payoutResult, team.id)
       }));
       const totalAthletes = athletes.length;
       const fundedAthletes = athletes.filter(
-        (a) => ["paid_full", "bnpl_active", "bnpl_complete"].includes(a.payment_status)
+        (a) => FUNDED_STATUSES.includes(a.payment_status)
       ).length;
-      let fronted_cents = 0;
-      athletes.forEach((a) => {
-        if (["paid_full", "bnpl_active", "bnpl_complete"].includes(a.payment_status)) {
-          const team = teams.find((t) => t.id === a.team_id);
-          if (team) fronted_cents += payoutForStatusCents({ duesCents: team.dues_cents, paymentStatus: a.payment_status, feeBps: clubFeeBps(club) });
-        }
-      });
-      let collected_cents = 0;
-      if (athletes.length) {
-        const athleteIds = athletes.map((a) => a.id);
-        const paymentsRes = await supabase(
-          env,
-          "GET",
-          `/payments?select=amount_cents&athlete_id=in.(${athleteIds.join(",")})&status=eq.succeeded`
-        );
-        collected_cents = (paymentsRes.data || []).reduce((sum, p) => sum + (p.amount_cents || 0), 0);
-      }
       return json({
-        club: { ...club, teams: teamsWithAthletes },
-        stats: { total_athletes: totalAthletes, funded_athletes: fundedAthletes, fronted_cents, collected_cents }
+        club: { ...club, payout: payoutForClub(payoutResult), teams: teamsWithAthletes },
+        stats: { total_athletes: totalAthletes, funded_athletes: fundedAthletes }
       });
     }
     if (method === "POST" && path === "/invite") {
@@ -2555,7 +3497,11 @@ var index_default = {
       }
       const insertRes = await supabase(env, "POST", "/teams", insertData);
       if (!insertRes.ok) return err("Failed to create team: " + JSON.stringify(insertRes.data), 500);
-      return json({ team: insertRes.data[0] }, 201);
+      // The app opens the new team's roster straight from this reply, so the
+      // team needs its payout figure here like any other: the club's figure
+      // must be confirmed for a new team's zero to be shown.
+      const newTeam = insertRes.data[0];
+      return json({ team: { ...newTeam, payout: payoutForTeam(await clubPayoutResult(env, resolvedClubId), newTeam.id) } }, 201);
     }
     if (method === "POST" && path === "/athlete") {
       let body;
@@ -2996,46 +3942,153 @@ var index_default = {
           const clubRes = await supabase(
             env,
             "GET",
-            `/clubs?stripe_account_id=eq.${acct.id}&select=id,name,code,city,state,fee_agreed_at`
+            `/clubs?stripe_account_id=eq.${acct.id}&select=id,name,code,city,state,fee_agreed_at,stripe_account_id`
           );
           const club = clubRes.data?.[0];
-          if (club) await alertIfClubAwaitingFee(env, club);
+          if (club) {
+            await alertIfClubAwaitingFee(env, club);
+            // A club whose account has just become usable has no check yet.
+            // Run one now so it is not left without a figure until the timer.
+            await afterReply(() => runPayoutCheck(env, club));
+          }
         }
         return json({ received: true });
+      }
+      // A refund, dispute or reversal at the processor. Hide the club's
+      // figure straight away and tell staff. Deliberately nothing more: what
+      // happens to the money in these cases is not decided, so this neither
+      // changes an athlete's status nor moves anything.
+      if (PAYOUT_ADVERSE_EVENTS[eventType]) {
+        const obj = event.data?.object || {};
+        const found = await clubForProcessorEvent(env, eventType, obj);
+        if (!found.ok) {
+          console.error(`Stripe ${eventType} ${eventId}: could not look up the club, asking Stripe to send it again`);
+          return err("Temporary failure. Please retry.", 500);
+        }
+        if (!found.club) {
+          console.error(`Stripe ${eventType} ${eventId}: no club found for it`);
+          return json({ received: true });
+        }
+        const hidden = await hidePayoutAfterProcessorEvent(
+          env,
+          found.club,
+          PAYOUT_ADVERSE_EVENTS[eventType],
+          `${eventType} on ${typeof obj.id === "string" ? obj.id : "an object with no id"}`
+        );
+        return hidden ? json({ received: true }) : err("Temporary failure. Please retry.", 500);
       }
       const athleteId = metadata.athlete_id;
       if (!athleteId) {
         console.log("Stripe event missing athlete_id metadata:", eventId);
         return json({ received: true });
       }
+      // Every database write below is checked. When one that matters fails,
+      // the answer is a 500, which makes the processor deliver the event again
+      // later (it keeps trying for up to three days), and the code below is
+      // written so that a second delivery finishes whatever the first did not.
+      const askForRetry = (what, res) => {
+        console.error(`Stripe webhook ${eventId} (${eventType}): ${what} failed, asking Stripe to send it again. ${res ? dbErrorText(res) : ""}`);
+        return err("Temporary failure. Please retry.", 500);
+      };
       if (eventType === "payment_intent.succeeded") {
         const pi = event.data.object;
         const amountCents = pi.amount_received;
         const paymentMethod = pi.payment_method_types?.[0] || "card";
-        const existing = await supabase(
+        // Has this payment been recorded already? Looked up by the payment
+        // itself, not by the event: the processor can deliver one event more
+        // than once, and can also describe one payment in two separate events
+        // with different ids. A payment succeeds once, so one row.
+        const findRow = () => dbRows(
           env,
-          "GET",
-          `/payments?stripe_event_id=eq.${eventId}&select=id`
+          `/payments?stripe_payment_intent=eq.${encodeURIComponent(pi.id)}&status=eq.succeeded&select=id,created_at`
         );
-        if (existing.data?.length) {
-          return json({ received: true, duplicate: true });
+        const existing = await findRow();
+        if (!existing.ok) return askForRetry("looking for an existing payment row", existing);
+        const duplicate = existing.rows.length > 0;
+        // For a payment that cannot be recorded here at all: the money has
+        // still moved, so the club's payout check is started from the account
+        // the payment went to. It will find a transfer with no payment row
+        // behind it, show the club no figure, and tell staff. That is the
+        // truthful result, and it is the only thing left to do.
+        const checkClubPaidInto = async () => {
+          const account = idOf(pi.transfer_data && pi.transfer_data.destination);
+          if (!account || !/^acct_[A-Za-z0-9]+$/.test(account)) return;
+          const paidInto = await dbRows(env, `/clubs?stripe_account_id=eq.${account}&select=id,name,code,stripe_account_id`);
+          if (paidInto.ok && paidInto.rows[0]) await afterReply(() => runPayoutCheck(env, paidInto.rows[0]));
+        };
+        if (!duplicate) {
+          // The same columns as before payout checks existed, on purpose: this
+          // insert must never depend on the newer columns being there. The
+          // processor's fee and transfer figures are written afterwards, in a
+          // separate step that is allowed to fail (recordProcessorPayment).
+          const inserted = await dbWrite(env, "POST", "/payments", {
+            athlete_id: athleteId,
+            stripe_payment_intent: pi.id,
+            stripe_event_id: eventId,
+            amount_cents: amountCents,
+            status: "succeeded",
+            payment_method: paymentMethod,
+            notes: `Stripe event ${eventId}`
+          });
+          if (!inserted.ok) {
+            const refusal = paymentInsertRefusal(inserted);
+            // Nothing else has been done yet, so a retry starts clean.
+            if (refusal === "retry") return askForRetry("recording the payment", inserted);
+            if (refusal === "no_athlete" || refusal === "rejected") {
+              // No number of retries will get this row in. Say so loudly,
+              // answer 200 so the processor stops sending it, and let the
+              // payout check report the club.
+              console.error(`Stripe webhook ${eventId}: payment ${pi.id} could NOT be recorded and will not be retried (${refusal === "no_athlete" ? `athlete ${athleteId} no longer exists` : "the row was refused"}). ${dbErrorText(inserted)}`);
+              await checkClubPaidInto();
+              return json({ received: true, recorded: false });
+            }
+            // Refused as already there. Another delivery of this payment got
+            // its row in between the look above and this insert, and is at
+            // work right now on the status and the receipt. This delivery
+            // must not do the same work beside it: that is two receipts. It
+            // asks to be sent again. The later delivery finds the row by its
+            // payment id and finishes anything the first did not.
+            //
+            // That is only safe if a later delivery will find the row. Look
+            // once more: if there is still no succeeded row for this payment,
+            // the row in the way is something else (one relabelled by hand,
+            // say), a retry would be refused the same way every time, and
+            // this is a payment that cannot be recorded.
+            const again = await findRow();
+            if (!again.ok) return askForRetry("looking again for the payment row", again);
+            if (again.rows.length) return askForRetry("recording the payment: another delivery of it is being handled", inserted);
+            console.error(`Stripe webhook ${eventId}: payment ${pi.id} could NOT be recorded and will not be retried (a row for this event is already there, and it is not a succeeded payment). ${dbErrorText(inserted)}`);
+            await checkClubPaidInto();
+            return json({ received: true, recorded: false });
+          }
         }
-        await supabase(env, "POST", "/payments", {
-          athlete_id: athleteId,
-          stripe_payment_intent: pi.id,
-          stripe_event_id: eventId,
-          amount_cents: amountCents,
-          status: "succeeded",
-          payment_method: paymentMethod,
-          notes: `Stripe event ${eventId}`
-        });
-        const athleteRes = await supabase(
+        const athleteRes = await dbRows(
           env,
-          "GET",
           `/athletes?id=eq.${athleteId}&select=name,team_id,club_id,payment_status,parent_email`
         );
-        const athlete = athleteRes.data?.[0];
-        if (!athlete) return json({ received: true });
+        if (!athleteRes.ok) return askForRetry("reading the athlete", athleteRes);
+        const athlete = athleteRes.rows[0];
+        if (!athlete) {
+          // Removed between the lines above and here, or the insert was
+          // refused without saying why. Either way there is nobody to mark as
+          // paid, and removing an athlete removes their payment rows with them.
+          console.error(`Stripe webhook ${eventId}: payment ${pi.id} is for athlete ${athleteId}, who no longer exists.`);
+          await checkClubPaidInto();
+          return json(duplicate ? { received: true, duplicate: true } : { received: true });
+        }
+        const alreadyFunded = FUNDED_STATUSES.includes(athlete.payment_status);
+        if (duplicate && !alreadyFunded) {
+          // The row is there and the athlete is not marked paid. Either an
+          // earlier delivery failed part-way, and this one should finish the
+          // job, or another delivery is part-way through it at this moment.
+          // A row written in the last minute means the second: leave it to
+          // that delivery, and ask to be sent again. One row, one status,
+          // one receipt.
+          const writtenMs = Date.parse(existing.rows[0].created_at);
+          if (Number.isFinite(writtenMs) && Date.now() - writtenMs < PAYMENT_DELIVERY_IN_PROGRESS_MS) {
+            return askForRetry("finishing the payment: another delivery of it is being handled", null);
+          }
+        }
         // The address the parent actually typed at checkout. Backfill it when
         // the athlete has none -- an athlete added without a parent email is
         // invisible to every email path (receipts, reminders, payment links),
@@ -3043,39 +4096,63 @@ var index_default = {
         // an address a club or parent already gave.
         const checkoutEmail = pi.receipt_email || pi.charges?.data?.[0]?.billing_details?.email || null;
         if (checkoutEmail && !athlete.parent_email) {
-          await supabase(env, "PATCH", `/athletes?id=eq.${athleteId}`, { parent_email: checkoutEmail });
+          const emailRes = await dbWrite(env, "PATCH", `/athletes?id=eq.${athleteId}`, { parent_email: checkoutEmail });
+          // Not worth a retry by itself: the payment is recorded either way.
+          if (!emailRes.ok) console.error(`Stripe webhook ${eventId}: could not save the checkout email. ${dbErrorText(emailRes)}`);
           athlete.parent_email = checkoutEmail;
         }
-        const teamRes = await supabase(
-          env,
-          "GET",
-          `/teams?id=eq.${athlete.team_id}&select=dues_cents`
-        );
-        const duesCents = teamRes.data?.[0]?.dues_cents || 0;
-        const totalPaidRes = await supabase(
-          env,
-          "GET",
-          `/payments?athlete_id=eq.${athleteId}&status=eq.succeeded&select=amount_cents`
-        );
-        const totalPaid = (totalPaidRes.data || []).reduce((sum, p) => sum + p.amount_cents, 0);
-        let newStatus = "bnpl_active";
-        if (paymentMethod === "klarna") {
-          newStatus = totalPaid >= duesCents ? "bnpl_complete" : "bnpl_active";
-        } else {
-          newStatus = totalPaid >= duesCents ? "paid_full" : "bnpl_active";
+        // The status is set on the first delivery, and on a later one only if
+        // the athlete is still not marked as paid, which means an earlier
+        // delivery did not get this far. A status that is already set is left
+        // alone, so sending an old event again changes nothing.
+        let newStatus = athlete.payment_status;
+        let statusSaved = true;
+        const settingStatus = !duplicate || !alreadyFunded;
+        if (settingStatus) {
+          const teamRes = await dbRows(
+            env,
+            `/teams?id=eq.${athlete.team_id}&select=dues_cents`
+          );
+          if (!teamRes.ok) return askForRetry("reading the team", teamRes);
+          const duesCents = teamRes.rows[0]?.dues_cents || 0;
+          const totalPaidRes = await dbRows(
+            env,
+            `/payments?athlete_id=eq.${athleteId}&status=eq.succeeded&select=amount_cents`
+          );
+          if (!totalPaidRes.ok) return askForRetry("adding up the athlete's payments", totalPaidRes);
+          const totalPaid = totalPaidRes.rows.reduce((sum, p) => sum + p.amount_cents, 0);
+          newStatus = "bnpl_active";
+          if (paymentMethod === "klarna") {
+            newStatus = totalPaid >= duesCents ? "bnpl_complete" : "bnpl_active";
+          } else {
+            newStatus = totalPaid >= duesCents ? "paid_full" : "bnpl_active";
+          }
+          const statusRes = await dbWrite(
+            env,
+            "PATCH",
+            `/athletes?id=eq.${athleteId}`,
+            { payment_status: newStatus, payment_method: paymentMethod }
+          );
+          statusSaved = statusRes.ok;
+          if (!statusSaved) console.error(`Stripe webhook ${eventId}: could not save the athlete's payment status. ${dbErrorText(statusRes)}`);
         }
-        await supabase(
-          env,
-          "PATCH",
-          `/athletes?id=eq.${athleteId}`,
-          { payment_status: newStatus, payment_method: paymentMethod }
-        );
-        const clubRes = await supabase(env, "GET", `/clubs?id=eq.${athlete.club_id}&select=id,name`);
-        const club = clubRes.data?.[0];
-        if (club) await sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus, pi.id, new Date(pi.created * 1e3));
+        const clubRes = await dbRows(env, `/clubs?id=eq.${athlete.club_id}&select=id,name,code,stripe_account_id`);
+        const club = clubRes.ok ? clubRes.rows[0] : null;
+        // One receipt per payment: sent by the delivery that saves the status.
+        if (club && settingStatus && statusSaved) {
+          await sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, newStatus, pi.id, new Date(pi.created * 1e3));
+        }
+        // What the processor says it took and moved for this payment, read
+        // from the processor and saved on the payment row. Then the check of
+        // the whole club against the processor, which is what allows a figure
+        // to be shown. Neither can undo or block anything above.
+        if (club && !duplicate) await recordProcessorPayment(env, eventId, pi, club);
+        if (club) await afterReply(() => runPayoutCheck(env, club));
+        if (!statusSaved) return askForRetry("saving the athlete's payment status", null);
+        return json(duplicate ? { received: true, duplicate: true } : { received: true });
       } else if (eventType === "payment_intent.payment_failed") {
         const pi = event.data.object;
-        await supabase(env, "POST", "/payments", {
+        const failedRes = await dbWrite(env, "POST", "/payments", {
           athlete_id: athleteId,
           stripe_payment_intent: pi.id,
           stripe_event_id: eventId,
@@ -3084,6 +4161,18 @@ var index_default = {
           payment_method: pi.payment_method_types?.[0] || "card",
           notes: pi.last_payment_error?.message || "Payment failed"
         });
+        if (!failedRes.ok) {
+          const refusal = paymentInsertRefusal(failedRes);
+          if (refusal === "retry") return askForRetry("recording the failed payment", failedRes);
+          // The same event delivered twice lands here on the second delivery:
+          // the row is already there, and that is fine. So does a failed
+          // payment for an athlete who has since been removed. Neither can
+          // ever succeed, so neither is sent back for another try.
+          if (refusal !== "duplicate") {
+            console.error(`Stripe webhook ${eventId}: failed payment ${pi.id} could not be recorded and will not be retried (${refusal}). ${dbErrorText(failedRes)}`);
+          }
+          return json(refusal === "duplicate" ? { received: true, duplicate: true } : { received: true, recorded: false });
+        }
       }
       return json({ received: true });
     }

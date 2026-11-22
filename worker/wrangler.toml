@@ -20,12 +20,25 @@ MIN_FEE_BPS = "605"
 APP_URL = "https://www.playfundai.com/app/"
 WORKER_URL = "https://playfund-worker.playfund.workers.dev"
 
-# Two schedules, dispatched in the worker's scheduled() handler on event.cron:
-#   0 13 * * *  daily reminder-email sweep  (runScheduledReminders)
-#   0 14 * * 1  Monday metrics digest       (runWeeklyMetrics)
+# Three schedules, dispatched in the worker's scheduled() handler on event.cron.
+# Each expression also appears in worker/index.js (DAILY_REMINDERS_CRON,
+# WEEKLY_METRICS_CRON, PAYOUT_CHECK_CRON) and has to match it character for
+# character: a schedule the Worker does not recognise runs nothing.
+# worker/payouts.worker.test.mjs fails if the two lists differ.
+#   0 13 * * *    daily reminder-email sweep  (runScheduledReminders)
+#   0 14 * * 1    Monday metrics digest       (runWeeklyMetrics)
+#   */10 * * * *  payout check                (runPayoutChecks)
 #
 # Different hours on purpose. Overlapping expressions fire the handler once per
 # expression, which is correct but reads as a duplicate run in the logs.
+#
+# The payout check compares each club's recorded payments with the payment
+# processor's records, and is what allows a payout figure to be shown at all.
+# It has its own trigger so that each run gets its own allowance of outgoing
+# requests. Its expression also appears in worker/index.js as
+# PAYOUT_CHECK_CRON, and the two have to match: worker/payouts.worker.test.mjs fails
+# if they do not. If this trigger stops firing, payout figures disappear after
+# two hours instead of going out of date.
 #
 # The daily sweep was previously configured only through the Cloudflare
 # dashboard and not declared here; it was matched against the live schedule via
@@ -33,4 +46,4 @@ WORKER_URL = "https://playfund-worker.playfund.workers.dev"
 # worker/index.js as WEEKLY_METRICS_CRON, and the two have to match or the
 # digest silently never sends.
 [triggers]
-crons = ["0 13 * * *", "0 14 * * 1"]
+crons = ["0 13 * * *", "0 14 * * 1", "*/10 * * * *"]

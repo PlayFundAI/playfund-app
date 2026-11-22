@@ -7,6 +7,11 @@
 // the fee on a real payment. Run the tests with `node --test` from the repo
 // root.
 //
+// This file decides what to ASK the processor to take when a checkout is
+// created, and backs the "at least" projection made before anyone has paid.
+// It is never used to say what a club HAS received. That figure comes only
+// from what the processor recorded for each payment: see payouts.mjs.
+//
 // The rule, decided 2026-11-19:
 //   Installments   the club's own rate (clubs.fee_bps), as a share of dues.
 //   Pay in full    card processing cost only. The club's rate is not used.
@@ -22,8 +27,8 @@ export const DEFAULT_FEE_BPS = 800;
 
 // The processor's published US rate for an online card payment, checked
 // 2026-11-19: 2.9% + 30c per successful payment. If the published rate
-// changes, change these two numbers and the matching pair in
-// public/app/index.html. fees.test.mjs fails if the two files disagree.
+// changes, change these two numbers. Nothing else carries a copy of them:
+// the app page does no fee arithmetic, and fees.test.mjs fails if it starts.
 export const PAY_IN_FULL_FEE_BPS = 290;
 export const PAY_IN_FULL_FEE_FIXED_CENTS = 30;
 
@@ -68,32 +73,12 @@ export function applicationFeeCents({ duesCents, paymentType, feeBps }) {
   throw new RangeError(`paymentType must be "full" or "bnpl", got ${paymentType}`);
 }
 
-// What reaches the club from one payment: the dues less the fee above. This is
-// a subtraction rather than a second multiplication on purpose, so the fee and
-// the payout always add back up to the dues exactly.
+// What a club would be left with from one payment at the fee above: the dues
+// less that fee. A subtraction rather than a second multiplication on purpose,
+// so the two always add back up to the dues exactly. Used only for the
+// projection below, never for money that has actually been received.
 export function clubPayoutCents({ duesCents, paymentType, feeBps }) {
   return duesCents - applicationFeeCents({ duesCents, paymentType, feeBps });
-}
-
-// How a funded athlete paid, read from athletes.payment_status. The webhook
-// writes paid_full only for a card payment and bnpl_* only for an installment
-// plan. Returns null for an athlete who has not paid.
-export function paymentTypeForStatus(paymentStatus) {
-  if (paymentStatus === "paid_full") return "full";
-  if (paymentStatus === "bnpl_active" || paymentStatus === "bnpl_complete") return "bnpl";
-  return null;
-}
-
-// For dashboards: what one athlete's payment put in the club's account. 0 for
-// an athlete who has not paid. Also 0, instead of an error, for a team with no
-// dues set or a rate that could not have been charged, so that one bad row
-// cannot take a whole dashboard down. Checkout does not use this: it calls
-// applicationFeeCents() directly and refuses bad input.
-export function payoutForStatusCents({ duesCents, paymentStatus, feeBps }) {
-  const paymentType = paymentTypeForStatus(paymentStatus);
-  if (!paymentType || !isDuesCents(duesCents)) return 0;
-  if (paymentType === "bnpl" && !isFeeBps(feeBps)) return 0;
-  return clubPayoutCents({ duesCents, paymentType, feeBps });
 }
 
 // For a projection made before anyone has paid, when the mix of pay-in-full

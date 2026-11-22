@@ -991,6 +991,11 @@
   .payout-hero { background: var(--ink); border-radius: var(--r-lg); padding: 20px; margin-bottom: var(--sp-4); color: var(--white); }
   .payout-hero-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--fund-green); margin-bottom: 4px; }
   .payout-hero-amount { font-family: 'Anton', sans-serif; font-size: 40px; font-weight: 400; line-height: 1; margin-bottom: 6px; }
+  /* When there is no figure to show, the slot holds a sentence instead of a
+     number, so it is set as text and not in the display face. */
+  .payout-hero-amount.is-unavailable { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600; line-height: 1.4; }
+  .admin-fin-amount.is-unavailable { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--ink-soft); }
+  .team-card-funded-num.is-unavailable { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
   .payout-hero-sub { font-size: 13.5px; color: rgba(255,255,255,0.72); line-height: 1.5; }
   .payout-hero-sub b { color: var(--white); font-weight: 700; }
 
@@ -1354,7 +1359,7 @@
          are now one sentence. -->
     <div class="payout-hero">
       <div class="payout-hero-eyebrow">Landing in your account</div>
-      <div class="payout-hero-amount" id="overviewPayoutAmt">$0</div>
+      <div class="payout-hero-amount" id="overviewPayoutAmt"></div>
       <div class="payout-hero-sub" id="overviewPayoutSub">
         <b id="overviewFundedCount">0</b> of <b id="overviewAthleteCount">0</b> athletes
         &middot; <b id="overviewTotalDues">$0</b> in dues
@@ -1370,7 +1375,7 @@
           <div class="status-bucket-label">Funded</div>
         </div>
         <div class="status-bucket-right">
-          <div class="status-bucket-amount" id="bucketFundedAmt">$0</div>
+          <div class="status-bucket-amount" id="bucketFundedAmt"></div>
           <div class="status-bucket-count" id="bucketFundedCount">0 athletes</div>
         </div>
       </div>
@@ -1429,7 +1434,7 @@
          had left PlayFund or was owed to it. -->
     <div class="payout-hero">
       <div class="payout-hero-eyebrow">Already sent to you</div>
-      <div class="payout-hero-amount" id="statCollected">$0</div>
+      <div class="payout-hero-amount" id="statCollected"></div>
       <div class="payout-hero-sub">
         <b id="statFundedFraction">0/0</b> athletes paid &middot; <b id="rosterDuesAmt">$0</b> dues each
       </div>
@@ -2051,21 +2056,13 @@
     <!-- Financial panels -->
     <div class="admin-fin-panel">
       <div class="admin-fin-card">
-        <div class="admin-fin-amount" id="adminTotalFronted">$0</div>
-        <div class="admin-fin-label">Fronted to Clubs</div>
+        <div class="admin-fin-amount" id="adminTotalFronted"></div>
+        <div class="admin-fin-label">Reached club accounts</div>
       </div>
       <div class="admin-fin-card">
-        <div class="admin-fin-amount" id="adminTotalCollected">$0</div>
+        <div class="admin-fin-amount" id="adminTotalCollected"></div>
         <div class="admin-fin-label">Collected from Families</div>
       </div>
-    </div>
-
-    <!-- Recovery bar -->
-    <div class="admin-recovery-bar">
-      <div class="admin-recovery-track">
-        <div class="admin-recovery-fill" id="adminTotalRecoveryBar" style="width:0%"></div>
-      </div>
-      <div class="admin-recovery-label" id="adminTotalRecoveryLabel"><b>0%</b> of advances recovered</div>
     </div>
 
     <div class="roster-section-label" id="adminActionLabel" style="display:none;">Needs action</div>
@@ -2102,21 +2099,30 @@
     <!-- Financial panels -->
     <div class="admin-fin-panel">
       <div class="admin-fin-card">
-        <div class="admin-fin-amount" id="adminDetailFronted">$0</div>
-        <div class="admin-fin-label">Fronted to Club</div>
+        <div class="admin-fin-amount" id="adminDetailFronted"></div>
+        <div class="admin-fin-label">Reached club account</div>
       </div>
       <div class="admin-fin-card">
-        <div class="admin-fin-amount" id="adminDetailCollected">$0</div>
+        <div class="admin-fin-amount" id="adminDetailCollected"></div>
         <div class="admin-fin-label">Collected from Families</div>
       </div>
     </div>
 
-    <!-- Recovery bar -->
+    <!-- Payout check. Whether this club's figures above have been matched
+         against the payment processor's records, why not if not, and a way to
+         run the check now. PlayFund staff only: a club never sees a reason.
+
+         Stacked, not side by side: label, then the message, then the button.
+         A failed check's message is a full sentence with ids in it, so it
+         gets the whole width of the card and may break inside a long id.
+         The button is only as wide as its label. .btn is a full-width flex
+         box, and beside the message in a row it took the row for itself and
+         squeezed the message to one word a line, so its width and display
+         are both set here. -->
     <div class="admin-recovery-bar">
-      <div class="admin-recovery-track">
-        <div class="admin-recovery-fill" id="adminDetailRecoveryBar" style="width:0%"></div>
-      </div>
-      <div class="admin-recovery-label" id="adminDetailRecoveryLabel"><b>0%</b> of advances recovered</div>
+      <div class="admin-fin-label" style="margin-bottom:4px;">Payout check</div>
+      <p id="adminDetailPayoutCheckMsg" style="font-size:11px; line-height:1.5; min-height:14px; margin:0 0 10px; color:var(--ink-soft); overflow-wrap:anywhere;"></p>
+      <button class="btn btn-secondary" id="adminDetailPayoutCheckBtn" style="display:inline-flex; width:auto; padding:6px 12px; font-size:12px;" onclick="runAdminPayoutCheck()">Check now</button>
     </div>
 
     <!-- PlayFund fee -->
@@ -2175,21 +2181,13 @@
     <!-- Financial panels -->
     <div class="admin-fin-panel">
       <div class="admin-fin-card">
-        <div class="admin-fin-amount" id="adminRosterFronted">$0</div>
-        <div class="admin-fin-label">Fronted to Club</div>
+        <div class="admin-fin-amount" id="adminRosterFronted"></div>
+        <div class="admin-fin-label">Reached club account</div>
       </div>
       <div class="admin-fin-card">
-        <div class="admin-fin-amount" id="adminRosterCollected">$0</div>
+        <div class="admin-fin-amount" id="adminRosterCollected"></div>
         <div class="admin-fin-label">Collected from Families</div>
       </div>
-    </div>
-
-    <!-- Recovery bar -->
-    <div class="admin-recovery-bar">
-      <div class="admin-recovery-track">
-        <div class="admin-recovery-fill" id="adminRosterRecoveryBar" style="width:0%"></div>
-      </div>
-      <div class="admin-recovery-label" id="adminRosterRecoveryLabel"><b>0%</b> of advances recovered</div>
     </div>
 
     <div id="adminRosterList"></div>
@@ -2936,9 +2934,12 @@ var usStates = ["Virginia"];
     if (!token && clubCache[code]) return clubCache[code];
     try {
       var opts = token ? { headers: { 'Authorization': 'Bearer ' + token } } : undefined;
+      // A figure's time limit runs from when the page asked, not from when
+      // the answer landed: a slow answer is already that much older.
+      var askedAt = Date.now();
       var res = await fetch(WORKER_URL + '/club/' + code, opts);
       if (!res.ok) return null;
-      var data = await res.json();
+      var data = stampPayouts(await res.json(), askedAt);
       if (!data.club) return null;
       // Normalize to match the shape the rest of the app expects
       var club = data.club;
@@ -3704,6 +3705,7 @@ var usStates = ["Virginia"];
     errEl.textContent = 'Saving\u2026'; errEl.classList.add('loading-msg');
 
     try {
+      var askedAt = Date.now();
       var res = await fetch(WORKER_URL + '/team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + clubSession.access_token },
@@ -3719,7 +3721,7 @@ var usStates = ["Virginia"];
           dues_due_date: dueDate
         })
       });
-      var data = await res.json();
+      var data = stampPayouts(await res.json(), askedAt);
       if(!res.ok){ errEl.textContent = data.error || 'Failed to add team.'; errEl.classList.remove('loading-msg'); return; }
 
       var newTeam = Object.assign({}, data.team, {
@@ -3813,23 +3815,6 @@ var usStates = ["Virginia"];
     return sportVisuals[sport] || { color: 'var(--ink-soft)', bg: 'var(--paper-dim)', icon: '' };
   }
 
-  // Computes a deterministic roster + funded/collected summary for one team.
-  function teamSummary(club, team){
-    var roster = team.athletes || [];
-    var dues = team.dues || (team.dues_cents / 100);
-    var advanceAmt = Math.round(dues * clubFeeRate());
-    var fundedCount = 0, collected = 0;
-    roster.forEach(function(r){
-      var status = r.payment_status || 'unpaid';
-      var method = r.payment_method || null;
-      var isFunded = status === 'paid_full' || status === 'bnpl_active' || status === 'bnpl_complete';
-      if(isFunded) fundedCount++;
-      if(method === 'bnpl_active' || method === 'klarna') collected += advanceAmt;
-      else if(status === 'paid_full') collected += dues;
-    });
-    return { roster: roster, dues: dues, advanceAmt: advanceAmt, fundedCount: fundedCount, totalCount: roster.length, collected: collected };
-  }
-
   var teamIcons = {
     '10U': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21v-2a7 7 0 0114 0v2"/></svg>',
     '12U': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21v-2a7 7 0 0114 0v2"/></svg>',
@@ -3846,7 +3831,7 @@ var usStates = ["Virginia"];
 
     // Aggregate stats across all teams
     var totalAthletes = 0, totalFunded = 0, totalPending = 0, totalDefaulted = 0;
-    var totalDuesCents = 0, fundedCents = 0, pendingCents = 0, defaultedCents = 0;
+    var totalDuesCents = 0, pendingCents = 0, defaultedCents = 0;
 
     var teamListEl = document.getElementById('teamList');
     teamListEl.innerHTML = '';
@@ -3882,12 +3867,10 @@ var usStates = ["Virginia"];
       athletes.forEach(function(a){
         if(a.approval_status === 'pending') pendingApprovals.push({ athlete: a, team: team });
         var s = a.payment_status || 'unpaid';
-        var advanceCents = Math.round(clubPayoutFor(dues, s) * 100);
         totalAthletes++;
         totalDuesCents += dues * 100;
         if(s === 'paid_full' || s === 'bnpl_active' || s === 'bnpl_complete'){
           totalFunded++; teamFunded++;
-          fundedCents += advanceCents;
         } else if(s === 'defaulted'){
           totalDefaulted++;
           defaultedCents += Math.round(dues * 100);
@@ -3916,9 +3899,11 @@ var usStates = ["Virginia"];
       teamListEl.appendChild(card);
     });
 
-    // Payout hero — advance for all funded athletes, net of this club's own rate
-    var payoutDollars = Math.round(fundedCents / 100);
-    document.getElementById('overviewPayoutAmt').textContent = '$' + payoutDollars.toLocaleString();
+    // Payout hero. The figure is the Worker's, confirmed against the payment
+    // processor, or it is not shown. See payoutCents above.
+    showPayout('overviewPayoutAmt', c.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_TEXT);
+    // Opened with a figure this page has held too long: ask the Worker again.
+    refreshPayouts();
     document.getElementById('overviewFundedCount').textContent = totalFunded;
     document.getElementById('overviewAthleteCount').textContent = totalAthletes;
     document.getElementById('overviewTotalDues').textContent  = '$' + Math.round(totalDuesCents / 100).toLocaleString();
@@ -3926,13 +3911,20 @@ var usStates = ["Virginia"];
     // Status buckets. The count is a phrase now, not a bare number, because it
     // sits under the money as a qualifier rather than above it as a heading.
     function setBucket(key, count, cents){
-      document.getElementById('bucket' + key + 'Amt').textContent =
-        '$' + Math.round(cents / 100).toLocaleString();
+      // cents is null for the one bucket whose amount is money received.
+      if(cents !== null){
+        document.getElementById('bucket' + key + 'Amt').textContent =
+          '$' + Math.round(cents / 100).toLocaleString();
+      }
       document.getElementById('bucket' + key + 'Count').textContent =
         count + ' athlete' + (count !== 1 ? 's' : '');
       document.getElementById('bucket' + key).classList.toggle('is-empty', count === 0);
     }
-    setBucket('Funded',    totalFunded,    fundedCents);
+    // "Still deciding" and "Needs another option" are dues not yet paid: dues
+    // times athletes, nothing received. "Funded" is money received, so its
+    // amount is the same confirmed figure as the hero, or blank.
+    setBucket('Funded',    totalFunded,    null);
+    showPayout('bucketFundedAmt', c.payout, 'club_net_cents', '');
     setBucket('Pending',   totalPending,   pendingCents);
     setBucket('Defaulted', totalDefaulted, defaultedCents);
 
@@ -4129,31 +4121,209 @@ var usStates = ["Virginia"];
     openClubOverview();
   }
 
-  // Mirrors clubFeeBps in worker/fees.mjs. The rate is per
-  // club (clubs.fee_bps, set by a PlayFund admin); 800 is only a fallback for
-  // a club whose rate was never set, never a published price. These screens
-  // are shown after a club has signed up, so their real rate is the right
-  // thing to use -- unlike the registration screens, which show dues rather
-  // than payout because nothing has been agreed at that point.
-  function clubFeeRate(club){
-    var c = club || state.club;
-    var bps = (c && c.fee_bps != null) ? c.fee_bps : 800;
-    return 1 - (bps / 10000);
+  // ---------- payout figures ----------
+  // The words shown where a payout figure would be, when there is no figure
+  // to show. This is the one place to change that wording.
+  var PAYOUT_UNAVAILABLE_TEXT = 'This total is not available right now.';
+  // The same, for the small slots on PlayFund Admin screens.
+  var PAYOUT_UNAVAILABLE_SHORT = 'Not available';
+
+  // How long this page goes on showing a figure after the Worker sent it. The
+  // Worker vouches for a figure at the moment it sends it and no longer: a
+  // refund a minute later takes the figure down at the Worker, and a page left
+  // open would not know. Three numbers:
+  //
+  //   PAYOUT_ASK_AFTER_MS   once a figure is this old, ask the Worker again.
+  //                         The figure stays up while the page waits, so a
+  //                         correct figure never blinks off between answers.
+  //   PAYOUT_SHOWN_FOR_MS   the limit. A figure this old with no fresh answer
+  //                         comes down, whatever the page is waiting for.
+  //   PAYOUT_ASK_EVERY_MS   how often the page looks at the clock.
+  //
+  // Together: a figure the Worker has withdrawn is gone from an open, visible
+  // page within about a minute when the Worker answers, and within about 75
+  // seconds when it cannot be reached.
+  var PAYOUT_ASK_AFTER_MS = 45 * 1000;
+  var PAYOUT_SHOWN_FOR_MS = 60 * 1000;
+  var PAYOUT_ASK_EVERY_MS = 15 * 1000;
+
+  // The Worker sends a figure for money a club has received only after it has
+  // matched that figure against the payment processor's records, and sends
+  // { verified: false } in every other case. This page shows that figure or
+  // shows none. It never works one out: nothing in this file multiplies dues
+  // by a rate or takes a fee off, and worker/app-page.test.mjs fails if that
+  // comes back.
+  //
+  // Returns whole cents, or null when there is no figure to show: not sent,
+  // not confirmed, not a whole number of cents, or held by this page for too
+  // long.
+  function payoutCents(payout, field, nowMs){
+    if(!payout || payout.verified !== true) return null;
+    if(typeof payout.received_ms !== 'number') return null;
+    var age = (nowMs === undefined ? Date.now() : nowMs) - payout.received_ms;
+    if(!(age >= 0 && age <= PAYOUT_SHOWN_FOR_MS)) return null;
+    var cents = payout[field];
+    if(typeof cents !== 'number' || !isFinite(cents) || cents < 0 || Math.floor(cents) !== cents) return null;
+    return cents;
   }
 
-  // What one funded athlete's payment puts in the club's account, in dollars.
-  // Mirrors worker/fees.mjs: the club's rate applies to installments only, and
-  // a pay-in-full payment carries card processing cost only. The two numbers
-  // below must equal the pair in that file. worker/fees.test.mjs fails if they
-  // do not.
-  var PAY_IN_FULL_FEE_BPS = 290;
-  var PAY_IN_FULL_FEE_FIXED_CENTS = 30;
-  function clubPayoutFor(dues, paymentStatus, club){
-    if(paymentStatus !== 'paid_full') return dues * clubFeeRate(club);
-    var cents = Math.round(dues * 100);
-    var fee = Math.min(cents, Math.round(cents * PAY_IN_FULL_FEE_BPS / 10000) + PAY_IN_FULL_FEE_FIXED_CENTS);
-    return (cents - fee) / 100;
+  // Whole cents as dollars and cents, exactly. A payout figure is never
+  // rounded to the dollar: it has to equal the processor's to the cent.
+  function fmtCents(cents){
+    var rem = cents % 100;
+    return '$' + ((cents - rem) / 100).toLocaleString('en-US') + '.' + (rem < 10 ? '0' : '') + rem;
   }
+
+  // Marks every payout figure inside something the Worker has just sent with
+  // the time the page asked for it. Called on each reply that can carry one.
+  // The time is taken before the request goes out, so a figure's limit runs
+  // from when the page asked: a reply that took twenty seconds to arrive has
+  // forty left, not sixty.
+  function stampPayouts(node, nowMs){
+    if(!node || typeof node !== 'object') return node;
+    if(Array.isArray(node)){
+      for(var i = 0; i < node.length; i++) stampPayouts(node[i], nowMs);
+      return node;
+    }
+    for(var key in node){
+      if(key === 'payout' && node[key] && typeof node[key] === 'object') node[key].received_ms = nowMs;
+      else stampPayouts(node[key], nowMs);
+    }
+    return node;
+  }
+
+  // Every received-money slot on every screen is filled through showPayout,
+  // which remembers what it was given so the slot can be drawn again later.
+  var payoutSlots = {};
+  function drawPayout(id){
+    var slot = payoutSlots[id];
+    var el = document.getElementById(id);
+    if(!slot || !el) return;
+    var cents = payoutCents(slot.payout, slot.field);
+    el.textContent = cents === null ? slot.text : fmtCents(cents);
+    el.classList.toggle('is-unavailable', cents === null);
+  }
+  // Puts a figure, or the words for "no figure", into one element.
+  function showPayout(id, payout, field, unavailableText){
+    payoutSlots[id] = { payout: payout, field: field, text: unavailableText };
+    drawPayout(id);
+  }
+  // While a screen is loading, the same slots hold nothing.
+  function clearPayout(id){
+    delete payoutSlots[id];
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = '';
+    el.classList.remove('is-unavailable');
+  }
+  // The figure on a club or team card in PlayFund Admin. The card is built as
+  // text, so the figure is put in afterwards, through showPayout like the rest.
+  function payoutCardHtml(id){
+    return '<div class="team-card-funded">' +
+      '<div class="team-card-funded-num" id="' + id + '"></div>' +
+      '<div class="team-card-funded-label">Reached account</div>' +
+    '</div>';
+  }
+
+  // Whether it is time to ask the Worker again about what a slot holds. True
+  // for a slot holding nothing, too. This comes before the figure's limit, so
+  // the fresh answer is normally in hand before the old one has to come down.
+  function payoutSlotIsDue(id, nowMs){
+    var p = payoutSlots[id] && payoutSlots[id].payout;
+    if(!p || typeof p.received_ms !== 'number') return true;
+    var age = nowMs - p.received_ms;
+    return !(age >= 0 && age < PAYOUT_ASK_AFTER_MS);
+  }
+  // Whether any slot that is on screen right now, among those whose ids start
+  // with one of the prefixes, is due to be asked about again.
+  function payoutShownAndDue(prefixes, nowMs){
+    for(var id in payoutSlots){
+      var mine = prefixes.some(function(prefix){ return id.indexOf(prefix) === 0; });
+      if(!mine || !payoutSlotIsDue(id, nowMs)) continue;
+      var el = document.getElementById(id);
+      // offsetParent is null for anything inside a screen that is not showing.
+      if(el && el.offsetParent !== null) return true;
+    }
+    return false;
+  }
+
+  // PlayFund Admin: ask the Worker for every club again and put the fresh
+  // figures into the clubs already on screen and into every admin slot. The
+  // screen itself is left where it is.
+  async function refreshAdminPayouts(){
+    var askedAt = Date.now();
+    var res = await fetch(WORKER_URL + '/admin/clubs', { headers: { 'Authorization': 'Bearer ' + adminSession } });
+    if(!res.ok) return;
+    var data = stampPayouts(await res.json(), askedAt);
+    var clubs = {}, teams = {};
+    (data.clubs || []).forEach(function(club){
+      clubs[club.id] = club;
+      (club.teams || []).forEach(function(team){ teams[team.id] = team; });
+    });
+    (adminAllClubs || []).forEach(function(club){
+      var fresh = clubs[club.id];
+      club.payout = fresh ? fresh.payout : undefined;
+      if(fresh) club.payout_check = fresh.payout_check;
+      (club.teams || []).forEach(function(team){ team.payout = teams[team.id] ? teams[team.id].payout : undefined; });
+    });
+    var totals = data.totals || {};
+    var detail = clubs[adminDetailClubId];
+    var rosterTeam = state.adminCurrentTeam ? teams[state.adminCurrentTeam.id] : null;
+    for(var id in payoutSlots){
+      var slot = payoutSlots[id];
+      if(id === 'adminTotalFronted' || id === 'adminTotalCollected') slot.payout = totals.payout;
+      else if(id === 'adminDetailFronted' || id === 'adminDetailCollected') slot.payout = detail ? detail.payout : undefined;
+      else if(id === 'adminRosterFronted' || id === 'adminRosterCollected') slot.payout = rosterTeam ? rosterTeam.payout : undefined;
+      else if(id.indexOf('adminClubCardPayout-') === 0){ var c = clubs[id.slice('adminClubCardPayout-'.length)]; slot.payout = c ? c.payout : undefined; }
+      else if(id.indexOf('adminTeamCardPayout-') === 0){ var t = teams[id.slice('adminTeamCardPayout-'.length)]; slot.payout = t ? t.payout : undefined; }
+    }
+  }
+
+  // Runs every few seconds, when a club screen is opened, and whenever the tab
+  // is looked at again.
+  //
+  // First, every slot is drawn again. That takes down any figure that has
+  // really passed its limit, and only those: a figure inside its limit is
+  // left exactly as it is. This happens even while a request is under way, so
+  // a slow Worker cannot keep an old figure up.
+  //
+  // Then, if a slot on screen is due, the page asks the Worker again. The
+  // figure on screen stays while it waits. When the answer arrives it is put
+  // in: a fresh figure replaces the old one with nothing in between, and an
+  // answer of "no figure" takes the old one down at once. A tab nobody is
+  // looking at does not ask: it asks the moment it is looked at.
+  var payoutRefreshBusy = false;
+  async function refreshPayouts(){
+    for(var old in payoutSlots) drawPayout(old);
+    if(payoutRefreshBusy) return;
+    payoutRefreshBusy = true;
+    try {
+      if(document.hidden) return;
+      var c = state.club;
+      if(c && c.code && payoutShownAndDue(['overviewPayoutAmt', 'bucketFundedAmt', 'statCollected'], Date.now())){
+        var token = await getClubSessionToken();
+        var fresh = token ? await fetchClub(c.code, token) : null;
+        if(fresh && state.club === c){
+          c.payout = fresh.payout;
+          (c.teams || []).forEach(function(team){
+            var match = (fresh.teams || []).filter(function(t){ return t.id === team.id; })[0];
+            team.payout = match ? match.payout : undefined;
+          });
+          if(payoutSlots.overviewPayoutAmt) payoutSlots.overviewPayoutAmt.payout = c.payout;
+          if(payoutSlots.bucketFundedAmt)   payoutSlots.bucketFundedAmt.payout   = c.payout;
+          if(payoutSlots.statCollected)     payoutSlots.statCollected.payout     = state.team ? state.team.payout : undefined;
+        }
+      }
+      if(adminSession && payoutShownAndDue(['admin'], Date.now())) await refreshAdminPayouts();
+    } catch(e){
+      console.error('refreshPayouts error:', e);
+    } finally {
+      payoutRefreshBusy = false;
+      for(var id in payoutSlots) drawPayout(id);
+    }
+  }
+  setInterval(refreshPayouts, PAYOUT_ASK_EVERY_MS);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshPayouts(); });
 
   function openRoster(){
     var c = state.club;
@@ -4184,17 +4354,15 @@ var usStates = ["Virginia"];
       return s !== 'unpaid' && s !== 'defaulted';
     }).length;
     var totalCount = athletes.length;
-    var frontedAmt = Math.round(athletes.reduce(function(sum, a){
-      var s = a.payment_status || 'unpaid';
-      return (s === 'unpaid' || s === 'defaulted') ? sum : sum + clubPayoutFor(dues, s);
-    }, 0));
     var pct = totalCount > 0 ? Math.round(fundedCount / totalCount * 100) : 0;
 
     var fracEl = document.getElementById('statFundedFraction');
-    var collEl = document.getElementById('statCollected');
     var barEl  = document.getElementById('statBarFill');
     if(fracEl) fracEl.textContent = fundedCount + '/' + totalCount;
-    if(collEl) collEl.textContent = '$' + frontedAmt.toLocaleString();
+    // This team's share of what the club has received: the Worker's confirmed
+    // figure, or no figure.
+    showPayout('statCollected', team.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_TEXT);
+    refreshPayouts();
     if(barEl)  barEl.style.width  = pct + '%';
 
     var noteEl = document.getElementById('fundedNote');
@@ -5770,8 +5938,6 @@ var usStates = ["Virginia"];
       return;
     }
     clubs.forEach(function(club){
-        var recoveryPct = club.fronted_cents > 0
-          ? Math.min(100, Math.round(club.collected_cents / club.fronted_cents * 100)) : 0;
         var totalDues = club.athlete_count * (club.teams[0] ? club.teams[0].dues_cents/100 : 0);
         var sv = sportVisual(club.sport);
         var iconHtml = sv.icon
@@ -5787,12 +5953,10 @@ var usStates = ["Virginia"];
             '<div class="team-card-sub">' + club.code + ' &middot; ' + club.city + ' &middot; ' + club.team_count + ' teams</div>' +
             '<div class="team-card-sub" style="margin-top:2px;">Total Dues: $' + Math.round(totalDues).toLocaleString() + '</div>' +
           '</div>' +
-          '<div class="team-card-funded">' +
-            '<div class="team-card-funded-num">' + recoveryPct + '%</div>' +
-            '<div class="team-card-funded-label">Advances Recovered</div>' +
-          '</div>';
+          payoutCardHtml('adminClubCardPayout-' + club.id);
         card.addEventListener('click', function(){ openAdminClubDetail(club); });
         listEl.appendChild(card);
+        showPayout('adminClubCardPayout-' + club.id, club.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
     });
   }
 
@@ -5802,17 +5966,16 @@ var usStates = ["Virginia"];
       var el = document.getElementById(id);
       el.textContent = '…'; el.classList.add('loading-msg');
     });
-    document.getElementById('adminTotalFronted').textContent = '…';
-    document.getElementById('adminTotalCollected').textContent = '…';
-    document.getElementById('adminTotalRecoveryBar').style.width = '0%';
-    document.getElementById('adminTotalRecoveryLabel').innerHTML = '<b>0%</b> of advances recovered';
+    clearPayout('adminTotalFronted');
+    clearPayout('adminTotalCollected');
     document.getElementById('adminClubList').innerHTML = '';
 
     try {
+      var askedAt = Date.now();
       var res = await fetch(WORKER_URL + '/admin/clubs', {
         headers: { 'Authorization': 'Bearer ' + adminSession }
       });
-      var data = await res.json();
+      var data = stampPayouts(await res.json(), askedAt);
       if(!res.ok){
         document.getElementById('adminClubList').innerHTML =
           '<p style="color:var(--unpaid); font-size:14px; text-align:center; padding:32px 0;">' + (data.error || 'Failed to load clubs.') + '</p>';
@@ -5833,14 +5996,10 @@ var usStates = ["Virginia"];
         el.classList.remove('loading-msg');
       });
 
-      // Financial panels
-      var fronted   = (totals.fronted_cents   || 0) / 100;
-      var collected = (totals.collected_cents || 0) / 100;
-      var pct       = fronted > 0 ? Math.min(100, Math.round(collected / fronted * 100)) : 0;
-      document.getElementById('adminTotalFronted').textContent   = '$' + Math.round(fronted).toLocaleString();
-      document.getElementById('adminTotalCollected').textContent = '$' + Math.round(collected).toLocaleString();
-      document.getElementById('adminTotalRecoveryBar').style.width = pct + '%';
-      document.getElementById('adminTotalRecoveryLabel').innerHTML = '<b>' + pct + '%</b> of advances recovered';
+      // Financial panels. A total across clubs exists only when every club's
+      // figure has been confirmed; otherwise the Worker sends none.
+      showPayout('adminTotalFronted',   totals.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
+      showPayout('adminTotalCollected', totals.payout, 'charge_cents',   PAYOUT_UNAVAILABLE_SHORT);
 
       // Work queue — every club with something blocking it, listed with the
       // specific reason. Without this, finding the handful of clubs that need
@@ -5938,14 +6097,10 @@ var usStates = ["Virginia"];
     document.getElementById('adminDetailAthletes').textContent = club.athlete_count;
     document.getElementById('adminDetailFunded').textContent   = club.funded_count + '/' + club.athlete_count;
 
-    // Financial panels
-    var fronted   = (club.fronted_cents   || 0) / 100;
-    var collected = (club.collected_cents || 0) / 100;
-    var pct       = fronted > 0 ? Math.min(100, Math.round(collected / fronted * 100)) : 0;
-    document.getElementById('adminDetailFronted').textContent   = '$' + Math.round(fronted).toLocaleString();
-    document.getElementById('adminDetailCollected').textContent = '$' + Math.round(collected).toLocaleString();
-    document.getElementById('adminDetailRecoveryBar').style.width = pct + '%';
-    document.getElementById('adminDetailRecoveryLabel').innerHTML = '<b>' + pct + '%</b> of advances recovered';
+    // Financial panels: the Worker's confirmed figures, or no figure.
+    showPayout('adminDetailFronted',   club.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
+    showPayout('adminDetailCollected', club.payout, 'charge_cents',   PAYOUT_UNAVAILABLE_SHORT);
+    showAdminPayoutCheck(club.payout_check, club.payout);
 
     var teamListEl = document.getElementById('adminTeamList');
     teamListEl.innerHTML = '';
@@ -5953,7 +6108,6 @@ var usStates = ["Virginia"];
       var teamAthletes = team.athlete_count || 0;
       var teamDues     = (team.dues_cents || 0) / 100;
       var teamTotalDues = teamAthletes * teamDues;
-      var teamRecoveryPct = 0; // per-team recovery available once webhook wired
       var card = document.createElement('div');
       card.className = 'team-card';
       card.style.marginBottom = '10px';
@@ -5965,15 +6119,69 @@ var usStates = ["Virginia"];
           '<div class="team-card-name">' + team.name + '</div>' +
           '<div class="team-card-sub">Total Dues: $' + Math.round(teamTotalDues).toLocaleString() + '</div>' +
         '</div>' +
-        '<div class="team-card-funded">' +
-          '<div class="team-card-funded-num">' + teamRecoveryPct + '%</div>' +
-          '<div class="team-card-funded-label">Advances Recovered</div>' +
-        '</div>';
+        // This used to be a fixed "0%". It is now what reached the club's
+        // account for this team, or the words for "no figure".
+        payoutCardHtml('adminTeamCardPayout-' + team.id);
       card.addEventListener('click', function(){ openAdminTeamRoster(club, team); });
       teamListEl.appendChild(card);
+      showPayout('adminTeamCardPayout-' + team.id, team.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
     });
 
     showScreen('admin-club-detail');
+  }
+
+  // PlayFund staff only: the result of the last check of this club's payments
+  // against the payment processor. The Worker sends the reason in words.
+  function showAdminPayoutCheck(check, payout){
+    var el = document.getElementById('adminDetailPayoutCheckMsg');
+    if(!el) return;
+    if(!check){
+      el.textContent = 'No check saved yet. A club with no processor account has nothing to check.';
+      el.style.color = 'var(--ink-soft)';
+      return;
+    }
+    var when = check.checked_at ? new Date(check.checked_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+    if(check.status === 'verified' && payoutCents(payout, 'club_net_cents') === null){
+      // A pass that no longer counts: it is too old, or the payment records
+      // have changed since. The next check settles it.
+      el.textContent = 'Passed ' + when + ', but that check is now too old or the payment records have changed since. No figure is shown until the next check.';
+      el.style.color = 'var(--unpaid)';
+    } else if(check.status === 'verified'){
+      el.textContent = 'Matched the payment processor, ' + when + '.';
+      el.style.color = 'var(--ink-soft)';
+    } else {
+      el.textContent = 'Did not pass, ' + when + '. ' + (check.message || check.reason || '') + (check.detail ? ' Detail: ' + check.detail : '');
+      el.style.color = 'var(--unpaid)';
+    }
+  }
+
+  async function runAdminPayoutCheck(){
+    var clubId = adminDetailClubId;
+    var btn = document.getElementById('adminDetailPayoutCheckBtn');
+    var el = document.getElementById('adminDetailPayoutCheckMsg');
+    if(!clubId || !btn) return;
+    btn.disabled = true;
+    if(el){ el.textContent = 'Checking\u2026'; el.style.color = 'var(--ink-soft)'; }
+    try {
+      var res = await fetch(WORKER_URL + '/admin/clubs/' + clubId + '/payout-check', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + adminSession }
+      });
+      var data = await res.json();
+      if(!res.ok){
+        if(el){ el.textContent = data.error || 'The check could not be run.'; el.style.color = 'var(--unpaid)'; }
+        return;
+      }
+      // Reload every figure from the Worker, so the screen never mixes a new
+      // result with numbers from before it.
+      await loadAdminClubs();
+      var fresh = adminAllClubs.find(function(c){ return c.id === clubId; });
+      if(fresh) openAdminClubDetail(fresh);
+    } catch(e){
+      if(el){ el.textContent = 'Network error. The check was not run.'; el.style.color = 'var(--unpaid)'; }
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function loadAdminClubPayments(clubId){
@@ -6142,16 +6350,15 @@ var usStates = ["Virginia"];
     document.getElementById('adminRosterTitle').textContent = club.name + ' — ' + team.name;
     document.getElementById('adminRosterSub').textContent = '$' + Math.round(team.dues_cents/100).toLocaleString() + ' season dues';
     document.getElementById('adminRosterList').innerHTML = '<p style="color:var(--ink-soft); font-size:14px; padding:16px 0;">Loading…</p>';
-    document.getElementById('adminRosterFronted').textContent   = '…';
+    clearPayout('adminRosterFronted');
     document.getElementById('adminRosterFunded').textContent    = '…';
-    document.getElementById('adminRosterCollected').textContent = '…';
-    document.getElementById('adminRosterRecoveryBar').style.width = '0%';
-    document.getElementById('adminRosterRecoveryLabel').innerHTML = '<b>0%</b> of advances recovered';
+    clearPayout('adminRosterCollected');
     showScreen('admin-team-roster');
 
     try {
+      var askedAt = Date.now();
       var res = await fetch(WORKER_URL + '/club/' + club.code, { headers: { 'Authorization': 'Bearer ' + adminSession } });
-      var data = await res.json();
+      var data = stampPayouts(await res.json(), askedAt);
       var liveTeam = (data.club.teams || []).find(function(t){ return t.id === team.id; });
       if(!liveTeam){ document.getElementById('adminRosterList').innerHTML = '<p>Team not found.</p>'; return; }
 
@@ -6160,29 +6367,17 @@ var usStates = ["Virginia"];
       state.adminCurrentClub = data.club;
 
       var athletes = liveTeam.athletes || [];
-      var dues = liveTeam.dues_cents / 100;
-      var funded = 0, fronted = 0;
+      var funded = 0;
       athletes.forEach(function(a){
         var s = a.payment_status || 'unpaid';
-        if(['paid_full','bnpl_active','bnpl_complete'].includes(s)){
-          funded++;
-          fronted += Math.round(clubPayoutFor(dues, s, data.club));
-        }
+        if(['paid_full','bnpl_active','bnpl_complete'].includes(s)) funded++;
       });
 
-      // Collected comes from stats returned by /club/:code
-      var collected = (data.stats && data.stats.collected_cents)
-        ? data.stats.collected_cents / 100 : 0;
-
-      // Filter to just this team's athletes for collected estimate
-      // (stats is club-wide; for team-level we use fronted as proxy until per-team payments available)
-      var pct = fronted > 0 ? Math.min(100, Math.round(collected / fronted * 100)) : 0;
-
-      document.getElementById('adminRosterFronted').textContent   = '$' + Math.round(fronted).toLocaleString();
+      // Both figures are this team's own, as confirmed by the Worker against
+      // the payment processor, or they are not shown.
+      showPayout('adminRosterFronted',   liveTeam.payout, 'club_net_cents', PAYOUT_UNAVAILABLE_SHORT);
       document.getElementById('adminRosterFunded').textContent    = funded + '/' + athletes.length;
-      document.getElementById('adminRosterCollected').textContent = '$' + Math.round(collected).toLocaleString();
-      document.getElementById('adminRosterRecoveryBar').style.width = pct + '%';
-      document.getElementById('adminRosterRecoveryLabel').innerHTML = '<b>' + pct + '%</b> of advances recovered';
+      showPayout('adminRosterCollected', liveTeam.payout, 'charge_cents',   PAYOUT_UNAVAILABLE_SHORT);
 
       var listEl = document.getElementById('adminRosterList');
       if(athletes.length === 0){

@@ -2010,6 +2010,32 @@ async function runWeeklyMetrics(env, days) {
 }
 __name(runWeeklyMetrics, "runWeeklyMetrics");
 
+// Why the database refused to insert a row into `payments`, and so what the
+// webhook should do about it. The table has rules of its own: one row per
+// event id, an athlete that must exist, a known status, an amount. A refusal
+// on one of those will be refused again however many times the event is sent,
+// so asking the processor to send it again only produces three days of
+// failures. Only a failure that could pass next time is worth a retry.
+//
+//   "duplicate"   the row is already there (error 23505). Carry on as for an
+//                 event that has been delivered before.
+//   "no_athlete"  the athlete no longer exists (error 23503). The payment
+//                 cannot be recorded against anyone.
+//   "rejected"    the row breaks another rule of the table (a missing amount,
+//                 an unknown status, an id that is not an id).
+//   "conflict"    refused as conflicting with what is there, without saying
+//                 which of the first two it was. Treated as not worth a retry.
+//   "retry"       anything else: the database was down, slow or unreachable.
+function paymentInsertRefusal(res) {
+  const code = res && res.error && typeof res.error === "object" ? String(res.error.code || "") : "";
+  if (code === "23505") return "duplicate";
+  if (code === "23503") return "no_athlete";
+  if (code === "23502" || code === "23514" || code === "22P02") return "rejected";
+  if (res && res.status === 409) return "conflict";
+  return "retry";
+}
+__name(paymentInsertRefusal, "paymentInsertRefusal");
+
 // A timer fired with an expression this Worker does not recognise. Nothing is
 // run for it (see scheduled below). A log line alone would go unread, so
 // PlayFund staff are told as well, once per expression, with the same
@@ -3969,7 +3995,18 @@ var index_default = {
           `/payments?stripe_payment_intent=eq.${encodeURIComponent(pi.id)}&status=eq.succeeded&select=id`
         );
         if (!existing.ok) return askForRetry("looking for an existing payment row", existing);
-        const duplicate = existing.rows.length > 0;
+        let duplicate = existing.rows.length > 0;
+        // For a payment that cannot be recorded here at all: the money has
+        // still moved, so the club's payout check is started from the account
+        // the payment went to. It will find a transfer with no payment row
+        // behind it, show the club no figure, and tell staff. That is the
+        // truthful result, and it is the only thing left to do.
+        const checkClubPaidInto = async () => {
+          const account = idOf(pi.transfer_data && pi.transfer_data.destination);
+          if (!account || !/^acct_[A-Za-z0-9]+$/.test(account)) return;
+          const paidInto = await dbRows(env, `/clubs?stripe_account_id=eq.${account}&select=id,name,code,stripe_account_id`);
+          if (paidInto.ok && paidInto.rows[0]) await afterReply(() => runPayoutCheck(env, paidInto.rows[0]));
+        };
         if (!duplicate) {
           // The same columns as before payout checks existed, on purpose: this
           // insert must never depend on the newer columns being there. The
@@ -3984,8 +4021,21 @@ var index_default = {
             payment_method: paymentMethod,
             notes: `Stripe event ${eventId}`
           });
-          // Nothing else has been done yet, so the retry starts clean.
-          if (!inserted.ok) return askForRetry("recording the payment", inserted);
+          if (!inserted.ok) {
+            const refusal = paymentInsertRefusal(inserted);
+            // Nothing else has been done yet, so a retry starts clean.
+            if (refusal === "retry") return askForRetry("recording the payment", inserted);
+            if (refusal === "no_athlete" || refusal === "rejected") {
+              // No number of retries will get this row in. Say so loudly,
+              // answer 200 so the processor stops sending it, and let the
+              // payout check report the club.
+              console.error(`Stripe webhook ${eventId}: payment ${pi.id} could NOT be recorded and will not be retried (${refusal === "no_athlete" ? `athlete ${athleteId} no longer exists` : "the row was refused"}). ${dbErrorText(inserted)}`);
+              await checkClubPaidInto();
+              return json({ received: true, recorded: false });
+            }
+            // Already there: another delivery of this payment got in first.
+            duplicate = true;
+          }
         }
         const athleteRes = await dbRows(
           env,
@@ -3993,7 +4043,14 @@ var index_default = {
         );
         if (!athleteRes.ok) return askForRetry("reading the athlete", athleteRes);
         const athlete = athleteRes.rows[0];
-        if (!athlete) return json(duplicate ? { received: true, duplicate: true } : { received: true });
+        if (!athlete) {
+          // Removed between the lines above and here, or the insert was
+          // refused without saying why. Either way there is nobody to mark as
+          // paid, and removing an athlete removes their payment rows with them.
+          console.error(`Stripe webhook ${eventId}: payment ${pi.id} is for athlete ${athleteId}, who no longer exists.`);
+          await checkClubPaidInto();
+          return json(duplicate ? { received: true, duplicate: true } : { received: true });
+        }
         const alreadyFunded = FUNDED_STATUSES.includes(athlete.payment_status);
         // The address the parent actually typed at checkout. Backfill it when
         // the athlete has none -- an athlete added without a parent email is
@@ -4067,7 +4124,18 @@ var index_default = {
           payment_method: pi.payment_method_types?.[0] || "card",
           notes: pi.last_payment_error?.message || "Payment failed"
         });
-        if (!failedRes.ok) return askForRetry("recording the failed payment", failedRes);
+        if (!failedRes.ok) {
+          const refusal = paymentInsertRefusal(failedRes);
+          if (refusal === "retry") return askForRetry("recording the failed payment", failedRes);
+          // The same event delivered twice lands here on the second delivery:
+          // the row is already there, and that is fine. So does a failed
+          // payment for an athlete who has since been removed. Neither can
+          // ever succeed, so neither is sent back for another try.
+          if (refusal !== "duplicate") {
+            console.error(`Stripe webhook ${eventId}: failed payment ${pi.id} could not be recorded and will not be retried (${refusal}). ${dbErrorText(failedRes)}`);
+          }
+          return json(refusal === "duplicate" ? { received: true, duplicate: true } : { received: true, recorded: false });
+        }
       }
       return json({ received: true });
     }

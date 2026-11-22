@@ -818,10 +818,11 @@ test("the new columns do not exist: payments are still recorded exactly as befor
   const klarna = await payFor(worker, world, b, "bnpl");
   assert.equal(klarna.webhookStatus, 200);
 
-  // The payment rows are there, with the same columns the Worker wrote before.
+  // The payment rows are there, with the same columns the Worker wrote before
+  // (id, created_at and currency are filled in by the table's own defaults).
   assert.equal(world.db.payments.length, 2);
   assert.deepEqual(Object.keys(world.db.payments[0]).sort(), [
-    "amount_cents", "athlete_id", "created_at", "id", "notes", "payment_method", "status", "stripe_event_id", "stripe_payment_intent"
+    "amount_cents", "athlete_id", "created_at", "currency", "id", "notes", "payment_method", "status", "stripe_event_id", "stripe_payment_intent"
   ]);
   assert.equal(world.db.payments[0].amount_cents, 100000);
   assert.equal(world.db.payments[0].status, "succeeded");
@@ -962,30 +963,35 @@ test("a new payment recorded while a check is running: no figure until a check h
   assertTies((await clubView(club)).payout, club.stripe_account_id);
 });
 
-test("two deliveries of one payment at the same moment: one row, and the second is sent again", async (t) => {
+test("two deliveries of one payment at the same moment: one row, one receipt, and no retry loop", async (t) => {
   begin(t);
   const club = world.addClub();
   const [athlete] = club.teams[0].athletes;
   const pay = await payFor(worker, world, athlete, "full");
   assert.equal(world.db.payments.length, 1);
-  // The second delivery looks for an existing row a moment too early and
-  // finds none, as it would if both arrived together.
-  let lied = false;
-  world.faults.db = ({ method, table, url }) => {
-    if (!lied && method === "GET" && table === "payments" && url.search.includes("stripe_payment_intent=eq.")) {
-      lied = true;
-      return new Response("[]", { status: 200 });
-    }
-    return null;
-  };
-  const second = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay), { eventId: "evt_the_other_delivery" });
-  // The database's one-row rule refuses the insert, and the processor is asked to try again.
-  assert.equal(second.status, 500);
-  assert.equal(world.db.payments.length, 1);
-  const again = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay), { eventId: "evt_the_other_delivery" });
-  assert.equal(again.status, 200);
-  assert.equal(world.db.payments.length, 1);
-  assert.equal(world.mail.filter((m) => /^Receipt:/.test(m.subject)).length, 1);
+  // A second delivery looks for an existing row a moment too early and finds
+  // none, as it would if both arrived together. Once as a second event for
+  // the same payment, once as the very same event again.
+  for (const eventId of ["evt_the_other_delivery", paymentRow(pay).stripe_event_id]) {
+    let lied = false;
+    world.faults.db = ({ method, table, url }) => {
+      if (!lied && method === "GET" && table === "payments" && url.search.includes("stripe_payment_intent=eq.")) {
+        lied = true;
+        return new Response("[]", { status: 200 });
+      }
+      return null;
+    };
+    const second = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay), { eventId });
+    world.faults.db = null;
+    // The table's own rules refuse the second row. That is "already
+    // recorded", not a failure: a 500 here would be sent again for three
+    // days and refused every time.
+    assert.equal(second.status, 200, eventId);
+    assert.deepEqual(await second.json(), { received: true, duplicate: true }, eventId);
+    assert.equal(world.db.payments.length, 1, eventId);
+    assert.equal(world.mail.filter((m) => /^Receipt:/.test(m.subject)).length, 1, eventId);
+  }
+  assert.equal(world.db.athletes[0].payment_status, "paid_full");
   assertTies((await clubView(club)).payout, club.stripe_account_id);
 });
 
@@ -1128,6 +1134,152 @@ test("an old event sent again does not change a status that is already set", asy
   await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(first), { eventId: paymentRow(first).stripe_event_id });
   assert.equal(world.db.athletes[0].payment_status, "paid_full");
   assertTies((await clubView(club)).payout, club.stripe_account_id);
+});
+
+test("a failed-payment event delivered twice: one row and two good answers", async (t) => {
+  begin(t);
+  const club = world.addClub();
+  const [athlete] = club.teams[0].athletes;
+  const event = { id: "pi_testfailed", object: "payment_intent", amount: 100000, payment_method_types: ["card"], metadata: { athlete_id: athlete.id }, last_payment_error: { message: "placeholder decline" } };
+  const first = await sendWebhook(worker, world, "payment_intent.payment_failed", event, { eventId: "evt_failed_once" });
+  assert.equal(first.status, 200);
+  // The same event again. The table allows one row per event, so the insert
+  // is refused, and the Worker must still answer well: a 500 would have the
+  // processor sending this event for three days, refused every time.
+  const second = await sendWebhook(worker, world, "payment_intent.payment_failed", event, { eventId: "evt_failed_once" });
+  assert.equal(second.status, 200);
+  assert.deepEqual(await second.json(), { received: true, duplicate: true });
+  const third = await sendWebhook(worker, world, "payment_intent.payment_failed", event, { eventId: "evt_failed_once" });
+  assert.equal(third.status, 200);
+  assert.equal(world.db.payments.length, 1);
+  assert.equal(world.db.payments[0].status, "failed");
+  assert.equal(world.db.athletes[0].payment_status, "unpaid");
+});
+
+test("a succeeded event for an athlete who no longer exists: a good answer, no row, no receipt, and the club is checked", async (t) => {
+  const { wait } = begin(t);
+  const club = world.addClub();
+  const [athlete] = club.teams[0].athletes;
+  await call(worker, "POST", `/athlete/${athlete.id}/checkout`, { body: { payment_type: "full" } });
+  const pay = world.processor.createPayment(world.processor.openSession);
+  // The athlete is removed between starting checkout and the payment landing.
+  const removed = await call(worker, "DELETE", `/athlete/${athlete.id}`, { token: club.token });
+  assert.equal(removed.status, 200);
+  assert.equal(world.db.athletes.some((a) => a.id === athlete.id), false);
+
+  const res = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay));
+  // No retry can ever get this row in, so none is asked for.
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { received: true, recorded: false });
+  assert.equal(world.db.payments.length, 0);
+  assert.equal(world.mail.filter((m) => /^Receipt:/.test(m.subject)).length, 0);
+  assert.match(logged.join("\n"), /could NOT be recorded and will not be retried/);
+
+  // The money did move, so the club's check was started from the account it
+  // went to, and the club is shown no figure.
+  assert.equal(checkRow(club).status, "failed");
+  assert.equal(checkRow(club).reason, "settling");
+  assertNoFigure((await clubView(club)).payout);
+  // Once the payment has had time to turn up and has not, staff are told the truth.
+  wait(SETTLING_GRACE_MS + MINUTE);
+  await timer();
+  assert.equal(checkRow(club).reason, "unrecorded_processor_payment");
+  assert.equal(alerts().length, 1);
+  assertNoFigure((await clubView(club)).payout);
+
+  // Sent again, it is answered the same way and still records nothing.
+  const again = await sendWebhook(worker, world, "payment_intent.succeeded", world.processor.intentObject(pay));
+  assert.equal(again.status, 200);
+  assert.equal(world.db.payments.length, 0);
+});
+
+test("a failed-payment event for an athlete who no longer exists: a good answer and no row", async (t) => {
+  begin(t);
+  world.addClub();
+  const event = { id: "pi_testfailed", object: "payment_intent", amount: 100000, payment_method_types: ["card"], metadata: { athlete_id: "ath_removed" } };
+  const res = await sendWebhook(worker, world, "payment_intent.payment_failed", event);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { received: true, recorded: false });
+  assert.equal(world.db.payments.length, 0);
+  assert.equal(world.db.payout_checks.length, 0, "a payment that failed moved no money, so there is nothing to check");
+});
+
+test("a payment row the table refuses for good is not sent back for retry", async (t) => {
+  begin(t);
+  const club = world.addClub();
+  const [athlete] = club.teams[0].athletes;
+  const pay = world.processor.createPayment({ account: club.stripe_account_id, amountCents: 100000, feeCents: 2930, athleteId: athlete.id });
+  // An event with no amount on it: the table requires one.
+  const event = { ...world.processor.intentObject(pay), amount_received: undefined };
+  const res = await sendWebhook(worker, world, "payment_intent.succeeded", event);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { received: true, recorded: false });
+  assert.equal(world.db.payments.length, 0);
+  // Nothing is made up to fill the gap: no status, no receipt, no figure.
+  assert.equal(world.db.athletes[0].payment_status, "unpaid");
+  assert.equal(world.mail.filter((m) => /^Receipt:/.test(m.subject)).length, 0);
+  assertNoFigure((await clubView(club)).payout);
+  assert.equal(checkRow(club).status, "failed");
+});
+
+test("removing an athlete who has paid removes their payment rows, and the club's figure goes", async (t) => {
+  const { club, first, wait } = await paidClub(t);
+  const athlete = club.teams[0].athletes[0];
+  assert.equal(world.db.payments.filter((r) => r.athlete_id === athlete.id).length, 1);
+
+  const removed = await call(worker, "DELETE", `/athlete/${athlete.id}`, { token: club.token });
+  assert.equal(removed.status, 200);
+  // The table deletes an athlete's payments with the athlete.
+  assert.equal(world.db.payments.filter((r) => r.athlete_id === athlete.id).length, 0);
+  assert.equal(world.db.payments.length, 1);
+  // The money is still in the club's account at the processor, and the app no
+  // longer has a record of it. No figure, at once and after every later check.
+  await assertHiddenEverywhere(club);
+  wait(SETTLING_GRACE_MS + MINUTE);
+  await timer();
+  assert.equal(checkRow(club).reason, "unrecorded_processor_payment");
+  assert.match(checkRow(club).detail, new RegExp(first.intentId));
+  assert.equal(alerts().length, 1);
+  wait(RUN_EVERY);
+  await timer();
+  await assertHiddenEverywhere(club);
+  assert.equal(alerts().length, 1);
+});
+
+test("the stand-in database keeps the live payments table's rules", async (t) => {
+  begin(t);
+  const club = world.addClub();
+  const [athlete] = club.teams[0].athletes;
+  const insert = async (row) => {
+    const res = await world.fetch("https://database.invalid/rest/v1/payments", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
+    return { status: res.status, body: await res.json() };
+  };
+  const good = { athlete_id: athlete.id, stripe_payment_intent: "pi_a", stripe_event_id: "evt_a", amount_cents: 500, status: "failed" };
+  const made = await insert(good);
+  assert.equal(made.status, 201);
+  assert.equal(made.body[0].currency, "usd");
+  assert.ok(made.body[0].id && made.body[0].created_at);
+  // One row per event id.
+  assert.deepEqual([(await insert(good)).status, (await insert(good)).body.code], [409, "23505"]);
+  // An athlete that exists.
+  assert.equal((await insert({ ...good, stripe_event_id: "evt_b", athlete_id: "ath_nobody" })).body.code, "23503");
+  // A known status, and the columns that may not be empty.
+  assert.equal((await insert({ ...good, stripe_event_id: "evt_c", status: "pending" })).body.code, "23514");
+  for (const col of ["athlete_id", "amount_cents", "status"]) {
+    assert.equal((await insert({ ...good, stripe_event_id: `evt_${col}`, [col]: null })).body.code, "23502", col);
+  }
+  // 'refunded' is allowed, failed rows may repeat a payment, and so may succeeded rows with no payment id.
+  assert.equal((await insert({ ...good, stripe_event_id: "evt_d", status: "refunded" })).status, 201);
+  assert.equal((await insert({ ...good, stripe_event_id: "evt_e" })).status, 201);
+  assert.equal((await insert({ ...good, stripe_event_id: "evt_f", status: "succeeded", stripe_payment_intent: null })).status, 201);
+  assert.equal((await insert({ ...good, stripe_event_id: "evt_g", status: "succeeded", stripe_payment_intent: null })).status, 201);
+  // One succeeded row per payment.
+  assert.equal((await insert({ ...good, stripe_event_id: "evt_h", status: "succeeded" })).status, 201);
+  assert.equal((await insert({ ...good, stripe_event_id: "evt_i", status: "succeeded" })).body.code, "23505");
+  // Removing the athlete removes every one of their payment rows.
+  assert.equal(world.db.payments.length, 6);
+  await world.fetch(`https://database.invalid/rest/v1/athletes?id=eq.${athlete.id}`, { method: "DELETE" });
+  assert.equal(world.db.payments.length, 0);
 });
 
 test("a failed payment is recorded, and a failed write of it asks for a retry", async (t) => {

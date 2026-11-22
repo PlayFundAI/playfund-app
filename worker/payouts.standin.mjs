@@ -24,6 +24,22 @@ export const ENV = {
   APP_URL: "https://app.invalid/app/"
 };
 
+// The live `payments` table has rules of its own, and the stand-in keeps to
+// them, because the Worker's behaviour depends on which rule refused a row:
+//
+//   id                 uuid primary key, with a default
+//   created_at         timestamptz, default now()
+//   currency           text, default 'usd'
+//   athlete_id         NOT NULL, foreign key to athletes(id) ON DELETE CASCADE:
+//                      removing an athlete removes their payment rows
+//   amount_cents       NOT NULL
+//   status             NOT NULL, one of 'succeeded', 'failed', 'refunded'
+//   stripe_event_id    UNIQUE (payments_stripe_event_id_key)
+//
+// and, once the migration is applied, at most one 'succeeded' row for any one
+// stripe_payment_intent.
+const PAYMENT_STATUSES = ["succeeded", "failed", "refunded"];
+
 // The columns `payments` has today, and the ones the migration adds.
 const PAYMENT_COLUMNS_BEFORE = [
   "id", "created_at", "athlete_id", "stripe_payment_intent", "stripe_event_id", "amount_cents",
@@ -97,6 +113,31 @@ export function createWorld({ migrated = true } = {}) {
     return reply(200, true);
   }
 
+  // The rules of the live `payments` table, applied to one row about to be
+  // written, with the error the real database API gives for each.
+  function paymentRuleBroken(row, others) {
+    for (const col of ["athlete_id", "amount_cents", "status"]) {
+      if (row[col] == null) {
+        return reply(400, { code: "23502", message: `null value in column "${col}" of relation "payments" violates not-null constraint` });
+      }
+    }
+    if (!PAYMENT_STATUSES.includes(row.status)) {
+      return reply(400, { code: "23514", message: 'new row for relation "payments" violates check constraint "payments_status_check"' });
+    }
+    if (row.stripe_event_id != null && others.some((r) => r.stripe_event_id === row.stripe_event_id)) {
+      return reply(409, { code: "23505", message: 'duplicate key value violates unique constraint "payments_stripe_event_id_key"' });
+    }
+    // The migration's rule: one payment, one "succeeded" row.
+    if (world.migrated && row.status === "succeeded" && row.stripe_payment_intent != null &&
+        others.some((r) => r.status === "succeeded" && r.stripe_payment_intent === row.stripe_payment_intent)) {
+      return reply(409, { code: "23505", message: 'duplicate key value violates unique constraint "payments_one_succeeded_row_per_intent"' });
+    }
+    if (!world.db.athletes.some((a) => String(a.id) === String(row.athlete_id))) {
+      return reply(409, { code: "23503", message: 'insert or update on table "payments" violates foreign key constraint "payments_athlete_id_fkey"' });
+    }
+    return null;
+  }
+
   function database(method, url, init) {
     const table = url.pathname.replace("/rest/v1/", "");
     const fault = world.faults.db && world.faults.db({ method, table, url, body: init.body });
@@ -154,9 +195,11 @@ export function createWorld({ migrated = true } = {}) {
       const incoming = Array.isArray(body) ? body : [body];
       const missing = unknownColumn(incoming.flatMap((r) => Object.keys(r)));
       if (missing) return reply(400, { code: "PGRST204", message: `Could not find the '${missing}' column of 'payments' in the schema cache` });
-      // The migration's rule: one payment, one "succeeded" row.
-      if (table === "payments" && world.migrated && incoming.some((f) => f.status === "succeeded" && rows.some((r) => r.status === "succeeded" && r.stripe_payment_intent === f.stripe_payment_intent))) {
-        return reply(409, { code: "23505", message: 'duplicate key value violates unique constraint "payments_one_succeeded_row_per_intent"' });
+      if (table === "payments") {
+        for (const f of incoming) {
+          const refused = paymentRuleBroken({ currency: "usd", ...f }, rows);
+          if (refused) return refused;
+        }
       }
       const written = [];
       for (const fields of incoming) {
@@ -169,7 +212,7 @@ export function createWorld({ migrated = true } = {}) {
             continue;
           }
         }
-        const row = { id: nextId(table), created_at: new Date().toISOString(), ...fields };
+        const row = { id: nextId(table), created_at: new Date().toISOString(), ...(table === "payments" ? { currency: "usd" } : {}), ...fields };
         rows.push(row);
         written.push(row);
       }
@@ -178,7 +221,24 @@ export function createWorld({ migrated = true } = {}) {
     if (method === "PATCH") {
       const missing = unknownColumn(Object.keys(body));
       if (missing) return reply(400, { code: "PGRST204", message: `Could not find the '${missing}' column of 'payments' in the schema cache` });
-      rows.filter(hit).forEach((row) => Object.assign(row, body));
+      const matched = rows.filter(hit);
+      if (table === "payments") {
+        for (const row of matched) {
+          const refused = paymentRuleBroken({ ...row, ...body }, rows.filter((r) => r !== row));
+          if (refused) return refused;
+        }
+      }
+      matched.forEach((row) => Object.assign(row, body));
+      return new Response(null, { status: 204 });
+    }
+    if (method === "DELETE") {
+      const gone = rows.filter(hit);
+      world.db[table] = rows.filter((row) => !gone.includes(row));
+      // ON DELETE CASCADE: an athlete's payment rows go with the athlete.
+      if (table === "athletes") {
+        const ids = new Set(gone.map((a) => String(a.id)));
+        world.db.payments = world.db.payments.filter((p) => !ids.has(String(p.athlete_id)));
+      }
       return new Response(null, { status: 204 });
     }
     throw new Error(`stand-in database: ${method} is not supported`);

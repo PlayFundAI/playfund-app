@@ -205,7 +205,10 @@ function emailKind(subject) {
   if (/New club:/i.test(s)) return "New club (internal)";
   if (/^New enquiry:/i.test(s)) return "Site enquiry (internal)";
   if (/^Parent request:/i.test(s)) return "Parent request (internal)";
-  if (/wants to arrange payment directly/i.test(s)) return "Direct payment request (internal)";
+  // Goes to the club's admin, so it is not internal, whatever the label on
+  // rows from before 2026-11-23 says. "(internal)" is what keeps a kind out of
+  // the weekly digest's totals.
+  if (/wants to arrange payment directly/i.test(s)) return "Direct payment request";
   if (/^PlayFund weekly metrics/i.test(s)) return "Weekly digest (internal)";
   return "Other";
 }
@@ -388,7 +391,10 @@ async function sendReminderEmail(env, club, team, athlete) {
   </table>
   </td></tr></table>
   </body></html>`;
-  const res = await fetch("https://api.resend.com/emails", {
+  // Through resendSend like every other mail, so the reminder is recorded as
+  // sent. It used to call Resend directly, which left its opens in the weekly
+  // digest with no send to be read against. resendSend logs a failure itself.
+  const sent = await resendSend(env, {
     method: "POST",
     headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -398,10 +404,8 @@ async function sendReminderEmail(env, club, team, athlete) {
       html
     })
   });
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error("Resend failed for", athlete.parent_email, errText);
-    return { ok: false, error: errText, status: res.status };
+  if (!sent.ok) {
+    return { ok: false, error: sent.error, status: sent.status };
   }
   await supabase(env, "PATCH", `/athletes?id=eq.${athlete.id}`, { last_reminder_sent_at: (/* @__PURE__ */ new Date()).toISOString() });
   return { ok: true };
@@ -1063,8 +1067,11 @@ function buildWeeklyMetricsHtml(data) {
   const tiles = (cells) => `<table style="width:100%;border-collapse:separate;border-spacing:0;margin:0 0 6px;table-layout:fixed;"><tr>${cells.map((c, i) => `<td width="33%" style="width:33.33%;padding:0 ${i === cells.length - 1 ? "0" : "10px"} 10px 0;vertical-align:top;">
       <div style="border:1px solid #E5E7EB;border-radius:10px;padding:13px 14px;">
         <div style="font-size:12px;color:#6B7280;line-height:1.3;">${esc(c.label)}</div>
-        <div style="font-size:25px;color:#004643;font-weight:600;line-height:1.15;margin:3px 0 2px;">${metricNum(c.value)}</div>
-        <div style="font-size:12px;color:#9CA3AF;">was ${metricNum(c.prev)}</div>
+        ${c.text
+          ? `<div style="font-size:15px;color:#6B7280;font-weight:600;line-height:29px;margin:3px 0 2px;">${esc(c.text)}</div>
+        <div style="font-size:12px;color:#9CA3AF;">&nbsp;</div>`
+          : `<div style="font-size:25px;color:#004643;font-weight:600;line-height:1.15;margin:3px 0 2px;">${metricNum(c.value)}</div>
+        <div style="font-size:12px;color:#9CA3AF;">was ${metricNum(c.prev)}</div>`}
       </div></td>`).join("")}</tr></table>`;
 
   // Cells arrive escaped by the caller, because some of them carry markup.
@@ -1077,12 +1084,19 @@ function buildWeeklyMetricsHtml(data) {
 
   const heading = (t) => `<h2 style="margin:26px 0 12px;font-size:15px;color:#004643;">${esc(t)}</h2>`;
 
-  // Unique opens over sends, both inside the window. Opens can belong to mail
-  // sent before the window opened, so this is not a cohort rate and can pass
-  // 100% in a quiet week. Said plainly in the footnote rather than clamped.
-  const openRate = n(eNow.sent) > 0
-    ? Math.round(100 * n(eNow.unique_opened) / n(eNow.sent)) + "%"
+  // Of the mail sent in the window, how many pieces were opened. The
+  // numerator is opened_of_sent, which counts only opens of that mail, so the
+  // rate cannot pass 100%. Unique opens is a different number: it includes
+  // opens of mail sent before the window. A database still on the first
+  // weekly_metrics() does not return opened_of_sent, and then no rate is
+  // shown at all, because unique opens over sends is not one.
+  const openRate = n(eNow.sent) > 0 && eNow.opened_of_sent != null
+    ? Math.round(100 * n(eNow.opened_of_sent) / n(eNow.sent)) + "%"
     : null;
+  // Sends with no delivery event at all means the webhook is not subscribed,
+  // not that nothing arrived. A 0 in the tile would read as the second.
+  const deliveryUntracked = n(eNow.delivered) === 0 && n(eNow.sent) > 0;
+  const unrecorded = (email.by_kind || []).some((r) => r.kind === "no send recorded");
 
   // Site notes first, in the order the sections appear. The first one is
   // permanent: it is the definition of the headline number.
@@ -1091,14 +1105,14 @@ function buildWeeklyMetricsHtml(data) {
   if (n(site.excluded) > 0) {
     notes.push(`${metricNum(site.excluded)} page ${n(site.excluded) === 1 ? "view or click" : "views and clicks"} from crawlers or preview links left out of the website numbers.`);
   }
-  if (n(eNow.sent) === 0 && (n(eNow.opened) > 0 || n(eNow.clicked) > 0)) {
-    notes.push("Opens or clicks arrived with no sends counted. Sends are recorded at the point we call Resend, which started recently, so email rates are not meaningful until a full week has passed.");
+  if (unrecorded) {
+    notes.push("\"No send recorded\" is opens or clicks of mail we have no send for: mail from before sends were logged.");
   }
-  if (n(eNow.delivered) === 0 && n(eNow.sent) > 0) {
-    notes.push("No delivery events. Resend accepted the mail, but its email.delivered webhook does not appear to be subscribed, so accepted and delivered cannot be told apart here.");
+  if (deliveryUntracked) {
+    notes.push("Delivered is not tracked. Resend accepted the mail, but its email.delivered webhook is not subscribed, so accepted and delivered cannot be told apart here.");
   }
   if (openRate) {
-    notes.push("Open rate is unique opens in this window over sends in this window. An open can belong to mail sent earlier, so a quiet week can read above 100%.");
+    notes.push("Open rate is, of the mail sent in this window, how many were opened. Unique opens also counts opens of mail sent earlier.");
   }
   notes.push("Opens depend on the reader loading images, so they undercount. Clicks do not.");
 
@@ -1106,7 +1120,7 @@ function buildWeeklyMetricsHtml(data) {
   const clickRows = (site.clicks || []).map((r) => [esc(r.label || "(no label)"), esc(r.path || ""), metricNum(r.clicks)]);
   const refRows = (site.referrers || []).map((r) => [esc(r.source), metricNum(r.visitors)]);
   const kindRows = (email.by_kind || []).map((r) => [
-    esc(r.kind),
+    esc(r.kind === "no send recorded" ? "No send recorded" : r.kind),
     metricNum(r.sent),
     metricNum(r.unique_opened),
     metricNum(r.clicked),
@@ -1132,17 +1146,18 @@ function buildWeeklyMetricsHtml(data) {
   ${table(["Source", "Visits"], refRows, "No referrers this week.")}
 
   ${heading("Email")}
+  <p style="margin:-6px 0 12px;font-size:13px;color:#6B7280;">Mail to parents and clubs. Mail to ourselves, this digest included, is only in the table below.</p>
   ${tiles([
     tile("Sent", eNow.sent, ePrev.sent),
     tile("Unique opens", eNow.unique_opened, ePrev.unique_opened),
     tile("Clicked", eNow.clicked, ePrev.clicked)
   ])}
   ${tiles([
-    tile("Delivered", eNow.delivered, ePrev.delivered),
+    deliveryUntracked ? { label: "Delivered", text: "not tracked" } : tile("Delivered", eNow.delivered, ePrev.delivered),
     tile("Bounced", eNow.bounced, ePrev.bounced),
     tile("Spam reports", eNow.complained, ePrev.complained)
   ])}
-  ${openRate ? `<p style="margin:10px 0 0;font-size:14px;color:#004643;">Open rate <strong>${esc(openRate)}</strong>, from ${metricNum(eNow.unique_opened)} of ${metricNum(eNow.sent)} sends.</p>` : ""}
+  ${openRate ? `<p style="margin:10px 0 0;font-size:14px;color:#004643;">Open rate <strong>${esc(openRate)}</strong>, ${metricNum(eNow.opened_of_sent)} of ${metricNum(eNow.sent)} sent.</p>` : ""}
   <p style="margin:18px 0 6px;font-size:13px;color:#6B7280;">By type of mail</p>
   ${table(["Type", "Sent", "Unique opens", "Clicked", "Bounced"], kindRows, "No email activity this week.")}
 
@@ -2703,22 +2718,21 @@ var index_default = {
       </table>
       </td></tr></table>
       </body></html>`;
-      try {
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: "PlayFund <admin@playfundai.com>",
-            to: [club.admin_email],
-            reply_to: athlete.parent_email || void 0,
-            subject: `${athlete.name}'s family wants to arrange payment directly`,
-            html
-          })
-        });
-        if (!res.ok) return err("Failed to send notification: " + await res.text(), 500);
-      } catch (e) {
-        return err("Failed to send notification", 500);
-      }
+      // Through resendSend, so this mail is recorded as sent like the rest.
+      const sent = await resendSend(env, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "PlayFund <admin@playfundai.com>",
+          to: [club.admin_email],
+          reply_to: athlete.parent_email || void 0,
+          subject: `${athlete.name}'s family wants to arrange payment directly`,
+          html
+        })
+      });
+      // A status means Resend answered and refused; without one the request
+      // never got there.
+      if (!sent.ok) return err(sent.status ? "Failed to send notification: " + sent.error : "Failed to send notification", 500);
       return json({ success: true });
     }
     if (method === "POST" && path.startsWith("/athlete/") && path.endsWith("/checkout")) {
@@ -3095,15 +3109,18 @@ var index_default = {
       if (eventType === "email.clicked" && event.data?.click?.link) {
         properties.link = event.data.click.link;
       }
-      try {
-        await supabase(env, "POST", "/events", {
-          event_name: "email_" + eventType.slice("email.".length),
-          session_id: null,
-          athlete_id: null,
-          club_id: null,
-          properties
-        });
-      } catch (e) {
+      // Said out loud when it fails, like the insert in /events. A webhook
+      // row that vanishes quietly is an open the weekly digest never counts,
+      // and nothing else would show it.
+      const stored = await supabase(env, "POST", "/events", {
+        event_name: "email_" + eventType.slice("email.".length),
+        session_id: null,
+        athlete_id: null,
+        club_id: null,
+        properties
+      }).catch((e) => ({ ok: false, status: 0, data: String(e) }));
+      if (!stored.ok) {
+        console.error(`Resend webhook: could not record ${eventType}: ${stored.status} ${JSON.stringify(stored.data)}`);
       }
       if (eventType === "email.bounced" || eventType === "email.complained") {
         const reason = eventType === "email.bounced" ? "bounced" : "complained";

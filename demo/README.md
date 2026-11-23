@@ -56,7 +56,9 @@ Look for both of these before touching anything:
 - A dark green badge in the top left corner that reads "DEMO · NO LIVE DATA".
 - A browser tab titled "PlayFund · demo".
 
-If either is missing, stop and open the address above again.
+If either is missing, stop and open the address above again, in a new tab.
+Adding `demo` to the address of a tab that already has the app open does
+nothing until the page reloads.
 
 If demo mode cannot start, the page shows one line, "Demo mode could not
 start, so nothing was loaded.", and the app does not open. A demo that has

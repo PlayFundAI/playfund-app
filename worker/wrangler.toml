@@ -26,7 +26,10 @@ WORKER_URL = "https://playfund-worker.playfund.workers.dev"
 
 # Two schedules, dispatched in the worker's scheduled() handler on event.cron:
 #   0 13 * * *  daily reminder-email sweep  (runScheduledReminders)
-#   0 14 * * 1  Monday metrics digest       (runWeeklyMetrics)
+#   0 14 * * 1  Sunday metrics digest       (runWeeklyMetrics)
+#
+# Cloudflare numbers the days of the week from 1 for Sunday, so the 1 here is
+# Sunday and not the Monday it would be in standard cron.
 #
 # Different hours on purpose. Overlapping expressions fire the handler once per
 # expression, which is correct but reads as a duplicate run in the logs.

@@ -1003,7 +1003,7 @@ async function runScheduledReminders(env) {
 }
 __name(runScheduledReminders, "runScheduledReminders");
 // ---------------------------------------------------------------------------
-// Weekly metrics digest. Sent to admin@playfundai.com on Mondays, and on
+// Weekly metrics digest. Sent to admin@playfundai.com on Sundays, and on
 // demand through POST /admin/send-weekly-metrics.
 //
 // The counting happens in Postgres (weekly_metrics, see
@@ -1012,9 +1012,21 @@ __name(runScheduledReminders, "runScheduledReminders");
 // what comes back.
 // ---------------------------------------------------------------------------
 
-// Must match the weekly entry in worker/wrangler.toml. Mondays, 14:00 UTC,
-// which is 10am New York in summer and 9am in winter.
+// Must match the weekly entry in worker/wrangler.toml. Sundays, 14:00 UTC,
+// which is 10am New York in summer and 9am in winter. Cloudflare numbers the
+// days of the week from 1 for Sunday, unlike standard cron where 1 is Monday.
 var WEEKLY_METRICS_CRON = "0 14 * * 1";
+
+// Crawlers and tooling that run the page's JavaScript and so reach /events.
+// Ones that do not run it never get this far. A missing User-Agent counts,
+// because every real browser sends one.
+var AUTOMATED_AGENT = /bot\b|bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|ptst\b|phantomjs|puppeteer|playwright|selenium|facebookexternalhit|google-inspectiontool|googleother|bingpreview|linkpreview|pingdom|uptime|curl\/|wget\/|python-|node-fetch|axios\//i;
+
+function isAutomatedAgent(userAgent) {
+  const ua = String(userAgent == null ? "" : userAgent).trim();
+  return !ua || AUTOMATED_AGENT.test(ua);
+}
+__name(isAutomatedAgent, "isAutomatedAgent");
 
 var METRIC_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -1072,7 +1084,13 @@ function buildWeeklyMetricsHtml(data) {
     ? Math.round(100 * n(eNow.unique_opened) / n(eNow.sent)) + "%"
     : null;
 
+  // Site notes first, in the order the sections appear. The first one is
+  // permanent: it is the definition of the headline number.
   const notes = [];
+  notes.push("A visit is one browser tab, not one person. Someone who comes back the next day, or on their phone, is a new visit. Counts include our own team.");
+  if (n(site.excluded) > 0) {
+    notes.push(`${metricNum(site.excluded)} page ${n(site.excluded) === 1 ? "view or click" : "views and clicks"} from crawlers or preview links left out of the website numbers.`);
+  }
   if (n(eNow.sent) === 0 && (n(eNow.opened) > 0 || n(eNow.clicked) > 0)) {
     notes.push("Opens or clicks arrived with no sends counted. Sends are recorded at the point we call Resend, which started recently, so email rates are not meaningful until a full week has passed.");
   }
@@ -1102,16 +1120,16 @@ function buildWeeklyMetricsHtml(data) {
 
   ${heading("Website")}
   ${tiles([
-    tile("Visitors", sNow.visitors, sPrev.visitors),
+    tile("Visits", sNow.visitors, sPrev.visitors),
     tile("Page views", sNow.page_views, sPrev.page_views),
     tile("Clicks", sNow.clicks, sPrev.clicks)
   ])}
   <p style="margin:14px 0 6px;font-size:13px;color:#6B7280;">Pages</p>
-  ${table(["Page", "Views", "Visitors"], siteRows, "No page views this week.")}
+  ${table(["Page", "Views", "Visits"], siteRows, "No page views this week.")}
   <p style="margin:0 0 6px;font-size:13px;color:#6B7280;">Clicks</p>
   ${table(["Label", "Page", "Clicks"], clickRows, "No clicks this week.")}
-  <p style="margin:0 0 6px;font-size:13px;color:#6B7280;">Where visitors came from</p>
-  ${table(["Source", "Visitors"], refRows, "No referrers this week.")}
+  <p style="margin:0 0 6px;font-size:13px;color:#6B7280;">Where visits came from</p>
+  ${table(["Source", "Visits"], refRows, "No referrers this week.")}
 
   ${heading("Email")}
   ${tiles([
@@ -1175,7 +1193,7 @@ async function runWeeklyMetrics(env, days) {
   if (!sent.ok) return { ok: false, error: sent.error || "send failed" };
 
   const s = data.site?.now || {}, e = data.email?.now || {};
-  console.log(`Weekly metrics sent: visitors=${s.visitors || 0} page_views=${s.page_views || 0} clicks=${s.clicks || 0} emails_sent=${e.sent || 0} unique_opens=${e.unique_opened || 0}`);
+  console.log(`Weekly metrics sent: visits=${s.visitors || 0} page_views=${s.page_views || 0} clicks=${s.clicks || 0} emails_sent=${e.sent || 0} unique_opens=${e.unique_opened || 0}`);
   return { ok: true, subject, summary: { site: s, email: e } };
 }
 __name(runWeeklyMetrics, "runWeeklyMetrics");
@@ -1246,11 +1264,25 @@ var index_default = {
       // underscores. A pattern rather than an allowlist, so adding an event
       // does not mean editing two files and finding out it silently vanished.
       if (!/^[a-z0-9_.]{1,60}$/.test(event_name)) return err("Invalid event_name");
+      // Mail events are written by the Worker itself, in resendSend() and the
+      // Resend webhook, straight to the table. Nothing legitimate sends one
+      // through here, and the weekly digest's email numbers are counted from
+      // them, so this endpoint does not accept the prefix.
+      if (event_name.startsWith("email_")) return err("Invalid event_name");
 
-      let props = properties && typeof properties === "object" && !Array.isArray(properties) ? properties : {};
+      let props = properties && typeof properties === "object" && !Array.isArray(properties) ? { ...properties } : {};
       // Caps so a loop on a public page cannot write unbounded rows.
       if (Object.keys(props).length > 20) props = { _truncated: "too many keys" };
       if (JSON.stringify(props).length > 2000) props = { _truncated: "payload too large" };
+
+      // Two marks only the Worker sets, so whatever the page sent under these
+      // names is dropped first. The rows are kept rather than refused: the
+      // weekly digest leaves them out of its counts and says how many, which
+      // is how a change in crawler traffic stays visible.
+      delete props._bot;
+      delete props._preview;
+      if (isAutomatedAgent(request.headers.get("User-Agent"))) props._bot = true;
+      if (isPreview) props._preview = true;
 
       const res = await supabase(env, "POST", "/events", {
         event_name,

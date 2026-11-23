@@ -4,33 +4,51 @@
 #   tools/pf-analytics          # last 7 days
 #   tools/pf-analytics 30       # last 30 days
 #
-# Events arrive from public/index.html and public/for-parents.html
-# (site_page_view, site_click) and from the app (screen_view and friends),
-# all via POST /events on the worker.
+# Events arrive from public/index.html, public/for-parents.html and
+# public/vision.html (site_page_view, site_click) and from the app
+# (screen_view and friends), all via POST /events on the worker.
+#
+# Counted the way the weekly email counts them (weekly_metrics() in
+# migrations/): a visit is one browser tab, rows the worker marked _bot or
+# _preview are left out, and each visit has one source, the referrer of its
+# first page view.
 set -e
 cd "${0:A:h:h}"
 DAYS="${1:-7}"
+# It goes into the SQL below as text, so it has to be a number and nothing else.
+[[ "$DAYS" == <1-3660> ]] || { print -u2 "usage: pf-analytics [days]"; exit 1; }
+
+SITE="
+site as (
+  select event_name, session_id, created_at, properties,
+         coalesce(nullif(regexp_replace(
+           regexp_replace(coalesce(properties->>'path', ''), '/index\.html\$', '/'),
+           '/+\$', ''), ''), '/') as path
+  from events
+  where event_name in ('site_page_view', 'site_click')
+    and created_at > now() - interval '$DAYS days'
+    and not (properties ? '_bot' or properties ? '_preview')
+)"
 
 tools/pf-sql "
+with $SITE
 select date_trunc('day', created_at)::date as day,
-       count(distinct session_id) as visitors,
+       count(distinct session_id) as visits,
        count(*) filter (where event_name = 'site_page_view') as page_views,
        count(*) filter (where event_name = 'site_click')     as clicks
-from events
-where event_name in ('site_page_view', 'site_click')
-  and created_at > now() - interval '$DAYS days'
+from site
 group by 1
 order by 1 desc;"
 
 echo
 echo "Pages, last $DAYS days"
 tools/pf-sql "
-select properties->>'path' as page,
+with $SITE
+select path as page,
        count(*) as views,
-       count(distinct session_id) as visitors
-from events
+       count(distinct session_id) as visits
+from site
 where event_name = 'site_page_view'
-  and created_at > now() - interval '$DAYS days'
 group by 1
 order by views desc
 limit 20;"
@@ -38,24 +56,34 @@ limit 20;"
 echo
 echo "Clicks, last $DAYS days"
 tools/pf-sql "
+with $SITE
 select properties->>'label' as label,
-       properties->>'path'  as page,
+       path as page,
        count(*) as clicks
-from events
+from site
 where event_name = 'site_click'
-  and created_at > now() - interval '$DAYS days'
 group by 1, 2
 order by clicks desc
 limit 20;"
 
 echo
-echo "Where visitors came from, last $DAYS days"
+echo "Where visits came from, last $DAYS days"
 tools/pf-sql "
-select coalesce(properties->>'referrer', 'direct or unknown') as source,
-       count(distinct session_id) as visitors
-from events
-where event_name = 'site_page_view'
-  and created_at > now() - interval '$DAYS days'
+with $SITE,
+first_views as (
+  select distinct on (session_id) session_id, properties->>'referrer' as referrer
+  from site
+  where event_name = 'site_page_view' and session_id is not null
+  order by session_id, created_at
+)
+select case
+         when referrer is null or referrer = '' then 'direct or unknown'
+         when referrer in ('www.playfundai.com', 'playfundai.com') then 'direct or unknown'
+         when referrer like '%.playfund-app.pages.dev' then 'direct or unknown'
+         else referrer
+       end as source,
+       count(*) as visits
+from first_views
 group by 1
-order by visitors desc
+order by visits desc
 limit 20;"

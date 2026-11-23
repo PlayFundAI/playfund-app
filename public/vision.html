@@ -433,7 +433,7 @@
 
 <nav class="nav">
   <div class="wrap nav-inner">
-    <a class="logo" href="/">PLAY<span>FUND</span></a>
+    <a class="logo" href="/" data-track="Logo">PLAY<span>FUND</span></a>
     <div class="nav-links">
       <a href="/#contact" class="nav-aud">For clubs</a>
       <a href="/for-parents" class="nav-aud">For parents</a>
@@ -442,7 +442,7 @@
     </div>
     <div class="nav-right">
       <a class="nav-signin" href="/app/">Sign in</a>
-      <a class="btn btn-primary btn-sm nav-cta" href="/#contact"><span class="cta-long">Explore a Club Pilot</span><span class="cta-short">Club Pilot</span></a>
+      <a class="btn btn-primary btn-sm nav-cta" href="/#contact" data-track="Explore a Club Pilot"><span class="cta-long">Explore a Club Pilot</span><span class="cta-short">Club Pilot</span></a>
     </div>
   </div>
 </nav>
@@ -626,7 +626,7 @@
   <div class="wrap">
     <div class="foot-top">
       <div class="foot-brand">
-        <a class="logo" href="/">PLAY<span>FUND</span></a>
+        <a class="logo" href="/" data-track="Logo">PLAY<span>FUND</span></a>
       </div>
       <div class="foot-col">
         <div>For clubs</div>
@@ -680,6 +680,12 @@
   // typed into the form beside it. These pages collect a parent's name, email
   // and club, and none of that should ever reach an analytics table.
   (function(){
+    // Two cases that are not a visit. A browser under automation (a test run,
+    // a headless crawler) says so through navigator.webdriver. And a link
+    // meant for the app, which the homepage hands on to /app/ before anyone
+    // sees it, sets pfLeavingForApp; the app records its own events.
+    if(navigator.webdriver || window.pfLeavingForApp) return;
+
     var KEY = 'pf_site_session';
     function sessionId(){
       try {
@@ -723,7 +729,9 @@
     track('site_page_view', {
       path: location.pathname,
       // Referrer host only. The full URL can carry someone else's query string.
-      referrer: document.referrer ? (function(){ try { return new URL(document.referrer).host; } catch(e){ return null; } })() : null
+      // Our own host is not a referrer: moving between these pages is one
+      // visit, and it came from wherever its first page did.
+      referrer: document.referrer ? (function(){ try { var h = new URL(document.referrer).host; return h === location.host ? null : h; } catch(e){ return null; } })() : null
     });
 
     // One listener on the document rather than one per control, so anything
@@ -731,7 +739,9 @@
     document.addEventListener('click', function(e){
       var el = e.target.closest('a, button');
       if(!el) return;
-      var label = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g,' ').slice(0, 60);
+      // data-track names a control whose text does not: the logo, or a button
+      // that carries a long and a short wording for different screen widths.
+      var label = (el.getAttribute('data-track') || el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g,' ').slice(0, 60);
       track('site_click', {
         path: location.pathname,
         label: label,

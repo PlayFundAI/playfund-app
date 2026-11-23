@@ -1,5 +1,5 @@
 -- Aggregation behind the weekly metrics email (runWeeklyMetrics in
--- worker/index.js, sent Mondays to admin@playfundai.com).
+-- worker/index.js, sent Sundays to admin@playfundai.com).
 --
 -- It lives in the database rather than the worker because the worker only has
 -- the PostgREST interface, which cannot GROUP BY. The alternative was fetching

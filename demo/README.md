@@ -30,6 +30,9 @@ With `&guide=1` a panel in the corner walks through twelve steps.
 | `G` | Hide or show the panel |
 | `1` to `9` | Jump to a step |
 
+If a button has focus, space presses that button, so use `→` after clicking
+one.
+
 Leave `&guide=1` off to click around without the panel. Reloading the page
 starts the demo again from the beginning.
 
@@ -41,6 +44,11 @@ http://localhost:4173/app/?demo=1&guide=1&club=Northside+Select&city=Charlotte,+
 
 The full list of options is at the top of `public/app/demo.js`.
 
+Two options work only on a server on this computer: `&chrome=0`, which hides
+the badge for screenshots, and `&fee=`, which changes the club's rate (the
+one-file demo below takes `--fee` too). On any other address the badge always
+shows and the rate is the default.
+
 ## Check it is really demo mode
 
 Look for both of these before touching anything:
@@ -51,8 +59,8 @@ Look for both of these before touching anything:
 If either is missing, stop and open the address above again.
 
 If demo mode cannot start, the page shows one line, "Demo mode could not
-start, so nothing was loaded.", and the app does not open. Reload to try
-again.
+start, so nothing was loaded.", and the app does not open. A demo that has
+not started after 15 seconds shows the same line. Reload to try again.
 
 ## What leaves the page in demo mode
 
@@ -67,6 +75,9 @@ again.
   address, so it carries no club name and no figures. The one-file demo below
   does not make this request.
 - Fonts are loaded from Google Fonts.
+
+Where the real app would send an email, the demo shows a short notice saying
+that none was sent and nothing was saved.
 
 ## Build the deck
 

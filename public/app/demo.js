@@ -36,12 +36,14 @@
      &city=Charlotte,+NC
      &dues=1200                    season dues per athlete (1,200 also works)
      &athletes=64                  roster size (funded/deciding/declined scale)
-     &fee=800                      the club's rate in basis points
+     &fee=800                      the club's rate in basis points (local
+                                   server or one-file build only)
      &clubcode=NSS26               the club code families would type
      &guide=1                      presenter overlay, → to advance
      &auto=1                       advances itself, for screen recording
      &screen=club-overview         jump straight to one screen
-     &chrome=0                     hide the demo badge and overlay (screenshots)
+     &chrome=0                     hide the demo badge and overlay, for
+                                   screenshots (local server only)
      &pending=1                    add an athlete awaiting club approval
      &athlete=a-marcus-bell        the parent's emailed link, as a family gets it
 
@@ -118,6 +120,15 @@
     return v != null && pattern.test(v) ? v : null;
   }
 
+  // Where the page is running. The badge can be hidden only on a local
+  // server, which is where the deck's screenshots are taken. The rate can be
+  // changed only there or in the one-file build. On any public address the
+  // badge always shows and the rate is the default, so a link to the real
+  // site can never present these screens unlabelled, or at a rate nobody
+  // quoted.
+  var ON_LOCAL_SERVER = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+  var FROM_A_FILE = window.location.protocol === 'file:';
+
   // Defaults are the explainer film's numbers (video/src/script.ts), so the
   // film, the deck and this demo never disagree in front of a club.
   var cfg = {
@@ -128,7 +139,7 @@
     dues:     number('dues', 1000, 1, 50000),
     // A rate outside 1% to 20% is taken as a typing slip and the default is
     // shown, so a mistyped link cannot put a made-up rate on the dashboard.
-    feeBps:   number('fee', 800, 100, 2000, true),
+    feeBps:   (ON_LOCAL_SERVER || FROM_A_FILE) ? number('fee', 800, 100, 2000, true) : 800,
     athletes: number('athletes', 58, 3, 500),
     hold:     number('hold', 5200, 1000, 60000),
     adminName:  text('admin', 'Dana Whitfield', 60),
@@ -137,11 +148,11 @@
     role:       word('role', /^(parent|club)$/),
     method:     word('method', /^(full|bnpl)$/),
     hasAthlete: !!qs.get('athlete'),
-    showChrome: flag('chrome', true),
+    showChrome: ON_LOCAL_SERVER ? flag('chrome', true) : true,
     guide:      flag('guide', false),
     auto:       flag('auto', false),
     pending:    flag('pending', false),
-    shot:       flag('shot', false)
+    shot:       ON_LOCAL_SERVER && flag('shot', false)
   };
 
   // Roster mix. Scales with &athletes= but keeps at least one of each bucket,
@@ -477,8 +488,6 @@
     if (method === 'POST' && path === '/club/register') {
       return after(900, {
         club: { id: 'c-new-demo', name: body.name, code: 'DEMO' + Math.floor(rand() * 900 + 100), teams: body.teams || [] },
-        invite_url: null,
-        invite_error: null,
         message: 'Registration received. Check your email for a link to set up your account.'
       }, 201);
     }
@@ -595,6 +604,9 @@
     try { u = new URL(url, document.baseURI); } catch (e) { /* left to the guard */ }
     if (!u || (u.origin !== WORKER && u.origin !== SUPA)) {
       return guardedFetch(input, init);
+    }
+    if (method === 'POST' && u.origin === WORKER && SENDS_EMAIL.test(u.pathname)) {
+      notice('Demo only: no email was sent, and nothing was saved.');
     }
     return route(method, u.pathname, u, init);
   };
@@ -755,7 +767,7 @@
               '<ul style="margin:0 0 16px; padding-left:18px; font-size:13px; color:var(--ink-soft); line-height:1.8;">' +
                 '<li>The club\'s legal name and EIN</li>' +
                 '<li>The account payouts land in</li>' +
-                '<li>ID for anyone owning 25% or more, or, for a 501(c)(3), directors and officers</li>' +
+                '<li>ID for the people who own or run the club</li>' +
               '</ul>' +
               '<div style="font-size:12.5px; color:var(--ink-faint); margin-bottom:16px;">Handled by our payment partner, in their own frame. PlayFund never sees it. You can stop and come back to it.</div>' +
               '<button class="btn btn-primary" data-demo-connect style="width:100%;">Finish connecting</button>' +
@@ -848,6 +860,14 @@
     '.pfd-badge{position:fixed;top:10px;left:10px;z-index:2000;background:#004643;color:#fff;' +
       'font:700 10.5px/1 Inter,sans-serif;letter-spacing:.08em;padding:6px 9px;border-radius:6px;' +
       'text-transform:uppercase;pointer-events:none;opacity:.85}' +
+    // On a phone the corner badge sat on the back arrow and the wordmark, so
+    // there it is a thin strip across the very top instead.
+    '@media (max-width:640px){.pfd-badge{top:0;left:0;right:0;border-radius:0;text-align:center;' +
+      'font-size:9px;padding:3px 0;opacity:.92}}' +
+    '.pfd-notice{position:fixed;left:14px;bottom:14px;z-index:2000;max-width:min(300px,calc(100vw - 28px));' +
+      'background:#fff;color:#004643;border:1.5px solid #004643;border-radius:10px;padding:10px 13px;' +
+      'font:600 13px/1.45 Inter,sans-serif;box-shadow:0 10px 30px rgba(0,70,67,.18);pointer-events:none}' +
+    '@media (max-width:640px){.pfd-notice{left:14px;right:14px;bottom:auto;top:26px;max-width:none}}' +
     '.pfd-guide{position:fixed;right:14px;bottom:14px;z-index:2000;width:330px;max-width:calc(100vw - 28px);' +
       'background:#04302E;color:#fff;border-radius:14px;padding:16px 18px 14px;' +
       'font-family:Inter,sans-serif;box-shadow:0 18px 50px rgba(0,70,67,.28)}' +
@@ -865,6 +885,26 @@
     var s = document.createElement('style');
     s.textContent = CSS;
     document.head.appendChild(s);
+  }
+
+  // The app's own screens say an email went out, because in the real product
+  // one does. In the demo none does, and someone clicking through alone should
+  // not be left waiting for it. These are the calls that would have sent one.
+  var SENDS_EMAIL = /^\/(auth\/forgot-password|club\/register|club\/[^/]+\/send-payment-links|athlete\/[^/]+\/notify-club|remind|scholarship\/apply|invite|contact|parent-request)$/;
+  var noticeEl = null, noticeTimer = null;
+  function notice(text) {
+    if (!cfg.showChrome || !document.body) return;
+    if (!noticeEl) {
+      noticeEl = document.createElement('div');
+      noticeEl.className = 'pfd-notice';
+      noticeEl.setAttribute('role', 'status');
+    }
+    noticeEl.textContent = text;
+    document.body.appendChild(noticeEl);
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(function () {
+      if (noticeEl.parentNode) noticeEl.parentNode.removeChild(noticeEl);
+    }, 9000);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1100,7 +1140,10 @@
     document.addEventListener('keydown', function (e) {
       var tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); }
+      // Space and Enter press a focused button or link, and that is left to
+      // them. Enter is not a guide key at all.
+      var onControl = !!(e.target && e.target.closest && e.target.closest('button, a, summary, [role="button"], [onclick]'));
+      if (e.key === 'ArrowRight' || (e.key === ' ' && !onControl)) { e.preventDefault(); next(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
       else if (e.key === 'r' || e.key === 'R') { reset(); }
       else if (e.key === 'g' || e.key === 'G') { minimised = !minimised; render(); }

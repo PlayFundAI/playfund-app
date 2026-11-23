@@ -4,6 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PlayFund — registration and payments for youth sports clubs</title>
+<!-- Site icon. Search results show a generic globe without one. Sizes are
+     multiples of 48px because that is what Google asks for; source and build
+     script are in tools/favicon/. -->
+<link rel="icon" href="/favicon.ico" sizes="32x32 48x48">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!-- Tells search engines the site is called "PlayFund", so results are
+     labelled with the name instead of the bare domain. Home page only. -->
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"PlayFund","alternateName":["PlayFund AI","playfundai.com"],"url":"https://www.playfundai.com/"}
+</script>
 <!-- Link previews. Without these, iMessage, WhatsApp and Slack fall back to
      <title>, which is written for search and reads as a category label when it
      lands in a text message. og:title carries the pitch; <title> keeps the
@@ -110,8 +122,10 @@
      not at all on a phone: stacked, the tagline and both statements were Anton
      at 27, 34 and 24px with only a 1px line between them, so there was nothing
      to tell you where one idea ended.
-     The left column is the <h1> and the right an <h2>, which keeps exactly one
-     top-level heading in document order. */
+     Clubs come first in the markup, so they are on the left on desktop and on
+     top on a phone, and reading order matches what is seen. The first card is
+     the <h1> and the second an <h2>, which keeps exactly one top-level heading
+     in document order. */
   .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:960px;margin:0 auto}
   .split-col{border-radius:13px;padding:34px 30px 30px;text-align:center;
              display:flex;flex-direction:column}
@@ -316,6 +330,44 @@
     .trow .pf::before{content:'PlayFund: ';font-weight:600;color:var(--ink-soft)}
   }
   @media (max-width:640px){ .grid-4{grid-template-columns:1fr} }
+  /* Confirm-email. The hint keeps its height when empty so the form does not
+     jump as it changes. It is ink-soft, not the faint grey of the other
+     notices, because it is the line that tells someone why they cannot send.
+     Send has two "off" looks. aria-disabled is the confirm check: the button
+     still works, so its label has to stay readable, hence a solid grey and
+     not a fade. :disabled is a request in flight, which is truly inert. */
+  .confirm-hint{margin:7px 0 0;min-height:19px;color:var(--ink-soft)}
+  .btn-primary[aria-disabled="true"],
+  .btn-primary[aria-disabled="true"]:hover{background:var(--ink-soft);cursor:default}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+
+  /* ── The path ─────────────────────────────────────────────────────────────
+     Three steps from what exists to what does not. The first is a solid ink
+     card and the other two are dashed outlines, so the difference between
+     built and not built is visible before a single status label is read.
+     Shared by the home page teaser and the vision page; keep the two copies
+     of this block identical. */
+  .path{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:980px;
+        margin:0 auto;text-align:left}
+  .path-step{display:flex;flex-direction:column;text-decoration:none;border-radius:13px;
+             padding:20px 22px 18px;background:#fff;border:1.5px dashed #C3CFCC;
+             color:var(--ink);transition:border-color .15s ease,transform .15s ease}
+  .path-step:hover{border-color:var(--green);transform:translateY(-2px)}
+  .path-step.is-live{background:var(--ink);border:1.5px solid var(--ink);color:#fff}
+  .path-n{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;color:var(--ink-faint)}
+  .is-live .path-n{color:var(--green)}
+  .path-t{font-weight:700;font-size:16.5px;line-height:1.35;margin:9px 0 14px}
+  .path-s{margin-top:auto;display:inline-flex;align-items:center;gap:8px;
+          font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+  .path-s::before{content:"";width:7px;height:7px;border-radius:50%;flex-shrink:0;
+                  border:1.5px solid var(--ink-faint)}
+  .is-live .path-s{color:rgba(255,255,255,.82)}
+  .is-live .path-s::before{background:var(--green);border-color:var(--green)}
+  @media (max-width:760px){ .path{grid-template-columns:1fr;max-width:460px;gap:12px} }
+  /* The line under the path is the disclosure for steps two and three, so it
+     is body-sized and readable, not a footnote. */
+  .path-note{text-align:center;margin:22px auto 0;max-width:760px;font-size:14.5px;color:var(--ink-soft)}
+  .path-note a{color:var(--ink);font-weight:600}
 </style>
 </head>
 <body>
@@ -327,6 +379,7 @@
       <a href="#contact" class="nav-aud">For clubs</a>
       <a href="/for-parents" class="nav-aud">For parents</a>
       <a href="#platform">Why PlayFund</a>
+      <a href="/vision">Vision</a>
     </div>
     <div class="nav-right">
       <a class="nav-signin" href="/app/">Sign in</a>
@@ -341,15 +394,15 @@
   <div class="wrap">
     <p class="tagline">Changing how families pay for youth sports.</p>
     <div class="split">
-      <div class="split-col fam">
-        <svg class="split-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 20.5v-.5a6 6 0 0 1 12 0v.5"/><circle cx="17.6" cy="11.2" r="2.1"/><path d="M14.4 20.5v-.3a3.4 3.4 0 0 1 6.8 0v.3"/></svg>
-        <h1 class="split-head"><span class="split-who">Families</span><span class="split-say">Get flexible payment options.</span></h1>
-        <a class="btn btn-primary split-btn" href="/for-parents">Request PlayFund at My Club</a>
-      </div>
       <div class="split-col clb">
         <svg class="split-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 4H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2.2"/><rect x="9.2" y="2.6" width="5.6" height="3" rx="1.1"/><path d="M8.6 11.4h6.8M8.6 15.2h4.4"/></svg>
-        <h2 class="split-head"><span class="split-who">Clubs</span><span class="split-say">Get paid up front <span class="split-brk">no matter what.</span></span></h2>
+        <h1 class="split-head"><span class="split-who">Clubs</span><span class="split-say">Get paid up front <span class="split-brk">no matter what.</span></span></h1>
         <a class="btn btn-primary split-btn" href="#contact">Explore a Club Pilot</a>
+      </div>
+      <div class="split-col fam">
+        <svg class="split-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 20.5v-.5a6 6 0 0 1 12 0v.5"/><circle cx="17.6" cy="11.2" r="2.1"/><path d="M14.4 20.5v-.3a3.4 3.4 0 0 1 6.8 0v.3"/></svg>
+        <h2 class="split-head"><span class="split-who">Families</span><span class="split-say">Get flexible payment options.</span></h2>
+        <a class="btn btn-primary split-btn" href="/for-parents">Request PlayFund at My Club</a>
       </div>
     </div>
 
@@ -396,6 +449,33 @@
   </div>
 </section>
 
+<section id="vision">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>PlayFund&rsquo;s vision for youth sports</h2>
+      <p>Dues are where we start. This is what exists today, and what we want to build on top of it.</p>
+    </div>
+    <div class="path">
+      <a class="path-step is-live" href="/vision#today">
+        <span class="path-n">01</span>
+        <span class="path-t">Registration and payments, with the club paid up front.</span>
+        <span class="path-s">Opening to pilot clubs</span>
+      </a>
+      <a class="path-step" href="/vision#card">
+        <span class="path-n">02</span>
+        <span class="path-t">A rewards card for everything youth sports.</span>
+        <span class="path-s">Exploring</span>
+      </a>
+      <a class="path-step" href="/vision#aid">
+        <span class="path-n">03</span>
+        <span class="path-t">Sponsors for the club, and aid it can account for.</span>
+        <span class="path-s">Exploring</span>
+      </a>
+    </div>
+    <p class="path-note">Steps two and three are ideas we are exploring. They are not available today. <a href="/vision">Read where we are going</a></p>
+  </div>
+</section>
+
 <section class="closing">
   <div class="wrap">
     <h2>Ready to stop chasing dues all season?</h2>
@@ -425,6 +505,11 @@
           <input id="cEmail" name="email" type="email" autocomplete="email" placeholder="you@yourclub.com">
         </div>
         <div class="field">
+          <label for="cEmail2">Confirm email</label>
+          <input id="cEmail2" type="email" autocomplete="email" placeholder="Enter it again" aria-describedby="cEmail2Hint">
+          <p class="form-notice confirm-hint" id="cEmail2Hint" aria-live="polite"></p>
+        </div>
+        <div class="field">
           <label for="cOpens">When does your next registration open? <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
         <input id="cOpens" name="opens" type="text" placeholder="e.g. early March, or already open">
       </div>
@@ -436,8 +521,8 @@
         <div class="hp"><label for="cCompany">Company</label><input id="cCompany" name="company" type="text" tabindex="-1" autocomplete="off"></div>
         <p class="form-notice">We use this to reply to you about a pilot, and nothing else. See our
           <a href="privacy-policy.html">Privacy Policy</a>.</p>
-        <p class="form-msg" id="contactMsg"></p>
-        <button class="btn btn-primary" type="submit" id="contactBtn" style="width:100%">Send</button>
+        <p class="form-msg" id="contactMsg" aria-live="polite"></p>
+        <button class="btn btn-primary" type="submit" id="contactBtn" aria-describedby="contactMsg" style="width:100%">Send</button>
       </form>
     </div>
   </div>
@@ -461,6 +546,7 @@
       </div>
       <div class="foot-col">
         <div>Company</div>
+        <a href="/vision">Vision</a>
         <a href="mailto:admin@playfundai.com">admin@playfundai.com</a>
         <a href="privacy-policy.html">Privacy</a>
         <a href="terms-of-service.html">Terms</a>
@@ -599,8 +685,75 @@
   });
 })();
 
+// ---------- confirm email ----------
+// A mistyped address is a request we can never answer, and nothing on the
+// server can tell a typo from a real address. So the email is asked for
+// twice, and a send is refused until the two agree.
+//
+// This check never truly disables Send. The button only looks off
+// (aria-disabled) and the line above it says why. A press is always checked
+// against what the fields hold at that moment. So a browser that fills both
+// fields without telling the page cannot leave someone behind a dead button,
+// and a keyboard or screen-reader user can still reach it and hear the
+// reason. The real disabled state belongs to the submit handler alone, for
+// the moment a request is in flight, and nothing here touches it.
+// The second field is compared here and never sent anywhere.
+var confirmEmail = (function(){
+  var a = document.getElementById('cEmail'), b = document.getElementById('cEmail2');
+  var hint = document.getElementById('cEmail2Hint');
+  var btn = document.getElementById('contactBtn'), msg = document.getElementById('contactMsg');
+  var WHY        = 'We ask twice so a typo doesn’t stop our reply reaching you.';
+  var GATE_EMPTY = 'Enter your email twice to send.';
+  var GATE_DIFF  = 'The two emails above don’t match yet.';
+  function norm(el){ return el.value.trim().toLowerCase(); }
+  function matches(){ var x = norm(a); return x !== '' && x === norm(b); }
+  // Which of our two lines fits the fields right now, for a refused press.
+  function reason(){ return (norm(a) === '' || norm(b) === '') ? GATE_EMPTY : GATE_DIFF; }
+  // Both lines are live regions. Writing the same text again makes some
+  // screen readers repeat it, so only write when it changes.
+  function setText(el, t){ if(el.textContent !== t) el.textContent = t; }
+  // midTyping is true only for a keystroke in the confirm field. Typing the
+  // same address there is not a mismatch yet. It becomes one when the text
+  // stops being the start of the first field, or when they move on with it
+  // still short. Passed in by the listeners and not read from the focused
+  // element, because what counts as focused during a blur varies.
+  function sync(midTyping){
+    var x = norm(a), y = norm(b), ok = matches();
+    var typing = midTyping === true && !ok && y !== '' && x.indexOf(y) === 0;
+    var differ = !ok && x !== '' && y !== '' && !typing;
+    if(ok){ setText(hint, 'Emails match.'); hint.style.color = 'var(--ink)'; }
+    else if(differ){ setText(hint, 'These two emails don’t match.'); hint.style.color = 'var(--red)'; }
+    else { setText(hint, WHY); hint.style.color = ''; }
+    btn.setAttribute('aria-disabled', ok ? 'false' : 'true');
+    // The line above the button is only ours to set while it is empty or
+    // already showing one of our two lines. A real error from the last
+    // attempt is left alone.
+    var t = msg.textContent;
+    if(!t || t === GATE_EMPTY || t === GATE_DIFF){
+      setText(msg, ok ? '' : (differ ? GATE_DIFF : GATE_EMPTY));
+      msg.style.color = differ ? 'var(--red)' : 'var(--ink-soft)';
+    }
+  }
+  b.addEventListener('input', function(){ sync(true); });
+  ['change','blur'].forEach(function(ev){ b.addEventListener(ev, function(){ sync(false); }); });
+  ['input','change','blur'].forEach(function(ev){ a.addEventListener(ev, function(){ sync(false); }); });
+  window.addEventListener('pageshow', function(){ sync(false); });
+  // A browser can fill both fields without firing any event on them. Look
+  // again whenever someone moves into or presses on anything else in the
+  // form, so the button and the lines catch up before a press on Send.
+  var form = document.getElementById('contactForm');
+  form.addEventListener('focusin', function(e){ if(e.target !== b) sync(false); });
+  form.addEventListener('pointerdown', function(e){ if(e.target !== b) sync(false); });
+  sync(false);
+  return { matches: matches, sync: sync, reason: reason };
+})();
+
 document.getElementById('contactForm').addEventListener('submit', async function(e){
     e.preventDefault();
+    // A request is already in flight. Enter in a field must not start another.
+    if(document.getElementById('contactBtn').disabled) return;
+    // Bring the button and the two lines up to date with the fields first.
+    confirmEmail.sync(false);
     var msgEl = document.getElementById('contactMsg');
     var btn   = document.getElementById('contactBtn');
     var name  = document.getElementById('cName').value.trim();
@@ -615,6 +768,14 @@ document.getElementById('contactForm').addEventListener('submit', async function
     if(!name){ return fail('Please add your name.'); }
     if(!club){ return fail('Please add your club name.'); }
     if(!email || email.indexOf('@') === -1){ return fail('Please add an email we can reply to.'); }
+    // The button only looks off until the emails agree, so this is the check
+    // that actually stops a mismatched send. It reads the fields as they are
+    // now, which also covers a browser that filled them without an event.
+    if(!confirmEmail.matches()){
+      fail(confirmEmail.reason());
+      document.getElementById('cEmail2').focus();
+      return;
+    }
 
     msgEl.textContent = 'Sending…'; msgEl.style.color = 'var(--ink-soft)';
     btn.disabled = true;

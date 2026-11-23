@@ -3,6 +3,10 @@ main = "index.js"
 compatibility_date = "2024-01-01"
 account_id = "9d5dbaaec8b4dc695ef735345a948fee"
 
+# Version addresses are off. Nothing uses them: the site and the app call the
+# production address below.
+preview_urls = false
+
 [vars]
 # Publishable — safe to commit. Never put STRIPE_SECRET_KEY or any other
 # secret here; those stay in the Cloudflare dashboard as encrypted secrets.

@@ -26,9 +26,12 @@ export const sec = (s: number) => Math.round(s * FPS);
 // numbers below are still the only place the film reads a figure from. No
 // line is spoken with a figure in it, so a re-cut needs no new voiceover.
 const env = (typeof process === 'undefined' ? {} : process.env || {}) as Record<string, string | undefined>;
-const envNum = (name: string, dflt: number) => {
-  const n = Number(env[name]);
-  return Number.isFinite(n) && n > 0 ? n : dflt;
+// A thousands comma or a currency sign is removed first, so 1,200 and $1,200
+// both mean 1200. Not a number, not above zero, or outside the range given,
+// falls back to the default.
+const envNum = (name: string, dflt: number, min = 0, max = Infinity) => {
+  const n = Number(String(env[name] ?? '').replace(/[,$\s]/g, ''));
+  return Number.isFinite(n) && n > 0 && n >= min && n <= max ? n : dflt;
 };
 const envStr = (name: string, dflt: string) => (env[name] || '').trim() || dflt;
 
@@ -38,7 +41,7 @@ const envStr = (name: string, dflt: string) => (env[name] || '').trim() || dflt;
 // arithmetic on screen always holds: change duesPerAthlete and every figure in
 // the video follows.
 const duesPerAthlete = envNum('REMOTION_DUES', 1000);
-const serviceFeeBps = envNum('REMOTION_FEE_BPS', 800); // 8%, the default in migrations/2026-09-16-default-fee-bps-800.sql
+const serviceFeeBps = envNum('REMOTION_FEE_BPS', 800, 100, 2000); // 8%, the default in migrations/2026-09-16-default-fee-bps-800.sql
 
 // Sized to a real club rather than a league. A treasurer at a 60-athlete club
 // does not see themselves in a 312-athlete roster, and eight names on screen

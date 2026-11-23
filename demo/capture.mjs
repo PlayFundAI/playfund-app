@@ -14,9 +14,13 @@
    Output lands in demo/out/ (git-ignored): one PNG per screen, plus
    playfund-demo.pdf, which is the thing to email or present with no wifi.
 
-   Needs the preview server running on :4173  
-     npx serve -l 4173 public
-   or the "marketing" configuration in .claude/launch.json.
+   Needs the preview server running on :4173, started from the repository
+   root with the demo's own server settings, which keep every address as typed:
+     npx -y serve -c ../demo/serve.json -l 4173 public
+   The "marketing" configuration in .claude/launch.json runs the same command.
+
+   The browser this starts can reach this computer and the two font hosts and
+   nothing else, and each run has a time limit.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { execFile } from 'node:child_process';
@@ -48,6 +52,13 @@ function arg(name, dflt) {
   return i === -1 ? dflt : args[i + 1];
 }
 const base = arg('base', 'http://localhost:4173');
+// Screenshots are taken from a server on this computer and nowhere else.
+try {
+  if (!/^(localhost|127\.0\.0\.1)$/.test(new URL(base).hostname)) throw new Error('not local');
+} catch {
+  console.error(`\n--base must be a server on this computer, for example http://localhost:4173. Got: ${base}\n`);
+  process.exit(1);
+}
 const club = {
   club: arg('club', 'Riverside Soccer Club'),
   city: arg('city', 'Richmond, VA'),
@@ -66,7 +77,7 @@ try {
 } catch {
   console.error(
     `\nNothing is serving ${base}.\n\n` +
-    `  npx -y serve -l 4173 public\n\n` +
+    `  npx -y serve -c ../demo/serve.json -l 4173 public\n\n` +
     `Run that from the repository root, in another terminal, then try again.\n`
   );
   process.exit(1);
@@ -150,10 +161,37 @@ function url(slide, extra = {}) {
   return `${base}/app/?${q}`;
 }
 
+// Every address but this computer and the two font hosts fails to resolve, so
+// a capture cannot reach PlayFund's servers or the payment processor whatever
+// the page does. The fonts stay because the deck is set in them.
+const ONLY_LOCAL_AND_FONTS =
+  '--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE localhost , EXCLUDE 127.0.0.1 , ' +
+  'EXCLUDE fonts.googleapis.com , EXCLUDE fonts.gstatic.com';
+
 async function chrome(flags) {
   const profile = path.join(outDir, '.chrome-profile');
+  try {
+    return await launch(profile, flags);
+  } catch (e) {
+    // When demo mode refuses to start it stops the page, and Chrome then never
+    // finishes. Without the limit this script would sit silent for ever.
+    if (e && e.killed) {
+      console.error(
+        '\nChrome did not finish within 60 seconds. The usual cause is demo mode\n' +
+        'refusing to start. Open the same address in a browser and look for the\n' +
+        'line "Demo mode could not start".\n'
+      );
+      process.exit(1);
+    }
+    throw e;
+  }
+}
+
+function launch(profile, flags) {
   return run(CHROME, [
     '--headless=new',
+    ONLY_LOCAL_AND_FONTS,
+    '--no-proxy-server',
     '--disable-gpu',
     '--hide-scrollbars',
     '--force-device-scale-factor=2',
@@ -165,7 +203,7 @@ async function chrome(flags) {
     '--no-default-browser-check',
     `--user-data-dir=${profile}`,
     ...flags
-  ], { maxBuffer: 1024 * 1024 * 64 });
+  ], { maxBuffer: 1024 * 1024 * 64, timeout: 60000, killSignal: 'SIGKILL' });
 }
 
 // The page reports its own content height in <title> once it has settled.
@@ -224,9 +262,9 @@ function deckHtml(shots) {
     <h1>What a pilot looks like</h1>
     <ul class="ask">
       <li>We are running a small pilot.</li>
-      <li>One season.</li>
-      <li>You keep registration, rosters and messaging.</li>
-      <li>We run how families pay.</li>
+      <li>Families can pay registration in full or in installments.</li>
+      <li>The club gets its money up front.</li>
+      <li>Pilot clubs get a reduced rate.</li>
     </ul>
     <p class="sub">admin@playfundai.com &middot; playfundai.com</p>
   </section>`;

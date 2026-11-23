@@ -52,7 +52,9 @@ for (const name of ['club', 'city', 'sport', 'clubcode', 'dues', 'fee', 'athlete
   if (v != null) defaults.set(name, v);
 }
 
-const outFile = path.join(outDir, arg('out', 'playfund-walkthrough.html'));
+// The file name only, so the output always lands in demo/out/, which is not
+// committed, whatever --out is given.
+const outFile = path.join(outDir, path.basename(arg('out', 'playfund-walkthrough.html')));
 
 const html = await readFile(path.join(root, 'public/app/index.html'), 'utf8');
 const demo = await readFile(path.join(root, 'public/app/demo.js'), 'utf8');
@@ -126,8 +128,8 @@ if (out.indexOf(policyTag) > out.indexOf('<script')) stop('The policy tag did no
 
 // ── 4. the two footer links have nothing to point at from a local file ──────
 out = out
-  .replace(/href="\.\.\/privacy-policy\.html"/g, 'href="https://www.playfundai.com/privacy-policy.html" target="_blank" rel="noopener"')
-  .replace(/href="\.\.\/terms-of-service\.html"/g, 'href="https://www.playfundai.com/terms-of-service.html" target="_blank" rel="noopener"');
+  .replace(/href="\.\.\/privacy-policy\.html"/g, 'href="https://www.playfundai.com/privacy-policy.html"')
+  .replace(/href="\.\.\/terms-of-service\.html"/g, 'href="https://www.playfundai.com/terms-of-service.html"');
 
 await mkdir(outDir, { recursive: true });
 await writeFile(outFile, out, 'utf8');

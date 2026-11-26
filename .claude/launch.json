@@ -4,7 +4,7 @@
     {
       "name": "marketing",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["-y", "serve", "-l", "4173", "public"],
+      "runtimeArgs": ["-y", "serve", "-c", "../demo/serve.json", "-l", "4173", "public"],
       "port": 4173
     }
   ]

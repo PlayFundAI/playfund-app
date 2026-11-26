@@ -144,17 +144,24 @@ test("a failed setup link is reported to the team, not in the reply", async () =
 });
 
 test("what a registrant types is text in the welcome email, never markup", async () => {
-  const typed = `<img src='https://elsewhere.invalid/?`;
-  const { emails } = await register({
+  // A form with an angle bracket in it is refused before anything is stored or
+  // sent. typed-values.test.mjs covers that rule field by field.
+  const refused = await register({ setupLink: LINK_MADE, form: { name: "Club <img src='https://elsewhere.invalid/?" } });
+  assert.equal(refused.status, 400);
+  assert.deepEqual(refused.emails, [], "a refused form sends no email");
+
+  // What can still be typed: quotation marks and an ampersand.
+  const typed = `' src='https://elsewhere.invalid/?" &`;
+  const { status, emails } = await register({
     setupLink: LINK_MADE,
     form: { name: `Club ${typed}`, sport: typed, city: typed, state: "", admin_name: `${typed} Treasurer` }
   });
+  assert.equal(status, 201);
 
   const welcome = emails.find((m) => m.to.includes(ADMIN_EMAIL));
   assert.ok(welcome, "a welcome email goes to the admin email");
-  assert.ok(!welcome.html.includes("<img"), "typed text must not open a tag");
   assert.ok(!welcome.html.includes("src='https://elsewhere.invalid"), "typed text must not open an attribute");
-  assert.ok(welcome.html.includes("&lt;img src=&#39;https://elsewhere.invalid/?"), "typed text is shown as text");
+  assert.ok(welcome.html.includes("&#39; src=&#39;https://elsewhere.invalid/?&quot; &amp;"), "typed text is shown as text");
   assert.ok(
     welcome.html.includes(`href="${ENV.APP_URL}?club_verify=${TOKEN}&verify_type=magiclink"`),
     "the setup link is still intact"

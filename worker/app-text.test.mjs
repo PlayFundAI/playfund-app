@@ -246,6 +246,9 @@ function openPage({ answers = [] } = {}) {
     addEventListener() {},
     setTimeout: () => 0,
     clearTimeout() {},
+    setInterval: () => 0,
+    clearInterval() {},
+    requestAnimationFrame: () => 0,
     console: { log() {}, warn() {}, error() {} },
     URLSearchParams,
     // Answers from the rows the test gave, and from nowhere else.
@@ -408,6 +411,21 @@ test("team admin roster: every row, and the buttons hand over the stored id and 
   const empty = openPage({ answers: [[/^\/club\/TESTCLB$/, { data: { club: club({ teams: [team({ athletes: [] })] }) } }]] });
   await empty.app.openTeamAdminView({ access_token: "placeholder-session", user: row({ team: row({ id: "team_1" }), club: row({ code: "TESTCLB" }) }) });
   empty.shown();
+});
+
+test("club registration: a refusal shows the Worker's reason, as text", async () => {
+  const form = { reg1ClubName: "Test Club", reg1Sport: "Basketball", reg1Athletes: "20", regDues: "500", reg1Name: "Test Treasurer", reg1Email: "treasurer@club.invalid" };
+  const submit = async (answer) => {
+    const p = openPage({ answers: [[/^\/club\/register$/, answer]] });
+    for (const [id, value] of Object.entries(form)) p.byId(id).value = value;
+    p.app.regSubmitForm();
+    await p.settle();
+    p.shown();
+    return p.byId("reg1Error").textContent;
+  };
+  assert.equal(await submit({ status: 400, data: { error: typed("reason") } }), typed("reason"));
+  assert.match(await submit({ status: 500, data: { error: typed("reason") } }), /^Something went wrong submitting your registration\./);
+  assert.match(await submit({ status: 400, data: {} }), /^Something went wrong submitting your registration\./);
 });
 
 // ---------------------------------------------------------------------------

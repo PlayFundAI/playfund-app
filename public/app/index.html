@@ -5533,7 +5533,10 @@ var usStates = ["Virginia"];
       if(!regRes.ok){
         trackEvent('club_signup_failed', { reason: 'server_error' });
         var regErr = document.getElementById('reg1Error');
-        if(regErr) regErr.textContent = "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
+        // A 400 is the Worker saying which field to change, so show its words.
+        // Trying again with the same form would only fail the same way.
+        var regWhy = regRes.status === 400 ? await regRes.json().catch(function(){ return null; }) : null;
+        if(regErr) regErr.textContent = (regWhy && regWhy.error) || "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
         return;
       }
     } catch(e){

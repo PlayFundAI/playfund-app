@@ -294,28 +294,36 @@ function escHtml(t) {
   return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 __name(escHtml, "escHtml");
-// A club's name as the sender name on an email. The characters an address
-// line reads as structure are dropped, so the name stays a name.
+// A club's name as the sender name on an email, without the characters that
+// would end the name and begin an address.
 function fromName(name) {
   return String(name == null ? "" : name).replace(/[<>"\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim() || "Your club";
 }
 __name(fromName, "fromName");
-// Typed text on its way into the database: names, places, addresses. Returns
-// it trimmed, or null when it is not text a name or an address needs: not a
-// string, empty, longer than `max`, or holding an angle bracket or a control
-// character. Letters in any script, accents, apostrophes, hyphens, ampersands
-// and quotation marks all pass. This is a second layer. Rows stored before it
-// existed were never checked, which is why the templates escape regardless.
+// Typed text on its way into the database. Returns it trimmed, "" when
+// nothing was typed, or null when it is refused: not a string, longer than
+// `max`, or holding an angle bracket or a control character. Letters in any
+// script, accents, apostrophes, hyphens, ampersands and quotation marks all
+// pass. The templates above escape every value whether or not it came
+// through here.
 function typedText(value, max) {
+  if (!value) return "";
   if (typeof value !== "string") return null;
   const text = value.trim();
-  if (!text || text.length > max) return null;
-  if (/[<>\u0000-\u001f\u007f]/.test(text)) return null;
+  if (text.length > max || /[<>\u0000-\u001f\u007f]/.test(text)) return null;
   return text;
 }
 __name(typedText, "typedText");
-function typedTextError(what, max) {
-  return `${what} can't include < or >, and must be ${max} characters or fewer.`;
+// The same for a name or a place. A tab or a line break inside one, which a
+// name pasted from a spreadsheet can carry, becomes a space.
+function typedName(value, max) {
+  return typedText(typeof value === "string" ? value.replace(/\s*[\t\n\r\v\f]+\s*/g, " ") : value, max);
+}
+__name(typedName, "typedName");
+// The reply for a value typedText or typedName did not return as text.
+function typedTextError(what, max, got) {
+  if (got === "") return `${what} is required.`;
+  return `${what} can't include <, > or control characters, and must be ${max} characters or fewer.`;
 }
 __name(typedTextError, "typedTextError");
 // Password reset email. Sent from admin@ through Resend rather than letting
@@ -1238,7 +1246,7 @@ var index_default = {
       const sig = url.searchParams.get("sig") || "";
       const expected = email ? await signUnsubscribe(email, env.UNSUBSCRIBE_SECRET || "") : null;
       const htmlPage = (title, message) => new Response(
-        `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#004643;text-align:center;"><h2>${title}</h2><p style="color:#6B7280;">${message}</p></body></html>`,
+        `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escHtml(title)}</title></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#004643;text-align:center;"><h2>${escHtml(title)}</h2><p style="color:#6B7280;">${message}</p></body></html>`,
         { headers: { "Content-Type": "text/html" } }
       );
       if (!email || !sig || !expected || sig !== expected) {
@@ -2115,8 +2123,10 @@ var index_default = {
       }
       const { email, display_name, role, club_id, team_id } = body;
       if (!email || !role) return err("email and role required");
-      if (!typedText(email, 254)) return err(typedTextError("The email address", 254));
-      if (display_name && !typedText(display_name, 120)) return err(typedTextError("Their name", 120));
+      const inviteEmail = typedText(email, 254);
+      if (!inviteEmail) return err(typedTextError("The email address", 254, inviteEmail));
+      const inviteName = typedName(display_name, 120);
+      if (inviteName === null) return err(typedTextError("Their name", 120));
       if (!["club_admin", "team_admin"].includes(role)) return err("Invalid role");
       if (role === "team_admin" && !team_id) return err("team_id required for team_admin");
       if (!club_id) return err("club_id required");
@@ -2161,7 +2171,7 @@ var index_default = {
           role,
           club_id,
           team_id: team_id || null,
-          display_name: display_name ? typedText(display_name, 120) : null
+          display_name: inviteName || null
         });
       } else {
         await supabase(env, "POST", "/user_profiles", {
@@ -2169,7 +2179,7 @@ var index_default = {
           role,
           club_id,
           team_id: team_id || null,
-          display_name: display_name ? typedText(display_name, 120) : null
+          display_name: inviteName || null
         });
       }
       return json({ success: true, message: `Invite sent to ${email}` }, 201);
@@ -2336,25 +2346,26 @@ var index_default = {
       if (!name || !sport || !admin_email) return err("name, sport, and admin_email required");
       // Checked before anything is stored, so a refusal leaves nothing behind.
       const typed = {
-        name: typedText(name, 160),
-        sport: typedText(sport, 60),
+        name: typedName(name, 160),
+        sport: typedName(sport, 60),
         admin_email: typedText(admin_email, 254),
-        city: city ? typedText(city, 120) : null,
-        state: state ? typedText(state, 60) : null,
-        admin_name: admin_name ? typedText(admin_name, 120) : null
+        city: typedName(city, 120),
+        state: typedName(state, 60),
+        admin_name: typedName(admin_name, 120)
       };
-      if (!typed.name) return err(typedTextError("The club name", 160));
-      if (!typed.sport) return err(typedTextError("The sport", 60));
-      if (!typed.admin_email) return err(typedTextError("The email address", 254));
-      if (city && !typed.city) return err(typedTextError("The city", 120));
-      if (state && !typed.state) return err(typedTextError("The state", 60));
-      if (admin_name && !typed.admin_name) return err(typedTextError("Your name", 120));
+      if (!typed.name) return err(typedTextError("The club name", 160, typed.name));
+      if (!typed.sport) return err(typedTextError("The sport", 60, typed.sport));
+      if (!typed.admin_email) return err(typedTextError("The email address", 254, typed.admin_email));
+      if (typed.city === null) return err(typedTextError("The city", 120));
+      if (typed.state === null) return err(typedTextError("The state", 60));
+      if (typed.admin_name === null) return err(typedTextError("Your name", 120));
       const typedTeams = [];
       for (const t of Array.isArray(teams) ? teams : []) {
-        const teamName = typedText(t && t.name, 120);
-        if (!teamName) return err(typedTextError("A team name", 120));
-        if (t.age_group && !typedText(t.age_group, 40)) return err(typedTextError("An age group", 40));
-        typedTeams.push({ name: teamName, age_group: t.age_group ? typedText(t.age_group, 40) : null, dues: t.dues });
+        const teamName = typedName(t && t.name, 120);
+        if (!teamName) return err(typedTextError("A team name", 120, teamName));
+        const teamAgeGroup = typedName(t.age_group, 40);
+        if (teamAgeGroup === null) return err(typedTextError("An age group", 40));
+        typedTeams.push({ name: teamName, age_group: teamAgeGroup || null, dues: t.dues });
       }
       let code = randomClubCode();
       for (let attempt = 0; attempt < 10; attempt++) {
@@ -2366,8 +2377,8 @@ var index_default = {
       const insertData = {
         name: typed.name,
         sport: typed.sport,
-        city: typed.city,
-        state: typed.state,
+        city: typed.city || null,
+        state: typed.state || null,
         code,
         pin_hash: crypto.randomUUID(),
         active: false
@@ -2468,7 +2479,7 @@ var index_default = {
                 id: linkData.id,
                 role: "club_admin",
                 club_id: club.id,
-                display_name: typed.admin_name
+                display_name: typed.admin_name || null
               });
             }
           } catch (e) {
@@ -2557,12 +2568,15 @@ var index_default = {
       // skips teams with no dues_due_date, so a team created without one
       // never reminds anyone and nothing surfaces that.
       if (!dues_due_date) return err("dues_due_date is required — it is what schedules payment reminders for this team");
-      const teamName = typedText(name, 120);
-      if (!teamName) return err(typedTextError("The team name", 120));
-      const ageGroup = age_group ? typedText(age_group, 40) : null;
-      if (age_group && !ageGroup) return err(typedTextError("The age group", 40));
-      if (Array.isArray(fees) && fees.some((f) => f && typeof f.label === "string" && f.label.trim() && !typedText(f.label.trim().slice(0, 80), 80))) {
-        return err(typedTextError("A fee name", 80));
+      const teamName = typedName(name, 120);
+      if (!teamName) return err(typedTextError("The team name", 120, teamName));
+      const ageGroup = typedName(age_group, 40);
+      if (ageGroup === null) return err(typedTextError("The age group", 40));
+      // A fee name is cut to 80 characters when stored, as it always was, so
+      // only its characters can be refused.
+      const feeName = (f) => typedName(String(f.label).trim().slice(0, 80), 80);
+      if (Array.isArray(fees) && fees.some((f) => f && typeof f.label === "string" && feeName(f) === null)) {
+        return err("A fee name can't include <, > or control characters.");
       }
       let resolvedClubId = club_id;
       if (!resolvedClubId && club_code) {
@@ -2576,7 +2590,7 @@ var index_default = {
       const insertData = {
         club_id: resolvedClubId,
         name: teamName,
-        age_group: ageGroup,
+        age_group: ageGroup || null,
         dues_cents: Math.round(dues_cents),
         season_start: season_start || null,
         season_end: season_end || null,
@@ -2590,7 +2604,7 @@ var index_default = {
       if (Array.isArray(fees)) {
         const cleanFees = fees
           .filter((f) => f && typeof f.label === "string" && f.label.trim())
-          .map((f) => ({ label: String(f.label).trim().slice(0, 80), amount: Math.round(Number(f.amount) || 0) }))
+          .map((f) => ({ label: feeName(f), amount: Math.round(Number(f.amount) || 0) }))
           .filter((f) => f.amount > 0);
         if (cleanFees.length) insertData.fees = cleanFees;
       }
@@ -2609,12 +2623,12 @@ var index_default = {
       if (!club_code || !team_id || !athlete_name || !parent_email) {
         return err("club_code, team_id, athlete_name, and parent_email are required");
       }
-      const athleteName = typedText(athlete_name, 120);
-      if (!athleteName) return err(typedTextError("The athlete's name", 120));
+      const athleteName = typedName(athlete_name, 120);
+      if (!athleteName) return err(typedTextError("The athlete's name", 120, athleteName));
       const parentEmail = typedText(parent_email, 254);
-      if (!parentEmail) return err(typedTextError("The parent's email", 254));
-      const parentPhone = parent_phone ? typedText(parent_phone, 40) : null;
-      if (parent_phone && !parentPhone) return err(typedTextError("The phone number", 40));
+      if (!parentEmail) return err(typedTextError("The parent's email", 254, parentEmail));
+      const parentPhone = typedText(parent_phone, 40);
+      if (parentPhone === null) return err(typedTextError("The phone number", 40));
       const clubRes = await supabase(
         env,
         "GET",
@@ -2663,7 +2677,7 @@ var index_default = {
         // the team's age_group, and CLAUDE.md limits athlete data to the
         // minimum necessary.
         parent_email: parentEmail.toLowerCase(),
-        parent_phone: parentPhone,
+        parent_phone: parentPhone || null,
         payment_status: "unpaid",
         approval_status: approvalStatus,
         enrolled_at: (/* @__PURE__ */ new Date()).toISOString()

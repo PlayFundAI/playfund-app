@@ -243,7 +243,7 @@ test("the unsubscribe page shows the address as text", async () => {
   const sig = createHmac("sha256", ENV.UNSUBSCRIBE_SECRET).update(email.toLowerCase().trim()).digest("hex");
   const { status, text } = await call(`/unsubscribe?email=${encodeURIComponent(email)}&sig=${sig}`, { method: "GET" });
   assert.equal(status, 200);
-  assert.match(text, /You're unsubscribed/);
+  assert.match(text, /<h2>You&#39;re unsubscribed<\/h2>/);
   assertTextOnly(text, "unsubscribe page");
   assert.ok(text.includes(asText("parent@family.invalid")), "the address is shown as text");
 });
@@ -269,10 +269,9 @@ const REFUSED_TEXT = [
   ["a tag", "Sam <b>Jones</b>"],
   ["one angle bracket", "Sam < Jones"],
   ["a closing angle bracket", "Sam > Jones"],
-  ["a line break", "Sam\nJones"],
   ["a null character", "Sam\u0000Jones"],
   ["an escape character", "Sam\u001bJones"],
-  ["only spaces", "   "],
+  ["only spaces, which is no name at all", "   "],
   ["too many characters", "S".repeat(300)],
   ["a number", 42],
   ["a list", ["Sam"]],
@@ -298,6 +297,52 @@ test("POST /athlete refuses a name that is not a name, and stores and sends noth
     assert.deepEqual(writes, [], `${what}: nothing is stored`);
     assert.deepEqual(emails, [], `${what}: nothing is sent`);
   }
+});
+
+test("a tab or a line break inside a name becomes a space", async () => {
+  // A name pasted from a spreadsheet can carry either.
+  const athlete = await call("/athlete", { body: { ...ATHLETE, athlete_name: "Sam\tJones \r\n Jr." }, tables: UNPAID_CLUB });
+  assert.equal(athlete.status, 201);
+  assert.equal(athlete.stored("athletes")[0].name, "Sam Jones Jr.");
+  const team = await call("/team", { body: { ...TEAM, name: "12U\tGirls", fees: [{ label: "Kit\tand ball", amount: 100 }] }, role: "club_admin" });
+  assert.equal(team.status, 201);
+  assert.equal(team.stored("teams")[0].name, "12U Girls");
+  assert.deepEqual(team.stored("teams")[0].fees, [{ label: "Kit and ball", amount: 100 }]);
+});
+
+test("a field left as spaces counts as left empty", async () => {
+  const athlete = await call("/athlete", { body: { ...ATHLETE, parent_phone: "   " }, tables: UNPAID_CLUB });
+  assert.equal(athlete.status, 201);
+  assert.equal(athlete.stored("athletes")[0].parent_phone, null);
+  const team = await call("/team", { body: { ...TEAM, age_group: "  " }, role: "club_admin" });
+  assert.equal(team.status, 201);
+  assert.equal(team.stored("teams")[0].age_group, null);
+  const club = await call("/club/register", { body: { ...CLUB, city: " ", state: "", admin_name: "   " } });
+  assert.equal(club.status, 201);
+  assert.equal(club.stored("clubs")[0].city, null);
+  assert.equal(club.stored("clubs")[0].state, null);
+  assert.ok(!("admin_name" in club.stored("clubs")[0]));
+
+  // A required field left as spaces is refused, and the reply says why.
+  const noName = await call("/athlete", { body: { ...ATHLETE, athlete_name: "   " }, tables: UNPAID_CLUB });
+  assert.equal(noName.status, 400);
+  assert.equal(JSON.parse(noName.text).error, "The athlete's name is required.");
+  const noClub = await call("/club/register", { body: { ...CLUB, name: "   " } });
+  assert.equal(noClub.status, 400);
+  assert.equal(JSON.parse(noClub.text).error, "The club name is required.");
+  assert.deepEqual(noClub.writes, []);
+});
+
+test("a refusal says what the rule is", async () => {
+  const { status, text } = await call("/athlete", { body: { ...ATHLETE, athlete_name: "Sam <b>Jones</b>" }, tables: UNPAID_CLUB });
+  assert.equal(status, 400);
+  assert.equal(JSON.parse(text).error, "The athlete's name can't include <, > or control characters, and must be 120 characters or fewer.");
+});
+
+test("a long fee name is cut to 80 characters, as it always was", async () => {
+  const { status, stored } = await call("/team", { body: { ...TEAM, fees: [{ label: "K".repeat(200), amount: 100 }] }, role: "club_admin" });
+  assert.equal(status, 201);
+  assert.deepEqual(stored("teams")[0].fees, [{ label: "K".repeat(80), amount: 100 }]);
 });
 
 test("POST /athlete applies the same rule to the parent's email and phone", async () => {

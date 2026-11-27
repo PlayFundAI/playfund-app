@@ -1693,7 +1693,7 @@
           </div>
           <div>
             <div class="payment-method-label">Pay by bank</div>
-            <div class="payment-method-sub">US bank account &middot; takes about 4 business days to clear</div>
+            <div class="payment-method-sub">US bank account &middot; takes a few business days to clear</div>
             <div class="payment-method-sub" id="bankLongerNote" style="display:none; font-weight:700; color:var(--flag-text,#7A5C00);">Bank payments take longer to reach the club.</div>
           </div>
           <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -6598,7 +6598,7 @@ var usStates = ["Virginia"];
 
     if(isBank){
       trackEvent('checkout_bank_submitted', {});
-      toast("Bank payment submitted. It usually takes about 4 business days to clear, and your registration will update on its own once it does. You don't need to pay again.");
+      toast("Bank payment submitted. It takes a few business days to clear, and your registration will update on its own once it does. You don't need to pay again.");
       showScreen('home', true);
       return;
     }

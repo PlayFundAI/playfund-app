@@ -722,7 +722,7 @@
     if (choice === 'bank') {
       return head +
         '<div style="padding:18px 16px;">' +
-          '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:16px;">Here the family connects a bank account in the processor\'s own frame. Bank details never reach PlayFund. A real bank payment takes about 4 business days to clear; this one is marked paid straight away.</div>' +
+          '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:16px;">Here the family connects a bank account in the processor\'s own frame. Bank details never reach PlayFund. A real bank payment takes a few business days to clear; this one is marked paid straight away.</div>' +
           '<button class="btn btn-primary" data-demo-pay style="width:100%;">Pay ' + money(cfg.dues) + ' by bank</button>' +
         '</div>' + foot;
     }

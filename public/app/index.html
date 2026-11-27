@@ -1664,7 +1664,7 @@
     </div>
 
     <div id="paymentOptionsWrap">
-    <!-- Option 1: Pay in full -->
+    <!-- Choices 1 and 2: pay in full, by bank or by card -->
     <div class="payment-section">
       <div class="payment-section-header">
         <div class="payment-section-icon">
@@ -1672,14 +1672,24 @@
         </div>
         <div>
           <div class="payment-section-title">Pay in full</div>
-          <div class="payment-section-subtitle">Full season dues charged today</div>
+          <div class="payment-section-subtitle">Full season dues charged once</div>
         </div>
       </div>
       <div class="payment-instruction">
-        Enter your card details and tap <b>Pay</b>. The full season dues are charged once.
+        Pay from your bank account or by card. The full season dues are charged once.
       </div>
       <div class="payment-btn-row">
-        <button class="payment-method-btn" onclick="openStripeCheckout('full')">
+        <button class="payment-method-btn" onclick="openStripeCheckout('bank')">
+          <div class="payment-method-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M12 3 3 8v2h18V8z"/><line x1="6" y1="10" x2="6" y2="18"/><line x1="10" y1="10" x2="10" y2="18"/><line x1="14" y1="10" x2="14" y2="18"/><line x1="18" y1="10" x2="18" y2="18"/></svg>
+          </div>
+          <div>
+            <div class="payment-method-label">Pay by bank</div>
+            <div class="payment-method-sub">US bank account &middot; takes about 4 business days to clear</div>
+          </div>
+          <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="payment-method-btn" onclick="openStripeCheckout('card')">
           <div class="payment-method-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           </div>
@@ -1692,8 +1702,9 @@
       </div>
     </div>
 
-    <!-- Option 2: Pay in installments via Klarna -->
-    <div class="payment-section">
+    <!-- Choice 3: pay over time with Klarna. Hidden in openAthleteDetail when
+         the dues are above the Klarna maximum the Worker reports. -->
+    <div class="payment-section" id="klarnaSection">
       <div class="payment-section-header">
         <div class="payment-section-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/></svg>
@@ -1718,12 +1729,12 @@
         </div>
       </div>
       <div class="payment-btn-row">
-        <button class="payment-method-btn" onclick="openStripeCheckout('bnpl')">
+        <button class="payment-method-btn" onclick="openStripeCheckout('klarna')">
           <div class="payment-method-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           </div>
           <div>
-            <div class="payment-method-label">Set up Klarna installments</div>
+            <div class="payment-method-label">Pay over time with Klarna</div>
             <div class="payment-method-sub">4 bi-weekly payments · no interest</div>
           </div>
           <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -1829,12 +1840,12 @@
     <p class="subtitle" id="declineSub" style="margin-bottom:20px;">The installment plan couldn't be approved, but there are still a few ways to get on the roster.</p>
 
     <!-- Option 1: Pay in full -->
-    <div onclick="openStripeCheckout('full')" style="background:var(--white); border-radius:var(--r-lg); padding:18px; margin-bottom:8px; cursor:pointer; border:1px solid var(--line);">
+    <div onclick="backToPaymentChoices()" style="background:var(--white); border-radius:var(--r-lg); padding:18px; margin-bottom:8px; cursor:pointer; border:1px solid var(--line);">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
         <div style="font-size:13px; font-weight:700; color:var(--ink);">Pay in full</div>
         <div style="font-family:'Anton',sans-serif; font-size:18px; color:var(--ink);" id="declineFullAmt">$950</div>
       </div>
-      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">One charge today, by card.</div>
+      <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">One charge, by bank or card.</div>
     </div>
 
 
@@ -3255,7 +3266,7 @@ var usStates = ["Virginia"];
         // below wipes the query string a moment from now.
         try { state.checkoutSessionId = params.get('session_id') || null; } catch(e){}
         history.replaceState(null, '', window.location.pathname);
-        setTimeout(function(){ resolveAthleteAfterCheckout(athId); }, 1100);
+        setTimeout(function(){ resolveAthleteAfterCheckout(athId, { returned: true }); }, 1100);
       } catch(e){}
     })();
 
@@ -4346,7 +4357,7 @@ var usStates = ["Virginia"];
       var buildRow = function(a){
         var status = a.payment_status || 'unpaid';
         var isPaid = status!=='unpaid' && status!=='defaulted';
-        var methodTag = a.payment_method ? '<div class="pay-method-tag">'+(a.payment_method==='klarna'?'Klarna':a.payment_method==='ach'?'ACH':'Card')+'</div>' : '';
+        var methodTag = a.payment_method ? '<div class="pay-method-tag">'+(a.payment_method==='klarna'?'Klarna':(a.payment_method==='ach'||a.payment_method==='us_bank_account')?'Bank':'Card')+'</div>' : '';
         var row = document.createElement('div');
         row.className = 'roster-row';
         row.style.setProperty('--status-color','var('+(statusColorVar[status]||'--unpaid')+')');
@@ -5003,6 +5014,15 @@ var usStates = ["Virginia"];
     if(pendingBanner) pendingBanner.style.display = isPending ? 'block' : 'none';
     if(paymentWrap) paymentWrap.style.display = isPending ? 'none' : '';
 
+    // Klarna is not offered above a maximum amount. The number comes from the
+    // Worker with the club (one place to change it), and the Worker refuses a
+    // Klarna checkout above it regardless, so if it is missing here the
+    // choice simply stays visible.
+    var klarnaSection = document.getElementById('klarnaSection');
+    var klarnaMaxCents = ct.club ? ct.club.klarna_max_amount_cents : null;
+    var overKlarnaMax = klarnaMaxCents != null && Math.round(ct.team.dues * 100) > klarnaMaxCents;
+    if(klarnaSection) klarnaSection.style.display = overKlarnaMax ? 'none' : '';
+
     showScreen('athlete-detail');
   }
 
@@ -5183,7 +5203,7 @@ var usStates = ["Virginia"];
       bnpl_complete: 'BNPL Complete', unpaid: 'Awaiting payment', defaulted: 'Defaulted'
     };
     var methodLabels = {
-      card: 'Card', ach: 'ACH', klarna: 'Klarna / Installment', null: ''
+      card: 'Card', ach: 'ACH', us_bank_account: 'Bank', klarna: 'Klarna / Installment', null: ''
     };
 
     var dues = team.dues || (team.dues_cents ? team.dues_cents / 100 : 0);
@@ -6095,7 +6115,7 @@ var usStates = ["Virginia"];
       }
       listEl.innerHTML = adminClubPayments.map(function(p){
         var dateStr = safeFmtDate(p.created_at);
-        var methodLabel = p.payment_method === 'bnpl' || p.payment_method === 'klarna' ? 'Klarna' : (p.payment_method || 'card');
+        var methodLabel = p.payment_method === 'bnpl' || p.payment_method === 'klarna' ? 'Klarna' : p.payment_method === 'us_bank_account' ? 'bank' : (p.payment_method || 'card');
         var statusOk = p.status === 'succeeded';
         return '<div class="roster-row">' +
           '<div class="roster-name-block">' +
@@ -6123,7 +6143,7 @@ var usStates = ["Virginia"];
         p.athlete_name,
         p.team_name,
         p.amount.toFixed(2),
-        p.payment_method === 'bnpl' || p.payment_method === 'klarna' ? 'Klarna' : (p.payment_method || 'card'),
+        p.payment_method === 'bnpl' || p.payment_method === 'klarna' ? 'Klarna' : p.payment_method === 'us_bank_account' ? 'bank' : (p.payment_method || 'card'),
         p.status
       ]);
     });
@@ -6438,18 +6458,52 @@ var usStates = ["Virginia"];
     }
     return false;
   }
-  async function resolveAthleteAfterCheckout(athId){
+  // Back to the three payment choices for the athlete in hand.
+  function backToPaymentChoices(){
+    if(state.activeAthleteId) openAthleteDetail(state.activeAthleteId);
+    else showScreen('home', true);
+  }
+
+  // Did a checkout the parent left the page for (Klarna) end without a
+  // payment? Stripe sends the parent back to one address whether they paid,
+  // cancelled or were turned down, and leaves the session open in the last
+  // two cases. Any doubt (no session id, a failed lookup) answers false, so a
+  // payment that is merely slow to confirm is never described as abandoned.
+  async function checkoutWasAbandoned(athId){
+    if(!state.checkoutSessionId) return false;
+    try {
+      var res = await fetch(WORKER_URL + '/checkout/session-status?session_id=' + encodeURIComponent(state.checkoutSessionId) +
+                            '&athlete=' + encodeURIComponent(athId));
+      if(!res.ok) return false;
+      var data = await res.json();
+      return data.status === 'open';
+    } catch(e){ return false; }
+  }
+
+  // opts.bank: the parent just submitted a bank payment. Those take days to
+  // clear, so "not funded yet" is the expected answer and not a problem.
+  // opts.returned: the parent has just come back from a redirect (Klarna).
+  // Only then is the session id in hand the one for this checkout.
+  async function resolveAthleteAfterCheckout(athId, opts){
     var localAthlete = loadAthletes().find(function(a){ return a.supabaseId === athId; });
     if(!localAthlete){ showScreen('home', true); return; }
     state.athletes = loadAthletes();
     state.activeAthleteId = localAthlete.id;
+    var isBank = !!(opts && opts.bank);
 
-    var funded = await pollAthleteFunded(athId, 5, 1500);
+    var funded = await pollAthleteFunded(athId, isBank ? 2 : 5, 1500);
     if(funded){
       await hydrateClubCache([localAthlete]);
       recordAthletePayment(funded.method, state.selectedTermWeeks, funded.payment);
       trackEvent('checkout_confirmed', { payment_type: funded.method });
       showScreen(funded.method === 'bnpl' ? 'confirm-terms' : 'confirm-now', true);
+      return;
+    }
+
+    if(isBank){
+      trackEvent('checkout_bank_submitted', {});
+      toast("Bank payment submitted. It usually takes about 4 business days to clear, and your registration will update on its own once it does. You don't need to pay again.");
+      showScreen('home', true);
       return;
     }
 
@@ -6464,35 +6518,52 @@ var usStates = ["Virginia"];
       return;
     }
 
+    // Came back from Klarna without paying and without a decline on record:
+    // the parent cancelled there. Back to the three choices.
+    if(opts && opts.returned && await checkoutWasAbandoned(athId)){
+      await hydrateClubCache([localAthlete]);
+      trackEvent('checkout_abandoned', {});
+      toast("That payment wasn't completed, so nothing was charged. Choose how you'd like to pay.");
+      backToPaymentChoices();
+      return;
+    }
+
     trackEvent('checkout_unresolved', {});
     toast("We're still confirming your payment. This can take a minute \u2014 check back shortly and your registration will update on its own.");
     showScreen('home', true);
   }
 
-  // paymentType: 'full' | 'bnpl' (Klarna). These are kept on strictly separate
-  // Stripe Checkout Sessions server-side (see /athlete/:id/checkout) with disjoint
-  // payment_method_types, so Klarna can never appear as an option on a "pay in
-  // full" session and card/bank can never appear on the installment session.
-  async function openStripeCheckout(paymentType){
+  // choice: 'bank' | 'card' | 'klarna'. Each one gets its own Stripe Checkout
+  // Session server-side (see /athlete/:id/checkout), limited to that one
+  // payment method and carrying the fee for it, so no method can appear on
+  // another's session. 'full' and 'bnpl' are the older names for card and
+  // Klarna and still arrive from payment links (?method=full|bnpl).
+  //
+  // paymentType keeps the older two values for the analytics events, which
+  // have always been recorded as 'full' or 'bnpl'.
+  async function openStripeCheckout(choice){
+    if(choice === 'full') choice = 'card';
+    if(choice === 'bnpl') choice = 'klarna';
+    var paymentType = choice === 'klarna' ? 'bnpl' : 'full';
     var athlete = state.athletes.find(function(a){ return a.id === state.activeAthleteId; });
     if(!athlete || !athlete.supabaseId){
       toast('This athlete isn\'t fully registered yet. Please try re-adding them.', 'bad');
       return;
     }
-    trackEvent('payment_method_selected', { payment_type: paymentType });
+    trackEvent('payment_method_selected', { payment_type: paymentType, payment_choice: choice });
     var errEl = document.getElementById('embeddedCheckoutError');
     var containerEl = document.getElementById('embeddedCheckoutContainer');
     if(errEl){ errEl.style.display = 'none'; errEl.textContent = ''; }
     if(containerEl) containerEl.innerHTML = '';
     var titleEl = document.getElementById('embeddedCheckoutTitle');
-    if(titleEl) titleEl.textContent = paymentType === 'bnpl' ? 'Set up installments' : 'Pay in full';
+    if(titleEl) titleEl.textContent = choice === 'klarna' ? 'Set up installments' : choice === 'bank' ? 'Pay by bank' : 'Pay by card';
     showScreen('embedded-checkout');
 
     try {
       var res = await fetch(WORKER_URL + '/athlete/' + athlete.supabaseId + '/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_type: paymentType })
+        body: JSON.stringify({ payment_choice: choice })
       });
       var data = await res.json();
       if(!res.ok || !data.client_secret){
@@ -6510,8 +6581,8 @@ var usStates = ["Virginia"];
       activeEmbeddedCheckout = await stripe.initEmbeddedCheckout({
         clientSecret: data.client_secret,
         onComplete: function(){
-          trackEvent('checkout_completed', { payment_type: paymentType });
-          setTimeout(function(){ resolveAthleteAfterCheckout(athleteSupabaseId); }, 500);
+          trackEvent('checkout_completed', { payment_type: paymentType, payment_choice: choice });
+          setTimeout(function(){ resolveAthleteAfterCheckout(athleteSupabaseId, { bank: choice === 'bank' }); }, 500);
         }
       });
       activeEmbeddedCheckout.mount('#embeddedCheckoutContainer');

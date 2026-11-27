@@ -545,7 +545,10 @@
       if (ca.approval_status === 'pending') {
         return after(300, { error: "This athlete is still waiting on the club to confirm they're on the roster before you can pay." }, 403);
       }
-      pendingCheckout = { athleteId: ca.id, type: body.payment_type };
+      // The app sends payment_choice ('bank' | 'card' | 'klarna'). The sheet
+      // below draws two kinds: installments, and everything else.
+      var demoChoice = body.payment_choice || (body.payment_type === 'bnpl' ? 'klarna' : 'card');
+      pendingCheckout = { athleteId: ca.id, type: demoChoice === 'klarna' ? 'bnpl' : 'full', choice: demoChoice };
       return after(500, { client_secret: 'cs_demo_' + ca.id });
     }
     if (method === 'GET' && path === '/checkout/session-email') {
@@ -648,7 +651,7 @@
         mounted = document.querySelector(selector);
         if (!mounted) return;
         var type = (pendingCheckout && pendingCheckout.type) || 'full';
-        mounted.innerHTML = checkoutMarkup(type);
+        mounted.innerHTML = checkoutMarkup(type, pendingCheckout && pendingCheckout.choice);
         var pay = mounted.querySelector('[data-demo-pay]');
         if (pay) pay.addEventListener('click', function () {
           pay.disabled = true;
@@ -659,7 +662,7 @@
           // able to catch the roster mid-payment.
           if (pendingCheckout) {
             var a = findAthlete(pendingCheckout.athleteId);
-            if (a) markPaid(a, pendingCheckout.type);
+            if (a) markPaid(a, pendingCheckout.type, pendingCheckout.choice);
           }
           setTimeout(function () {
             if (opts && typeof opts.onComplete === 'function') opts.onComplete();
@@ -682,7 +685,7 @@
     return '$' + Math.round(n).toLocaleString('en-US');
   }
 
-  function checkoutMarkup(type) {
+  function checkoutMarkup(type, choice) {
     var head =
       '<div style="border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;">' +
         '<div style="background:var(--paper-dim); padding:10px 14px; font-size:11.5px; font-weight:700; letter-spacing:0.03em; color:var(--ink-soft); display:flex; justify-content:space-between; align-items:center;">' +
@@ -706,6 +709,14 @@
         '</div>' + foot;
     }
 
+    if (choice === 'bank') {
+      return head +
+        '<div style="padding:18px 16px;">' +
+          '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:16px;">Here the family connects a bank account in the processor\'s own frame. Bank details never reach PlayFund. A real bank payment takes about 4 business days to clear; this one is marked paid straight away.</div>' +
+          '<button class="btn btn-primary" data-demo-pay style="width:100%;">Pay ' + money(cfg.dues) + ' by bank</button>' +
+        '</div>' + foot;
+    }
+
     return head +
       '<div style="padding:18px 16px;">' +
         '<div style="font-size:13px; color:var(--ink-soft); margin-bottom:14px;">Card details live in the processor\'s own frame and never reach PlayFund. This is a drawing of it.</div>' +
@@ -719,9 +730,9 @@
       '</div>' + foot;
   }
 
-  function markPaid(a, type) {
+  function markPaid(a, type, choice) {
     a.payment_status = type === 'bnpl' ? 'bnpl_active' : 'paid_full';
-    a.payment_method = type === 'bnpl' ? 'klarna' : 'card';
+    a.payment_method = type === 'bnpl' ? 'klarna' : choice === 'bank' ? 'us_bank_account' : 'card';
     a.payments = [{
       id: 'pay-' + a.id,
       created_at: new Date().toISOString(),

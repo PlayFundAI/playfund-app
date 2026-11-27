@@ -12,6 +12,7 @@ A payments platform for youth sports clubs. Clubs get registration money upfront
 - **Club-adopting go-to-market.** Clubs onboard, we run registration and payments for them.
 - **Any ticket size accepted** ($250–$2,000+). Segment learning is a pilot output, not a precondition.
 - **The parent is always the named borrower. Never the child.** No financing agreement is ever in a minor's name.
+- **Clubs are paid out daily and automatically by the payment processor.** Decided 2026-11-26. Copy may say a club is paid up front. It never states a number of days or uses the word guarantee about payout timing; use "expected" or "typically". A payout date shown to a club is the processor's own, never one we work out. The numbers that place deadlines and notes live in `worker/timing-config.js`.
 
 ## Design reference
 
@@ -59,7 +60,6 @@ Don't invent answers to these in code. Flag them instead:
 
 - How parents return without an account (magic link is the likely answer, not yet decided)
 - Refund ownership and clawback mechanics when a kid quits mid-season
-- Payout timing: rolling per-transaction vs. weekly batch
 - Whether the club or PlayFund contacts declined families
 - How scholarship/$0 athletes are handled
 

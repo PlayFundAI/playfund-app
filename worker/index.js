@@ -1,3 +1,5 @@
+import { KLARNA_PERCENT, KLARNA_MAX_AMOUNT_CENTS } from "./fee-config.js";
+import { applicationFeeCents, PAYMENT_CHOICES, STRIPE_METHOD_FOR_CHOICE } from "./fees.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -2018,6 +2020,9 @@ var index_default = {
         return json({
           club: {
             ...publicClub,
+            // So the page can leave Klarna off the list above this amount.
+            // Checkout enforces it either way.
+            klarna_max_amount_cents: KLARNA_MAX_AMOUNT_CENTS,
             teams: teams.map((team) => ({ ...team, dues: team.dues_cents / 100 }))
           }
         });
@@ -2060,7 +2065,7 @@ var index_default = {
         collected_cents = (paymentsRes.data || []).reduce((sum, p) => sum + (p.amount_cents || 0), 0);
       }
       return json({
-        club: { ...club, teams: teamsWithAthletes },
+        club: { ...club, klarna_max_amount_cents: KLARNA_MAX_AMOUNT_CENTS, teams: teamsWithAthletes },
         stats: { total_athletes: totalAthletes, funded_athletes: fundedAthletes, fronted_cents, collected_cents }
       });
     }
@@ -2698,8 +2703,12 @@ var index_default = {
       } catch {
         return err("Invalid JSON");
       }
-      const { payment_type } = body;
-      if (!["full", "bnpl"].includes(payment_type)) return err("payment_type must be 'full' or 'bnpl'");
+      // payment_choice is what the page sends: "bank", "card" or "klarna".
+      // payment_type ("full" / "bnpl") is the older name for two of them and
+      // can still arrive from a page loaded before this change or an older
+      // payment link.
+      const paymentChoice = body.payment_choice || { full: "card", bnpl: "klarna" }[body.payment_type];
+      if (!PAYMENT_CHOICES.includes(paymentChoice)) return err("payment_choice must be 'bank', 'card' or 'klarna'");
       const athleteRes = await supabase(env, "GET", `/athletes?id=eq.${athleteId}&select=id,name,team_id,club_id,approval_status`);
       const athlete = athleteRes.data?.[0];
       if (!athlete) return err("Athlete not found", 404);
@@ -2720,20 +2729,37 @@ var index_default = {
       }
       const duesCents = team.dues_cents;
       if (!duesCents) return err("Team has no dues configured", 400);
-      const feeBps = clubFeeBps(club);
-      // Checked again here, not just when the rate is set: clubs agreed before
-      // the floor existed still carry those rates, and this is the only place
-      // money actually moves. Deliberately does not block when MIN_FEE_BPS is
-      // absent -- a missing var should not take every club's checkout down, and
-      // the PATCH guard above already covers every newly agreed rate.
-      const minFeeBpsAtCharge = parseInt(env.MIN_FEE_BPS, 10);
-      if (Number.isInteger(minFeeBpsAtCharge) && feeBps < minFeeBpsAtCharge) {
-        console.error(`Blocked checkout: club ${club.code} has fee_bps ${feeBps}, below floor ${minFeeBpsAtCharge}`);
-        return err("This club isn't set up to take payments yet. PlayFund is finalizing their account \u2014 nothing has been charged. Please check back shortly or contact your club.", 409);
+      // The fee depends on how the parent pays (see fees.js). Card and bank
+      // are the same for every club. Klarna is the club's own agreed rate,
+      // and KLARNA_PERCENT only when a club has none on record.
+      const klarnaBps = club.fee_bps != null ? club.fee_bps : Math.round(KLARNA_PERCENT * 1e4);
+      if (paymentChoice === "klarna") {
+        // Refused here rather than left to the processor, so the parent gets
+        // the same answer whether or not the page hid the choice.
+        if (duesCents > KLARNA_MAX_AMOUNT_CENTS) {
+          return json({
+            error: "Installments aren't available for this amount. You can still pay in full, or ask your club about their own payment plan.",
+            reason: "bnpl_unavailable"
+          }, 409);
+        }
+        // Checked again here, not just when the rate is set: clubs agreed
+        // before the floor existed still carry those rates, and this is the
+        // only place money actually moves. Deliberately does not block when
+        // MIN_FEE_BPS is absent -- a missing var should not take every club's
+        // checkout down, and the PATCH guard above already covers every newly
+        // agreed rate. Klarna only: the floor is break-even against Klarna's
+        // cost, and the club's rate no longer sets the card or bank fee.
+        const minFeeBpsAtCharge = parseInt(env.MIN_FEE_BPS, 10);
+        if (Number.isInteger(minFeeBpsAtCharge) && klarnaBps < minFeeBpsAtCharge) {
+          console.error(`Blocked checkout: club ${club.code} has fee_bps ${klarnaBps}, below floor ${minFeeBpsAtCharge}`);
+          return err("This club isn't set up to take payments yet. PlayFund is finalizing their account \u2014 nothing has been charged. Please check back shortly or contact your club.", 409);
+        }
       }
-      const applicationFeeAmount = Math.round(duesCents * feeBps / 1e4);
+      const applicationFeeAmount = applicationFeeCents(duesCents, paymentChoice, { klarnaPercent: klarnaBps / 1e4 });
       const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
-      // 'full' and 'bnpl' must never leak into each other. Naively restricting
+      // Each choice gets its own session, limited to one payment method, with
+      // the fee for that method. The choices must never leak into each other,
+      // or a parent could pay one way at another way's fee. Naively restricting
       // payment_method_types isn't enough on its own: Stripe Link recognizes a
       // returning customer and will still offer their previously-saved Klarna
       // instrument on a "pay in full" session, since Link treats saved BNPL
@@ -2755,22 +2781,31 @@ var index_default = {
         payment_intent_data: {
           application_fee_amount: applicationFeeAmount,
           transfer_data: { destination: club.stripe_account_id },
-          metadata: { athlete_id: athleteId }
+          // The choice and the fee ride along on the payment itself. Our
+          // payments table has no column for the fee, so this is the record.
+          metadata: {
+            athlete_id: athleteId,
+            payment_choice: paymentChoice,
+            application_fee_cents: applicationFeeAmount
+          }
         },
-        metadata: { athlete_id: athleteId },
+        metadata: { athlete_id: athleteId, payment_choice: paymentChoice },
         return_url: `${APP_URL}?checkout=return&athlete=${athleteId}&session_id={CHECKOUT_SESSION_ID}`
       };
-      if (payment_type === "bnpl") {
-        sessionParams.payment_method_types = ["klarna"];
-      } else {
+      if (paymentChoice === "card") {
         // Deliberately fail rather than fall back. Omitting the configuration
         // makes Stripe apply the account default, which re-admits Link and the
         // BNPL methods — so a missing value would silently offer Klarna on a
-        // "pay in full" session, the exact thing this PMC exists to prevent.
+        // card session, the exact thing this PMC exists to prevent.
         if (!env.PAY_IN_FULL_PMC_ID) {
-          return err("Pay-in-full is not configured for this environment (PAY_IN_FULL_PMC_ID unset).", 500);
+          return err("Card payment is not configured for this environment (PAY_IN_FULL_PMC_ID unset).", 500);
         }
         sessionParams.payment_method_configuration = env.PAY_IN_FULL_PMC_ID;
+        // Bank has its own session and its own, lower fee. Whether or not the
+        // configuration has bank switched on, it must not show up here.
+        sessionParams.excluded_payment_method_types = [STRIPE_METHOD_FOR_CHOICE.bank];
+      } else {
+        sessionParams.payment_method_types = [STRIPE_METHOD_FOR_CHOICE[paymentChoice]];
       }
       const sessionRes = await stripe(env, "POST", "/checkout/sessions", sessionParams);
       if (!sessionRes.ok) {
@@ -2781,7 +2816,7 @@ var index_default = {
         const se = sessionRes.data && sessionRes.data.error || {};
         console.error(
           `Checkout session failed: athlete=${athleteId} club=${club.code} ` +
-          `type=${payment_type} amount_cents=${duesCents} http=${sessionRes.status} ` +
+          `choice=${paymentChoice} amount_cents=${duesCents} fee_cents=${applicationFeeAmount} http=${sessionRes.status} ` +
           `stripe_type=${se.type} stripe_code=${se.code} param=${se.param} msg=${se.message}`
         );
         // invalid_request_error means the request as built cannot succeed, so
@@ -2790,10 +2825,19 @@ var index_default = {
         // parent never reaches Klarna, so this never becomes a credit decision.
         // Say what is available instead, and hand the app a machine-readable
         // reason rather than making it match on our prose.
-        if (payment_type === "bnpl" && se.type === "invalid_request_error") {
+        if (paymentChoice === "klarna" && se.type === "invalid_request_error") {
           return json({
             error: "Installments aren't available for this amount. You can still pay in full, or ask your club about their own payment plan.",
             reason: "bnpl_unavailable"
+          }, 409);
+        }
+        // Same reasoning for bank: a request Stripe will not accept as built
+        // (bank payments not switched on for the account, say) will not start
+        // working on a second try, so point at what does work.
+        if (paymentChoice === "bank" && se.type === "invalid_request_error") {
+          return json({
+            error: "Paying by bank isn't available right now. Nothing has been charged. You can still pay by card.",
+            reason: "bank_unavailable"
           }, 409);
         }
         return err("We couldn't start checkout just now. Nothing has been charged — please try again in a moment.", 502);
@@ -2819,6 +2863,24 @@ var index_default = {
       if (session.metadata?.athlete_id !== athleteId) return err("Forbidden", 403);
       if (session.payment_status !== "paid") return json({ email: null });
       return json({ email: session.customer_details?.email || session.customer_email || null });
+    }
+    // Whether a checkout the parent was sent away for (Klarna) was finished
+    // or abandoned. The page comes back to one return address either way, so
+    // this is how it tells "walked away or was turned down" (session still
+    // open, back to the payment choices) from "paid, confirmation still on
+    // its way" (session complete, wait). Scoped to the session and checked
+    // against the athlete for the same reason as session-email above. Nothing
+    // about the payer is returned.
+    if (method === "GET" && path === "/checkout/session-status") {
+      const sessionId = url.searchParams.get("session_id");
+      const athleteId = url.searchParams.get("athlete");
+      if (!sessionId || !athleteId) return err("session_id and athlete are required");
+      if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return err("Invalid session_id");
+      const sessionRes = await stripe(env, "GET", `/checkout/sessions/${sessionId}`);
+      if (!sessionRes.ok) return err("Session not found", 404);
+      const session = sessionRes.data;
+      if (session.metadata?.athlete_id !== athleteId) return err("Forbidden", 403);
+      return json({ status: session.status || null, payment_status: session.payment_status || null });
     }
     if (method === "GET" && path === "/athletes/status") {
       const idsParam = url.searchParams.get("ids") || "";

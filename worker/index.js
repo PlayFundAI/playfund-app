@@ -287,6 +287,45 @@ async function suppressEmail(env, email, reason) {
   }
 }
 __name(suppressEmail, "suppressEmail");
+// Text a person typed, or that came back from the database, on its way into
+// an email body or a page this Worker serves. It is always text there, never
+// markup. Every template in this file passes such values through here.
+function escHtml(t) {
+  return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+__name(escHtml, "escHtml");
+// A club's name as the sender name on an email, without the characters that
+// would end the name and begin an address.
+function fromName(name) {
+  return String(name == null ? "" : name).replace(/[<>"\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim() || "Your club";
+}
+__name(fromName, "fromName");
+// Typed text on its way into the database. Returns it trimmed, "" when
+// nothing was typed, or null when it is refused: not a string, longer than
+// `max`, or holding an angle bracket or a control character. Letters in any
+// script, accents, apostrophes, hyphens, ampersands and quotation marks all
+// pass. The templates above escape every value whether or not it came
+// through here.
+function typedText(value, max) {
+  if (!value) return "";
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (text.length > max || /[<>\u0000-\u001f\u007f]/.test(text)) return null;
+  return text;
+}
+__name(typedText, "typedText");
+// The same for a name or a place. A tab or a line break inside one, which a
+// name pasted from a spreadsheet can carry, becomes a space.
+function typedName(value, max) {
+  return typedText(typeof value === "string" ? value.replace(/\s*[\t\n\r\v\f]+\s*/g, " ") : value, max);
+}
+__name(typedName, "typedName");
+// The reply for a value typedText or typedName did not return as text.
+function typedTextError(what, max, got) {
+  if (got === "") return `${what} is required.`;
+  return `${what} can't include <, > or control characters, and must be ${max} characters or fewer.`;
+}
+__name(typedTextError, "typedTextError");
 // Password reset email. Sent from admin@ through Resend rather than letting
 // Supabase mail it, so it matches every other email the product sends and comes
 // from an address a club already recognises.
@@ -333,7 +372,7 @@ async function sendReminderEmail(env, club, team, athlete) {
   if (await isSuppressed(env, athlete.parent_email)) return { ok: false, skipped: true, reason: "suppressed" };
   const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
   const dues = (team.dues_cents || 0) / 100;
-  const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
+  const payUrl = `${APP_URL}?code=${encodeURIComponent(club.code)}&athlete=${encodeURIComponent(athlete.id)}`;
   const unsubUrl = await unsubscribeLink(env, athlete.parent_email);
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
@@ -342,13 +381,13 @@ async function sendReminderEmail(env, club, team, athlete) {
   <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
     <tr><td style="background:#004643;padding:18px 28px;">
       <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
-      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${escHtml(club.name)}</span>
     </td></tr>
     <tr><td style="padding:28px;">
       <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Action needed</p>
-      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name}'s registration is still open.</h2>
+      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${escHtml(athlete.name)}'s registration is still open.</h2>
       <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
-        ${club.name} is waiting for ${athlete.name}'s registration to be completed.
+        ${escHtml(club.name)} is waiting for ${escHtml(athlete.name)}'s registration to be completed.
         The season is coming up, take a moment to register and choose how you'd like to pay.
       </p>
       <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
@@ -360,7 +399,7 @@ async function sendReminderEmail(env, club, team, athlete) {
             </tr>
             <tr>
               <td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td>
-              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${escHtml(team.name)}</td>
             </tr>
           </table>
         </td></tr>
@@ -379,7 +418,7 @@ async function sendReminderEmail(env, club, team, athlete) {
         </td>
       </tr></table>
       <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
-        Questions? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
+        Questions? Reply to this email, contact ${escHtml(club.name)} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
       <p style="margin:8px 0 0;font-size:11px;color:#C0C6C4;text-align:center;">
         <a href="${unsubUrl}" style="color:#C0C6C4;">Unsubscribe from these reminders</a>
@@ -392,7 +431,7 @@ async function sendReminderEmail(env, club, team, athlete) {
     method: "POST",
     headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: `${club.name} via PlayFund <admin@playfundai.com>`,
+      from: `${fromName(club.name)} via PlayFund <admin@playfundai.com>`,
       to: [athlete.parent_email],
       subject: `Reminder: ${athlete.name}'s registration for ${club.name}`,
       html
@@ -425,25 +464,25 @@ async function sendParentRegistrationEmail(env, club, team, athlete) {
   <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
     <tr><td style="background:#004643;padding:18px 28px;">
       <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
-      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${escHtml(club.name)}</span>
     </td></tr>
     <tr><td style="padding:32px 28px 24px;">
       <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Registration received</p>
-      <h1 style="margin:0 0 12px;font-size:24px;font-weight:800;color:#004643;line-height:1.25;">${athlete.name} is registered with ${club.name}.</h1>
-      <p style="margin:0;font-size:15px;color:#6B7280;line-height:1.6;">${club.name} needs to confirm ${athlete.name} is on the roster. Once they do, we'll email you a link to pay \u2014 there's nothing to do until then.</p>
+      <h1 style="margin:0 0 12px;font-size:24px;font-weight:800;color:#004643;line-height:1.25;">${escHtml(athlete.name)} is registered with ${escHtml(club.name)}.</h1>
+      <p style="margin:0;font-size:15px;color:#6B7280;line-height:1.6;">${escHtml(club.name)} needs to confirm ${escHtml(athlete.name)} is on the roster. Once they do, we'll email you a link to pay \u2014 there's nothing to do until then.</p>
     </td></tr>
     <tr><td style="padding:0 28px 24px;">
       <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;">
         <tr><td style="padding:14px 16px;">
           <table cellpadding="0" cellspacing="0" width="100%">
-            <tr><td style="font-size:13px;color:#6B7280;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${team.name}</td></tr>
+            <tr><td style="font-size:13px;color:#6B7280;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;">${escHtml(team.name)}</td></tr>
             <tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Season dues</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${duesStr}</td></tr>
           </table>
         </td></tr>
       </table>
     </td></tr>
     <tr><td style="padding:0 28px 28px;">
-      <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Questions? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.</p>
+      <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Questions? Reply to this email, contact ${escHtml(club.name)} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.</p>
     </td></tr>
   </table></td></tr></table></body></html>`;
   try {
@@ -451,7 +490,7 @@ async function sendParentRegistrationEmail(env, club, team, athlete) {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: `${club.name} via PlayFund <admin@playfundai.com>`,
+        from: `${fromName(club.name)} via PlayFund <admin@playfundai.com>`,
         to: [athlete.parent_email],
         subject: `${athlete.name} is registered with ${club.name}`,
         html
@@ -471,7 +510,7 @@ async function sendApprovalEmail(env, club, team, athlete) {
   if (await isHardSuppressed(env, athlete.parent_email)) return;
   const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
   const dues = (team.dues_cents || 0) / 100;
-  const payUrl = `${APP_URL}?code=${club.code}&athlete=${athlete.id}`;
+  const payUrl = `${APP_URL}?code=${encodeURIComponent(club.code)}&athlete=${encodeURIComponent(athlete.id)}`;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;margin:0;padding:0;background:#F4F7F6;}
   </style></head><body style="margin:0;padding:0;background:#F4F7F6;">
@@ -479,13 +518,13 @@ async function sendApprovalEmail(env, club, team, athlete) {
   <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
     <tr><td style="background:#004643;padding:18px 28px;">
       <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
-      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${escHtml(club.name)}</span>
     </td></tr>
     <tr><td style="padding:28px;">
       <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">You're confirmed</p>
-      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name} is confirmed on the roster.</h2>
+      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${escHtml(athlete.name)} is confirmed on the roster.</h2>
       <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
-        ${club.name} has confirmed ${athlete.name} is on the team. You can now complete payment for the season.
+        ${escHtml(club.name)} has confirmed ${escHtml(athlete.name)} is on the team. You can now complete payment for the season.
       </p>
       <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
         <tr><td style="padding:16px;">
@@ -496,7 +535,7 @@ async function sendApprovalEmail(env, club, team, athlete) {
             </tr>
             <tr>
               <td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td>
-              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${escHtml(team.name)}</td>
             </tr>
           </table>
         </td></tr>
@@ -515,7 +554,7 @@ async function sendApprovalEmail(env, club, team, athlete) {
         </td>
       </tr></table>
       <p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
-        Questions? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
+        Questions? Reply to this email, contact ${escHtml(club.name)} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
     </td></tr>
   </table>
@@ -526,7 +565,7 @@ async function sendApprovalEmail(env, club, team, athlete) {
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: `${club.name} via PlayFund <admin@playfundai.com>`,
+        from: `${fromName(club.name)} via PlayFund <admin@playfundai.com>`,
         to: [athlete.parent_email],
         subject: `${athlete.name} is confirmed, you can now pay for ${club.name}`,
         html
@@ -561,11 +600,11 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
   <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
     <tr><td style="background:#004643;padding:18px 28px;">
       <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
-      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${escHtml(club.name)}</span>
     </td></tr>
     <tr><td style="padding:28px;">
       <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Payment received</p>
-      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">$${amount} received for ${athlete.name}</h2>
+      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">$${amount} received for ${escHtml(athlete.name)}</h2>
       <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">${statusLine}</p>
       <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;">
         <tr><td style="padding:16px;">
@@ -580,7 +619,7 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
             </tr>
             <tr>
               <td style="font-size:13px;color:#6B7280;padding-top:6px;">Club</td>
-              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${club.name}</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${escHtml(club.name)}</td>
             </tr>
             <tr>
               <td style="font-size:13px;color:#6B7280;padding-top:6px;">Date</td>
@@ -588,16 +627,16 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
             </tr>
             ${stripePaymentIntentId ? `<tr>
               <td style="font-size:13px;color:#6B7280;padding-top:6px;">Transaction ID</td>
-              <td align="right" style="font-size:12px;font-weight:700;color:#004643;padding-top:6px;font-family:monospace;">${stripePaymentIntentId}</td>
+              <td align="right" style="font-size:12px;font-weight:700;color:#004643;padding-top:6px;font-family:monospace;">${escHtml(stripePaymentIntentId)}</td>
             </tr>` : ""}
           </table>
         </td></tr>
       </table>
       <p style="margin:16px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
-        This charge was processed by Stripe, PlayFund's payment processor${stripePaymentIntentId ? ` — keep the transaction ID above if you need to reference this payment with Stripe, your card issuer, or ${club.name}` : ""}.
+        This charge was processed by Stripe, PlayFund's payment processor${stripePaymentIntentId ? ` — keep the transaction ID above if you need to reference this payment with Stripe, your card issuer, or ${escHtml(club.name)}` : ""}.
       </p>
       <p style="margin:8px 0 0;font-size:12px;color:#9CA3AF;text-align:center;">
-        Questions about this payment? Reply to this email, contact ${club.name} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
+        Questions about this payment? Reply to this email, contact ${escHtml(club.name)} directly, or reach <a href="mailto:admin@playfundai.com" style="color:#5BA888;text-decoration:none;">admin@playfundai.com</a>.
       </p>
     </td></tr>
   </table>
@@ -608,7 +647,7 @@ async function sendReceiptEmail(env, club, athlete, amountCents, paymentMethod, 
       method: "POST",
       headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: `${club.name} via PlayFund <admin@playfundai.com>`,
+        from: `${fromName(club.name)} via PlayFund <admin@playfundai.com>`,
         to: [athlete.parent_email],
         subject: `Receipt: $${amount} for ${athlete.name} — ${club.name}`,
         html
@@ -631,11 +670,11 @@ async function sendPendingApprovalEmail(env, club, team, athlete) {
   <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
     <tr><td style="background:#004643;padding:18px 28px;">
       <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
-      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+      <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${escHtml(club.name)}</span>
     </td></tr>
     <tr><td style="padding:28px;">
       <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">New pending athlete</p>
-      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name} was added by a parent</h2>
+      <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${escHtml(athlete.name)} was added by a parent</h2>
       <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
         This athlete was added directly by a parent, not through your team's registration link, so PlayFund can't confirm they're actually on the roster. No payment can be collected for them until you approve or remove them.
       </p>
@@ -644,16 +683,16 @@ async function sendPendingApprovalEmail(env, club, team, athlete) {
           <table cellpadding="0" cellspacing="0" width="100%">
             <tr>
               <td style="font-size:13px;color:#6B7280;">Athlete</td>
-              <td align="right" style="font-size:13px;font-weight:700;color:#004643;">${athlete.name}</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;">${escHtml(athlete.name)}</td>
             </tr>
-            ${team ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td></tr>` : ""}
+            ${team ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${escHtml(team.name)}</td></tr>` : ""}
             <tr>
               <td style="font-size:13px;color:#6B7280;padding-top:6px;">Season dues</td>
               <td align="right" style="font-size:16px;font-weight:800;color:#004643;padding-top:6px;">$${dues.toLocaleString()}</td>
             </tr>
             <tr>
               <td style="font-size:13px;color:#6B7280;padding-top:6px;">Parent email</td>
-              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${athlete.parent_email}</td>
+              <td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${escHtml(athlete.parent_email)}</td>
             </tr>
           </table>
         </td></tr>
@@ -746,9 +785,9 @@ async function alertIfClubAwaitingFee(env, club) {
         to: ["admin@playfundai.com"],
         subject: `ACTION NEEDED \u2014 set a rate for ${club.name}, families can't pay yet`,
         html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:520px;">
-  <p style="margin:0 0 16px;font-size:15px;color:#B42318;"><strong>${club.name}</strong> has finished Stripe onboarding and can accept charges, but no PlayFund rate has been set \u2014 so every family is being turned away at checkout.</p>
-  <p style="margin:0 0 8px;font-size:14px;color:#374151;">Club code: <strong>${club.code || "\u2014"}</strong>${where ? ` &middot; ${where}` : ""}</p>
-  <p style="margin:0 0 16px;font-size:14px;color:#374151;">Set the rate in PlayFund Admin \u2192 ${club.name} \u2192 "PlayFund fee for this club". Saving it unlocks payments immediately.</p>
+  <p style="margin:0 0 16px;font-size:15px;color:#B42318;"><strong>${escHtml(club.name)}</strong> has finished Stripe onboarding and can accept charges, but no PlayFund rate has been set \u2014 so every family is being turned away at checkout.</p>
+  <p style="margin:0 0 8px;font-size:14px;color:#374151;">Club code: <strong>${escHtml(club.code || "\u2014")}</strong>${where ? ` &middot; ${escHtml(where)}` : ""}</p>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;">Set the rate in PlayFund Admin \u2192 ${escHtml(club.name)} \u2192 "PlayFund fee for this club". Saving it unlocks payments immediately.</p>
   <p style="margin:0;font-size:12px;color:#9CA3AF;">Sent once per club. The club cannot resolve this themselves.</p>
 </div>`
       })
@@ -771,7 +810,7 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   // Everything a registrant typed is text, never markup. This email carries
   // the account setup link, so nothing typed into the form may be able to
   // change what surrounds it.
-  const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  const esc = escHtml;
   const fmt = (iso) => {
     if (!iso) return null;
     return new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -909,23 +948,23 @@ async function sendInternalClubAlert(env, club, inviteError) {
     </div>
     <div style="padding:24px 28px;">
       <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5BA888;">New club signed up</p>
-      <h2 style="margin:0 0 4px;font-size:22px;font-weight:800;color:#004643;">${club.name}</h2>
+      <h2 style="margin:0 0 4px;font-size:22px;font-weight:800;color:#004643;">${escHtml(club.name)}</h2>
       <p style="margin:0 0 20px;font-size:14px;color:#6B7280;">Submitted ${(/* @__PURE__ */ new Date()).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
       <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5BA888;">Estimated payout</p>
       <div style="font-size:36px;font-weight:800;color:#004643;margin:8px 0 4px;">$${payout > 0 ? payout.toLocaleString() : "TBD"}</div>
       <p style="font-size:13px;color:#9CA3AF;margin:0 0 20px;">${athletes} athletes &middot; ${payout > 0 ? "$" + totalDues.toLocaleString() : "TBD"} total dues</p>
       <table>
-        <tr><td>Contact</td><td>${club.admin_name || "unknown"} (${club.admin_email || "no email"})</td></tr>
-        <tr><td>Sport</td><td>${club.sport || "unknown"}</td></tr>
-        <tr><td>Location</td><td>${location}</td></tr>
-        <tr><td>Season</td><td>${seasonDates}</td></tr>
+        <tr><td>Contact</td><td>${escHtml(club.admin_name || "unknown")} (${escHtml(club.admin_email || "no email")})</td></tr>
+        <tr><td>Sport</td><td>${escHtml(club.sport || "unknown")}</td></tr>
+        <tr><td>Location</td><td>${escHtml(location)}</td></tr>
+        <tr><td>Season</td><td>${escHtml(seasonDates)}</td></tr>
         <tr><td>Athletes</td><td>${athletes || "unknown"}</td></tr>
         <tr><td>Dues per athlete</td><td>${dues > 0 ? "$" + dues.toLocaleString() : "unknown"}</td></tr>
-        <tr><td>Club code</td><td style="font-family:monospace;">${club.code || "unknown"}</td></tr>
+        <tr><td>Club code</td><td style="font-family:monospace;">${escHtml(club.code || "unknown")}</td></tr>
       </table>
       <div style="margin-top:20px;padding:14px;background:#F4F7F6;border-radius:10px;">
         <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#004643;">Next step: reach out within 1 business day</p>
-        <p style="margin:0;font-size:13px;color:#6B7280;">Reply to ${club.admin_email || "the club"} to schedule the onboarding call. They need EIN and bank details.</p>
+        <p style="margin:0;font-size:13px;color:#6B7280;">Reply to ${escHtml(club.admin_email || "the club")} to schedule the onboarding call. They need EIN and bank details.</p>
       </div>
     </div>
   </div>
@@ -941,7 +980,7 @@ async function sendInternalClubAlert(env, club, inviteError) {
           ? `ACTION NEEDED — setup link failed for ${club.name} (${location})`
           : `New club: ${club.name} (${location}), est. $${payout > 0 ? payout.toLocaleString() : "TBD"} payout`,
         html: inviteError
-          ? `<p style="margin:0 0 16px;font-family:sans-serif;font-size:14px;color:#B42318;"><strong>Their welcome email went out with no setup link.</strong> They can't get into their account until someone sends them one. Error: ${inviteError}</p>${html}`
+          ? `<p style="margin:0 0 16px;font-family:sans-serif;font-size:14px;color:#B42318;"><strong>Their welcome email went out with no setup link.</strong> They can't get into their account until someone sends them one. Error: ${escHtml(inviteError)}</p>${html}`
           : html
       })
     });
@@ -1033,7 +1072,7 @@ function metricNum(n) {
 __name(metricNum, "metricNum");
 
 function buildWeeklyMetricsHtml(data) {
-  const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const esc = escHtml;
   const n = (v) => Number(v || 0);
 
   const period = data.period || {};
@@ -1207,14 +1246,14 @@ var index_default = {
       const sig = url.searchParams.get("sig") || "";
       const expected = email ? await signUnsubscribe(email, env.UNSUBSCRIBE_SECRET || "") : null;
       const htmlPage = (title, message) => new Response(
-        `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#004643;text-align:center;"><h2>${title}</h2><p style="color:#6B7280;">${message}</p></body></html>`,
+        `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escHtml(title)}</title></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:480px;margin:80px auto;padding:0 24px;color:#004643;text-align:center;"><h2>${escHtml(title)}</h2><p style="color:#6B7280;">${message}</p></body></html>`,
         { headers: { "Content-Type": "text/html" } }
       );
       if (!email || !sig || !expected || sig !== expected) {
         return htmlPage("Link not valid", "This unsubscribe link is missing or invalid. Contact admin@playfundai.com if you need help.");
       }
       await suppressEmail(env, email, "unsubscribed");
-      return htmlPage("You're unsubscribed", `${email} won't receive any further reminder emails from PlayFund.`);
+      return htmlPage("You're unsubscribed", `${escHtml(email)} won't receive any further reminder emails from PlayFund.`);
     }
     // Open by design: it is called from the marketing pages and from /app/
     // before anyone has signed in, so there is no token to check. What it does
@@ -2084,6 +2123,10 @@ var index_default = {
       }
       const { email, display_name, role, club_id, team_id } = body;
       if (!email || !role) return err("email and role required");
+      const inviteEmail = typedText(email, 254);
+      if (!inviteEmail) return err(typedTextError("The email address", 254, inviteEmail));
+      const inviteName = typedName(display_name, 120);
+      if (inviteName === null) return err(typedTextError("Their name", 120));
       if (!["club_admin", "team_admin"].includes(role)) return err("Invalid role");
       if (role === "team_admin" && !team_id) return err("team_id required for team_admin");
       if (!club_id) return err("club_id required");
@@ -2128,7 +2171,7 @@ var index_default = {
           role,
           club_id,
           team_id: team_id || null,
-          display_name: display_name || null
+          display_name: inviteName || null
         });
       } else {
         await supabase(env, "POST", "/user_profiles", {
@@ -2136,7 +2179,7 @@ var index_default = {
           role,
           club_id,
           team_id: team_id || null,
-          display_name: display_name || null
+          display_name: inviteName || null
         });
       }
       return json({ success: true, message: `Invite sent to ${email}` }, 201);
@@ -2165,7 +2208,7 @@ var index_default = {
 
       const RESEND_API_KEY = env.RESEND_API_KEY;
       if (!RESEND_API_KEY) return err("Contact is not configured yet", 500);
-      const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const esc = escHtml;
       const sent = await resendSend(env, {
           method: "POST",
           headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -2237,7 +2280,7 @@ var index_default = {
 
       const RESEND_API_KEY = env.RESEND_API_KEY;
       if (!RESEND_API_KEY) return err("This form is not configured yet", 500);
-      const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const esc = escHtml;
       const row = (k, v) => v
         ? `<tr><td style="padding:4px 14px 4px 0;font-size:13px;color:#9CA3AF;">${esc(k)}</td><td style="padding:4px 0;font-size:14px;color:#374151;">${esc(v)}</td></tr>`
         : "";
@@ -2301,6 +2344,29 @@ var index_default = {
       }
       const { name, sport, city, state, admin_email, admin_name, athlete_count, fees, teams } = body;
       if (!name || !sport || !admin_email) return err("name, sport, and admin_email required");
+      // Checked before anything is stored, so a refusal leaves nothing behind.
+      const typed = {
+        name: typedName(name, 160),
+        sport: typedName(sport, 60),
+        admin_email: typedText(admin_email, 254),
+        city: typedName(city, 120),
+        state: typedName(state, 60),
+        admin_name: typedName(admin_name, 120)
+      };
+      if (!typed.name) return err(typedTextError("The club name", 160, typed.name));
+      if (!typed.sport) return err(typedTextError("The sport", 60, typed.sport));
+      if (!typed.admin_email) return err(typedTextError("The email address", 254, typed.admin_email));
+      if (typed.city === null) return err(typedTextError("The city", 120));
+      if (typed.state === null) return err(typedTextError("The state", 60));
+      if (typed.admin_name === null) return err(typedTextError("Your name", 120));
+      const typedTeams = [];
+      for (const t of Array.isArray(teams) ? teams : []) {
+        const teamName = typedName(t && t.name, 120);
+        if (!teamName) return err(typedTextError("A team name", 120, teamName));
+        const teamAgeGroup = typedName(t.age_group, 40);
+        if (teamAgeGroup === null) return err(typedTextError("An age group", 40));
+        typedTeams.push({ name: teamName, age_group: teamAgeGroup || null, dues: t.dues });
+      }
       let code = randomClubCode();
       for (let attempt = 0; attempt < 10; attempt++) {
         const existsRes = await supabase(env, "GET", `/clubs?code=eq.${code}&select=id`);
@@ -2309,16 +2375,16 @@ var index_default = {
       }
       const feesPerAthlete = fees && fees.length ? fees.reduce((sum, f) => sum + (parseFloat(f.amount) || 0), 0) : 0;
       const insertData = {
-        name: name.trim(),
-        sport: sport.trim(),
-        city: city || null,
-        state: state || null,
+        name: typed.name,
+        sport: typed.sport,
+        city: typed.city || null,
+        state: typed.state || null,
         code,
         pin_hash: crypto.randomUUID(),
         active: false
       };
-      if (admin_email) insertData.admin_email = admin_email.toLowerCase().trim();
-      if (admin_name) insertData.admin_name = admin_name.trim();
+      insertData.admin_email = typed.admin_email.toLowerCase();
+      if (typed.admin_name) insertData.admin_name = typed.admin_name;
       if (athlete_count) insertData.athlete_count = parseInt(athlete_count) || null;
       if (feesPerAthlete) insertData.fees_per_athlete = Math.round(feesPerAthlete);
       if (body.season_start) insertData.season_start = body.season_start;
@@ -2327,12 +2393,12 @@ var index_default = {
       if (!clubRes.ok) return err("Failed to create club: " + JSON.stringify(clubRes.data), 500);
       const club = clubRes.data[0];
       let createdTeams = [];
-      if (teams && teams.length) {
-        for (const t of teams) {
+      if (typedTeams.length) {
+        for (const t of typedTeams) {
           const tRes = await supabase(env, "POST", "/teams", {
             club_id: club.id,
             name: t.name,
-            age_group: t.age_group || null,
+            age_group: t.age_group,
             dues_cents: Math.round((t.dues || 0) * 100),
             active: true
           });
@@ -2342,7 +2408,7 @@ var index_default = {
       let inviteUrl = null;
       let inviteError = null;
       if (admin_email) {
-        const adminEmail = admin_email.toLowerCase().trim();
+        const adminEmail = typed.admin_email.toLowerCase();
         const APP_URL = env.APP_URL || "https://www.playfundai.com/app/";
         // We are not the only thing inviting this admin: two Supabase
         // database webhooks on clubs INSERT (on-club-insert,
@@ -2413,7 +2479,7 @@ var index_default = {
                 id: linkData.id,
                 role: "club_admin",
                 club_id: club.id,
-                display_name: admin_name || null
+                display_name: typed.admin_name || null
               });
             }
           } catch (e) {
@@ -2502,6 +2568,16 @@ var index_default = {
       // skips teams with no dues_due_date, so a team created without one
       // never reminds anyone and nothing surfaces that.
       if (!dues_due_date) return err("dues_due_date is required — it is what schedules payment reminders for this team");
+      const teamName = typedName(name, 120);
+      if (!teamName) return err(typedTextError("The team name", 120, teamName));
+      const ageGroup = typedName(age_group, 40);
+      if (ageGroup === null) return err(typedTextError("The age group", 40));
+      // A fee name is cut to 80 characters when stored, as it always was, so
+      // only its characters can be refused.
+      const feeName = (f) => typedName(String(f.label).trim().slice(0, 80), 80);
+      if (Array.isArray(fees) && fees.some((f) => f && typeof f.label === "string" && feeName(f) === null)) {
+        return err("A fee name can't include <, > or control characters.");
+      }
       let resolvedClubId = club_id;
       if (!resolvedClubId && club_code) {
         const clubRes = await supabase(env, "GET", `/clubs?select=id&code=eq.${club_code.toUpperCase()}`);
@@ -2513,8 +2589,8 @@ var index_default = {
       if (!isAllowed) return err("Forbidden", 403);
       const insertData = {
         club_id: resolvedClubId,
-        name: name.trim(),
-        age_group: age_group || null,
+        name: teamName,
+        age_group: ageGroup || null,
         dues_cents: Math.round(dues_cents),
         season_start: season_start || null,
         season_end: season_end || null,
@@ -2528,7 +2604,7 @@ var index_default = {
       if (Array.isArray(fees)) {
         const cleanFees = fees
           .filter((f) => f && typeof f.label === "string" && f.label.trim())
-          .map((f) => ({ label: String(f.label).trim().slice(0, 80), amount: Math.round(Number(f.amount) || 0) }))
+          .map((f) => ({ label: feeName(f), amount: Math.round(Number(f.amount) || 0) }))
           .filter((f) => f.amount > 0);
         if (cleanFees.length) insertData.fees = cleanFees;
       }
@@ -2547,6 +2623,12 @@ var index_default = {
       if (!club_code || !team_id || !athlete_name || !parent_email) {
         return err("club_code, team_id, athlete_name, and parent_email are required");
       }
+      const athleteName = typedName(athlete_name, 120);
+      if (!athleteName) return err(typedTextError("The athlete's name", 120, athleteName));
+      const parentEmail = typedText(parent_email, 254);
+      if (!parentEmail) return err(typedTextError("The parent's email", 254, parentEmail));
+      const parentPhone = typedText(parent_phone, 40);
+      if (parentPhone === null) return err(typedTextError("The phone number", 40));
       const clubRes = await supabase(
         env,
         "GET",
@@ -2590,12 +2672,12 @@ var index_default = {
       const insertRes = await supabase(env, "POST", "/athletes", {
         club_id: clubId,
         team_id,
-        name: athlete_name.trim(),
+        name: athleteName,
         // age deliberately not stored: it drove no logic anywhere, duplicated
         // the team's age_group, and CLAUDE.md limits athlete data to the
         // minimum necessary.
-        parent_email: parent_email.toLowerCase().trim(),
-        parent_phone: parent_phone || null,
+        parent_email: parentEmail.toLowerCase(),
+        parent_phone: parentPhone || null,
         payment_status: "unpaid",
         approval_status: approvalStatus,
         enrolled_at: (/* @__PURE__ */ new Date()).toISOString()
@@ -2640,27 +2722,27 @@ var index_default = {
       <table cellpadding="0" cellspacing="0" width="520" style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
         <tr><td style="background:#004643;padding:18px 28px;">
           <span style="font-size:20px;font-weight:800;color:#fff;">Play</span><span style="font-size:20px;font-weight:800;color:#5BA888;">Fund</span>
-          <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${club.name}</span>
+          <span style="float:right;font-size:12px;color:rgba(255,255,255,0.6);">${escHtml(club.name)}</span>
         </td></tr>
         <tr><td style="padding:28px;">
           <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Family wants to pay directly</p>
-          <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${athlete.name}'s family would like to arrange payment with you</h2>
+          <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;color:#004643;">${escHtml(athlete.name)}'s family would like to arrange payment with you</h2>
           <p style="margin:0 0 20px;font-size:15px;color:#6B7280;line-height:1.6;">
-            Their installment plan through Klarna couldn't be approved, and they've asked to set up a payment plan directly with ${club.name} instead of paying online through PlayFund.
+            Their installment plan through Klarna couldn't be approved, and they've asked to set up a payment plan directly with ${escHtml(club.name)} instead of paying online through PlayFund.
           </p>
           <table cellpadding="0" cellspacing="0" width="100%" style="background:#F4F7F6;border-radius:10px;margin-bottom:20px;">
             <tr><td style="padding:16px;">
               <table cellpadding="0" cellspacing="0" width="100%">
                 <tr>
                   <td style="font-size:13px;color:#6B7280;">Athlete</td>
-                  <td align="right" style="font-size:13px;font-weight:700;color:#004643;">${athlete.name}</td>
+                  <td align="right" style="font-size:13px;font-weight:700;color:#004643;">${escHtml(athlete.name)}</td>
                 </tr>
-                ${team ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${team.name}</td></tr>` : ""}
+                ${team ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Team</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${escHtml(team.name)}</td></tr>` : ""}
                 <tr>
                   <td style="font-size:13px;color:#6B7280;padding-top:6px;">Season dues</td>
                   <td align="right" style="font-size:16px;font-weight:800;color:#004643;padding-top:6px;">$${dues.toLocaleString()}</td>
                 </tr>
-                ${athlete.parent_email ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Parent email</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${athlete.parent_email}</td></tr>` : ""}
+                ${athlete.parent_email ? `<tr><td style="font-size:13px;color:#6B7280;padding-top:6px;">Parent email</td><td align="right" style="font-size:13px;font-weight:700;color:#004643;padding-top:6px;">${escHtml(athlete.parent_email)}</td></tr>` : ""}
               </table>
             </td></tr>
           </table>

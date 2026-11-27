@@ -3763,7 +3763,7 @@ var usStates = ["Virginia"];
       var row = document.createElement('div');
       row.style.cssText = 'display:flex; gap:8px; margin-bottom:10px; align-items:center;';
       row.innerHTML =
-        '<input type="text" placeholder="'+feeLabelExample(i)+'" value="'+fee.label+'" '+
+        '<input type="text" placeholder="'+feeLabelExample(i)+'" value="'+escapeHtml(fee.label)+'" '+
           'style="flex:2; padding:11px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); font-family:\'Inter\',sans-serif; font-size:13px;" '+
           'oninput="addTeamFees['+i+'].label=this.value;">'+
         '<input type="text" placeholder="$" inputmode="numeric" value="'+(fee.amount?Number(fee.amount).toLocaleString():'')+'" '+
@@ -4017,7 +4017,7 @@ var usStates = ["Virginia"];
       card.innerHTML =
         '<div class="team-card-icon">' + (teamIcons[team.age_group] || teamIcons[team.age] || '') + '</div>' +
         '<div class="team-card-meta">' +
-          '<div class="team-card-name">' + team.name + '</div>' +
+          '<div class="team-card-name">' + escapeHtml(team.name) + '</div>' +
           '<div class="team-card-sub">' + athletes.length + ' athlete' + (athletes.length !== 1 ? 's' : '') + ' &middot; $' + Math.round(dues).toLocaleString() + ' dues</div>' +
         '</div>' +
         '<div class="team-card-funded">' +
@@ -4060,8 +4060,8 @@ var usStates = ["Virginia"];
         var row = document.createElement('div');
         row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:#fff; border-radius:8px; margin-bottom:6px; cursor:pointer; font-size:12.5px;';
         row.innerHTML =
-          '<span style="color:var(--ink); font-weight:600;">' + (p.athlete.name || '') + '</span>' +
-          '<span style="color:#7A5C00;">' + p.team.name + ' &rsaquo;</span>';
+          '<span style="color:var(--ink); font-weight:600;">' + escapeHtml(p.athlete.name || '') + '</span>' +
+          '<span style="color:#7A5C00;">' + escapeHtml(p.team.name) + ' &rsaquo;</span>';
         row.addEventListener('click', function(){ state.team = p.team; openRoster(); });
         approvalList.appendChild(row);
       });
@@ -4167,8 +4167,8 @@ var usStates = ["Virginia"];
       }
       if(msg){
         msg.style.color = 'var(--paid)';
-        msg.innerHTML = '✓ <b>Sent ' + data.sent + ' payment link' + (data.sent === 1 ? '' : 's') + '.</b>' +
-          (data.skipped && data.skipped.length ? ' ' + data.skipped.length + ' skipped with no parent email.' : '');
+        msg.innerHTML = '✓ <b>Sent ' + escapeHtml(data.sent) + ' payment link' + (data.sent === 1 ? '' : 's') + '.</b>' +
+          (data.skipped && data.skipped.length ? ' ' + escapeHtml(data.skipped.length) + ' skipped with no parent email.' : '');
       }
       if(btn){ btn.disabled = false; btn.textContent = 'Send again'; }
     } catch(e){
@@ -4356,14 +4356,15 @@ var usStates = ["Virginia"];
           row.innerHTML =
             '<div class="roster-icon">'+'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'+'</div>'+
             '<div class="roster-name-block">'+
-              '<div class="roster-name">'+(a.name||'')+'</div>'+
+              '<div class="roster-name">'+escapeHtml(a.name||'')+'</div>'+
               
-              (a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+
+              (a.parent_email?'<div class="roster-age">Added by '+escapeHtml(a.parent_email)+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+
             '</div>'+
             '<div class="roster-action-row">'+
-              '<button class="roster-action-btn approve" title="Approve this athlete" onclick="approvePendingAthlete(\''+a.id+'\')">'+checkIcon2+'</button>'+
-              '<button class="roster-action-btn danger" title="Remove this athlete" onclick="deleteRosterAthlete(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+trashIcon+'</button>'+
+              '<button class="roster-action-btn approve" title="Approve this athlete">'+checkIcon2+'</button>'+
+              '<button class="roster-action-btn danger" title="Remove this athlete">'+trashIcon+'</button>'+
             '</div>';
+          wireRosterRow(row, a, approvePendingAthlete, deleteRosterAthlete);
           return row;
         }
 
@@ -4372,14 +4373,15 @@ var usStates = ["Virginia"];
             ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
             : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>')+'</div>'+
           '<div class="roster-name-block">'+
-            '<div class="roster-name">'+(a.name||'')+'</div>'+
+            '<div class="roster-name">'+escapeHtml(a.name||'')+'</div>'+
             
           '</div>'+
           '<div class="roster-right">'+
             '<div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Awaiting payment')+'</div>'+
             methodTag+
           '</div>'+
-          '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteRosterAthlete(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+trashIcon+'</button>';
+          '<button class="roster-action-btn danger" title="Remove athlete">'+trashIcon+'</button>';
+        wireRosterRow(row, a, approvePendingAthlete, deleteRosterAthlete);
         return row;
       };
 
@@ -4499,12 +4501,28 @@ var usStates = ["Virginia"];
   // no club ever entered. The breakdown now comes from teams.fees.
 
 
-  // Fee labels are club-authored free text rendered via innerHTML, so escape
-  // them. Everything else in this panel is numbers we format ourselves.
+  // Every screen in this file goes through this. Anything a person typed, and
+  // anything that came back from the Worker or from this device's saved
+  // state, is text: it passes through escapeHtml before it is joined into a
+  // string that is written with innerHTML. Only markup written out in this
+  // file, and numbers this file worked out itself, go in as they are.
+  // Buttons built this way get their handlers from addEventListener, so no
+  // value is ever written into an onclick. worker/app-text.test.mjs runs
+  // every such write and fails on one that skips this.
   function escapeHtml(str){
     return String(str == null ? '' : str)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // Gives one roster row's approve and remove buttons their handlers. The
+  // athlete is held by the handler itself, so its id and name are passed on
+  // exactly as stored.
+  function wireRosterRow(row, a, onApprove, onRemove){
+    var approveBtn = row.querySelector('.roster-action-btn.approve');
+    var removeBtn  = row.querySelector('.roster-action-btn.danger');
+    if(approveBtn) approveBtn.addEventListener('click', function(){ onApprove(a.id); });
+    if(removeBtn)  removeBtn.addEventListener('click', function(){ onRemove(a.id, a.name || 'this athlete'); });
   }
 
   // Renders the club's OWN fee items. This used to invent a breakdown from
@@ -4724,7 +4742,7 @@ var usStates = ["Virginia"];
       // paid onto a dashboard that could not load their own child.
       if(!data.access_token){
         errEl.style.color = 'var(--ink-soft)';
-        errEl.innerHTML = '<b>Account created.</b> Check ' + email + ' for a link to confirm your address, then sign in. Your payment is already complete.';
+        errEl.innerHTML = '<b>Account created.</b> Check ' + escapeHtml(email) + ' for a link to confirm your address, then sign in. Your payment is already complete.';
         document.getElementById('parentSavePassword').value = '';
         return;
       }
@@ -4860,10 +4878,10 @@ var usStates = ["Virginia"];
       var card = document.createElement('div');
       card.className = 'athlete-card';
       card.innerHTML =
-        '<div class="athlete-avatar">' + athleteInitials(athlete.name) + '</div>' +
+        '<div class="athlete-avatar">' + escapeHtml(athleteInitials(athlete.name)) + '</div>' +
         '<div class="athlete-meta">' +
-          '<div class="athlete-name">' + athlete.name + '</div>' +
-          '<div class="athlete-sub">' + ct.club.name + ' \u2014 ' + ct.team.name + '</div>' +
+          '<div class="athlete-name">' + escapeHtml(athlete.name) + '</div>' +
+          '<div class="athlete-sub">' + escapeHtml(ct.club.name) + ' \u2014 ' + escapeHtml(ct.team.name) + '</div>' +
         '</div>' +
         '<div class="athlete-status-tag ' + (funded ? 'funded' : 'unfunded') + '">' + (funded ? 'Funded' : 'Action needed') + '</div>';
       card.addEventListener('click', function(){ openAthleteDetail(athlete.id); });
@@ -4944,15 +4962,17 @@ var usStates = ["Virginia"];
       row.className = 'sibling-athlete-row';
       row.innerHTML =
         '<div>' +
-          '<div class="sibling-athlete-name">' + entry.athlete.name + '</div>' +
-          '<div class="sibling-athlete-sub">' + (entry.team ? entry.team.name : clubName) + '</div>' +
+          '<div class="sibling-athlete-name">' + escapeHtml(entry.athlete.name) + '</div>' +
+          '<div class="sibling-athlete-sub">' + escapeHtml(entry.team ? entry.team.name : clubName) + '</div>' +
         '</div>' +
         '<div style="display:flex; align-items:center; gap:10px;">' +
-          '<div class="sibling-athlete-amt">$' + dues.toLocaleString() + '</div>' +
+          '<div class="sibling-athlete-amt">$' + escapeHtml(dues.toLocaleString()) + '</div>' +
           (alreadyPaid
             ? '<span class="status-pill status-paid">Paid</span>'
-            : '<button class="btn btn-secondary" style="padding:8px 14px; font-size:12.5px;" onclick="payCombinedAthlete(\'' + entry.athlete.id + '\')">Pay</button>') +
+            : '<button class="btn btn-secondary" style="padding:8px 14px; font-size:12.5px;">Pay</button>') +
         '</div>';
+      var payBtn = row.querySelector('button');
+      if(payBtn) payBtn.addEventListener('click', function(){ payCombinedAthlete(entry.athlete.id); });
       listEl.appendChild(row);
     });
 
@@ -5064,12 +5084,12 @@ var usStates = ["Virginia"];
     return '<div class="payment-schedule-row">' +
       '<div class="payment-schedule-dot payment-schedule-dot--' + (isPaid ? 'paid' : 'upcoming') + '"></div>' +
       '<div class="payment-schedule-info">' +
-        (dateStr ? '<div class="payment-schedule-date">' + dateStr + '</div>' : '') +
-        '<div class="payment-schedule-label">' + item.label + '</div>' +
-        (item.txnId ? '<div class="payment-schedule-date" style="font-family:monospace;">Reference: ' + item.txnId + '</div>' : '') +
+        (dateStr ? '<div class="payment-schedule-date">' + escapeHtml(dateStr) + '</div>' : '') +
+        '<div class="payment-schedule-label">' + escapeHtml(item.label) + '</div>' +
+        (item.txnId ? '<div class="payment-schedule-date" style="font-family:monospace;">Reference: ' + escapeHtml(item.txnId) + '</div>' : '') +
       '</div>' +
       '<div class="payment-schedule-right">' +
-        (hasAmount ? '<div class="payment-schedule-amt">' + fmtUSD(item.amount) + '</div>' : '') +
+        (hasAmount ? '<div class="payment-schedule-amt">' + escapeHtml(fmtUSD(item.amount)) + '</div>' : '') +
         (isPaid ? '<div class="payment-schedule-status">Paid</div>' : (hasAmount ? '<div class="payment-schedule-label" style="text-align:right;">Klarna, automatic</div>' : '')) +
       '</div>' +
     '</div>';
@@ -5152,11 +5172,11 @@ var usStates = ["Virginia"];
                   : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>') +
         '</div>' +
         '<div class="roster-name-block">' +
-          '<div class="roster-name">' + h.label + '</div>' +
-          (dateStr ? '<div class="roster-age">' + dateStr + '</div>' : '') +
+          '<div class="roster-name">' + escapeHtml(h.label) + '</div>' +
+          (dateStr ? '<div class="roster-age">' + escapeHtml(dateStr) + '</div>' : '') +
         '</div>' +
         '<div class="roster-right">' +
-          (h.amount != null ? '<div style="font-size:15px; font-weight:700; color:var(--ink);">$' + h.amount.toLocaleString() + '</div>' : '') +
+          (h.amount != null ? '<div style="font-size:15px; font-weight:700; color:var(--ink);">$' + escapeHtml(h.amount.toLocaleString()) + '</div>' : '') +
           '<div class="status-pill" style="margin-top:3px; background:' + (isPaid ? 'var(--paid-bg)' : '#FEF3C7') + '; color:' + (isPaid ? 'var(--paid)' : '#B45309') + ';">' + (isPaid ? 'Paid' : 'See Klarna') + '</div>' +
         '</div>';
       listEl.appendChild(row);
@@ -5347,9 +5367,9 @@ var usStates = ["Virginia"];
         ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
         : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
       return '<div class="history-item">' +
-        '<div class="history-icon ' + item.status + '">' + icon + '</div>' +
-        '<div class="history-label"><div class="history-title">' + item.label + '</div><div class="history-date">' + dateStr + '</div></div>' +
-        (item.amount != null ? '<div class="history-amt">' + fmtUSD(item.amount) + '</div>' : '') + '</div>';
+        '<div class="history-icon ' + escapeHtml(item.status) + '">' + icon + '</div>' +
+        '<div class="history-label"><div class="history-title">' + escapeHtml(item.label) + '</div><div class="history-date">' + escapeHtml(dateStr) + '</div></div>' +
+        (item.amount != null ? '<div class="history-amt">' + escapeHtml(fmtUSD(item.amount)) + '</div>' : '') + '</div>';
     }
 
     var html = '';
@@ -5376,10 +5396,10 @@ var usStates = ["Virginia"];
       var card = document.createElement('div');
       card.className = 'athlete-card athlete-card-static';
       card.innerHTML =
-        '<div class="athlete-avatar">' + athleteInitials(athlete.name) + '</div>' +
+        '<div class="athlete-avatar">' + escapeHtml(athleteInitials(athlete.name)) + '</div>' +
         '<div class="athlete-meta">' +
-          '<div class="athlete-name">' + athlete.name + '</div>' +
-          '<div class="athlete-sub">' + ct.club.name + ' \u2014 ' + ct.team.name + '</div>' +
+          '<div class="athlete-name">' + escapeHtml(athlete.name) + '</div>' +
+          '<div class="athlete-sub">' + escapeHtml(ct.club.name) + ' \u2014 ' + escapeHtml(ct.team.name) + '</div>' +
         '</div>';
       listEl.appendChild(card);
     });
@@ -5624,7 +5644,10 @@ var usStates = ["Virginia"];
       if(!regRes.ok){
         trackEvent('club_signup_failed', { reason: 'server_error' });
         var regErr = document.getElementById('reg1Error');
-        if(regErr) regErr.textContent = "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
+        // A 400 is the Worker saying which field to change, so show its words.
+        // Trying again with the same form would only fail the same way.
+        var regWhy = regRes.status === 400 ? await regRes.json().catch(function(){ return null; }) : null;
+        if(regErr) regErr.textContent = (regWhy && regWhy.error) || "Something went wrong submitting your registration. Please try again, or email admin@playfundai.com.";
         return;
       }
     } catch(e){
@@ -5714,11 +5737,12 @@ var usStates = ["Virginia"];
         if(a.approval_status === 'pending'){
           row.innerHTML =
             '<div class="roster-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>'+
-            '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+(a.parent_email?'<div class="roster-age">Added by '+a.parent_email+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+'</div>'+
+            '<div class="roster-name-block"><div class="roster-name">'+escapeHtml(a.name)+'</div>'+(a.parent_email?'<div class="roster-age">Added by '+escapeHtml(a.parent_email)+'</div>':'<div class="roster-age">Added by parent, not yet confirmed</div>')+'</div>'+
             '<div class="roster-action-row">'+
-              '<button class="roster-action-btn approve" title="Approve" onclick="approveAthleteTeamAdmin(\''+a.id+'\')">'+taCheckIcon+'</button>'+
-              '<button class="roster-action-btn danger" title="Remove" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>'+
+              '<button class="roster-action-btn approve" title="Approve">'+taCheckIcon+'</button>'+
+              '<button class="roster-action-btn danger" title="Remove">'+taTrashIcon+'</button>'+
             '</div>';
+          wireRosterRow(row, a, approveAthleteTeamAdmin, deleteAthleteTeamAdmin);
           return row;
         }
         var status = a.payment_status || 'unpaid';
@@ -5727,9 +5751,10 @@ var usStates = ["Virginia"];
         row.style.setProperty('--status-bg','var('+(isPaid?'--paid-bg':'--unpaid-bg')+')');
         row.innerHTML =
           '<div class="roster-icon">'+(isPaid?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>')+'</div>'+
-          '<div class="roster-name-block"><div class="roster-name">'+a.name+'</div>'+'</div>'+
+          '<div class="roster-name-block"><div class="roster-name">'+escapeHtml(a.name)+'</div>'+'</div>'+
           '<div class="roster-right"><div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Awaiting payment')+'</div></div>'+
-          '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteAthleteTeamAdmin(\''+a.id+'\', \''+(a.name||'this athlete').replace(/'/g,"\\'")+'\')">'+taTrashIcon+'</button>';
+          '<button class="roster-action-btn danger" title="Remove athlete">'+taTrashIcon+'</button>';
+        wireRosterRow(row, a, approveAthleteTeamAdmin, deleteAthleteTeamAdmin);
         return row;
       }
 
@@ -5867,7 +5892,7 @@ var usStates = ["Virginia"];
     listEl.innerHTML = '';
     if(clubs.length === 0){
       listEl.innerHTML = '<p style="color:var(--ink-soft); font-size:14px; text-align:center; padding:32px 0;">'
-        + (adminAllClubs.length === 0 ? 'No clubs yet.' : 'No clubs match “' + q + '”.') + '</p>';
+        + (adminAllClubs.length === 0 ? 'No clubs yet.' : 'No clubs match “' + escapeHtml(q) + '”.') + '</p>';
       return;
     }
     clubs.forEach(function(club){
@@ -5884,8 +5909,8 @@ var usStates = ["Virginia"];
         card.innerHTML =
           iconHtml +
           '<div class="team-card-meta">' +
-            '<div class="team-card-name">' + club.name + '</div>' +
-            '<div class="team-card-sub">' + club.code + ' &middot; ' + club.city + ' &middot; ' + club.team_count + ' teams</div>' +
+            '<div class="team-card-name">' + escapeHtml(club.name) + '</div>' +
+            '<div class="team-card-sub">' + escapeHtml(club.code) + ' &middot; ' + escapeHtml(club.city) + ' &middot; ' + escapeHtml(club.team_count) + ' teams</div>' +
             '<div class="team-card-sub" style="margin-top:2px;">Total Dues: $' + Math.round(totalDues).toLocaleString() + '</div>' +
           '</div>' +
           '<div class="team-card-funded">' +
@@ -5916,7 +5941,7 @@ var usStates = ["Virginia"];
       var data = await res.json();
       if(!res.ok){
         document.getElementById('adminClubList').innerHTML =
-          '<p style="color:var(--unpaid); font-size:14px; text-align:center; padding:32px 0;">' + (data.error || 'Failed to load clubs.') + '</p>';
+          '<p style="color:var(--unpaid); font-size:14px; text-align:center; padding:32px 0;">' + escapeHtml(data.error || 'Failed to load clubs.') + '</p>';
         ['adminTotalClubs','adminTotalTeams','adminTotalAthletes'].forEach(function(id){
           document.getElementById(id).classList.remove('loading-msg');
         });
@@ -5971,10 +5996,10 @@ var usStates = ["Virginia"];
           card.className = 'team-card';
           card.style.cursor = 'pointer';
           card.innerHTML =
-            '<div style="font-weight:700; color:var(--ink); margin-bottom:2px;">' + club.name + '</div>' +
-            '<div style="font-size:11.5px; color:var(--ink-soft); margin-bottom:6px;">' + (club.city || '') + (club.city ? ' \u00b7 ' : '') + club.code + '</div>' +
+            '<div style="font-weight:700; color:var(--ink); margin-bottom:2px;">' + escapeHtml(club.name) + '</div>' +
+            '<div style="font-size:11.5px; color:var(--ink-soft); margin-bottom:6px;">' + escapeHtml(club.city || '') + (club.city ? ' \u00b7 ' : '') + escapeHtml(club.code) + '</div>' +
             reasons.map(function(r){
-              return '<div style="font-size:12px; font-weight:600; color:' + r.c + ';">\u2022 ' + r.t + '</div>';
+              return '<div style="font-size:12px; font-weight:600; color:' + escapeHtml(r.c) + ';">\u2022 ' + escapeHtml(r.t) + '</div>';
             }).join('');
           card.addEventListener('click', function(){ openAdminClubDetail(club); });
           actionEl.appendChild(card);
@@ -6063,7 +6088,7 @@ var usStates = ["Virginia"];
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5 21v-2a7 7 0 0114 0v2"/></svg>' +
         '</div>' +
         '<div class="team-card-meta">' +
-          '<div class="team-card-name">' + team.name + '</div>' +
+          '<div class="team-card-name">' + escapeHtml(team.name) + '</div>' +
           '<div class="team-card-sub">Total Dues: $' + Math.round(teamTotalDues).toLocaleString() + '</div>' +
         '</div>' +
         '<div class="team-card-funded">' +
@@ -6087,7 +6112,7 @@ var usStates = ["Virginia"];
         headers: { 'Authorization': 'Bearer ' + adminSession }
       });
       var data = await res.json();
-      if(!res.ok){ listEl.innerHTML = '<p style="font-size:12.5px; color:var(--unpaid);">' + (data.error || 'Failed to load payments.') + '</p>'; return; }
+      if(!res.ok){ listEl.innerHTML = '<p style="font-size:12.5px; color:var(--unpaid);">' + escapeHtml(data.error || 'Failed to load payments.') + '</p>'; return; }
       adminClubPayments = data.payments || [];
       if(!adminClubPayments.length){
         listEl.innerHTML = '<p style="font-size:12.5px; color:var(--ink-soft);">No payments yet.</p>';
@@ -6099,12 +6124,12 @@ var usStates = ["Virginia"];
         var statusOk = p.status === 'succeeded';
         return '<div class="roster-row">' +
           '<div class="roster-name-block">' +
-            '<div class="roster-name">' + p.athlete_name + '</div>' +
-            '<div class="roster-age">' + p.team_name + ' · ' + dateStr + ' · ' + methodLabel + '</div>' +
+            '<div class="roster-name">' + escapeHtml(p.athlete_name) + '</div>' +
+            '<div class="roster-age">' + escapeHtml(p.team_name) + ' · ' + escapeHtml(dateStr) + ' · ' + escapeHtml(methodLabel) + '</div>' +
           '</div>' +
           '<div class="roster-right">' +
-            '<div style="font-size:15px; font-weight:700; color:var(--ink);">$' + p.amount.toLocaleString() + '</div>' +
-            '<div class="status-pill ' + (statusOk ? 'status-paid' : 'status-unpaid') + '" style="margin-top:3px;">' + (statusOk ? 'Succeeded' : p.status) + '</div>' +
+            '<div style="font-size:15px; font-weight:700; color:var(--ink);">$' + escapeHtml(p.amount.toLocaleString()) + '</div>' +
+            '<div class="status-pill ' + (statusOk ? 'status-paid' : 'status-unpaid') + '" style="margin-top:3px;">' + (statusOk ? 'Succeeded' : escapeHtml(p.status)) + '</div>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -6314,13 +6339,14 @@ var usStates = ["Virginia"];
           row.innerHTML =
             '<div class="roster-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>' +
             '<div class="roster-name-block">' +
-              '<div class="roster-name">' + a.name + '</div>' +
-              (a.parent_email ? '<div class="roster-age">Added by ' + a.parent_email + '</div>' : '<div class="roster-age">Added by parent, not yet confirmed</div>') +
+              '<div class="roster-name">' + escapeHtml(a.name) + '</div>' +
+              (a.parent_email ? '<div class="roster-age">Added by ' + escapeHtml(a.parent_email) + '</div>' : '<div class="roster-age">Added by parent, not yet confirmed</div>') +
             '</div>' +
             '<div class="roster-action-row">' +
-              '<button class="roster-action-btn approve" title="Approve" onclick="approveAthleteAdmin(\'' + a.id + '\')">' + adminCheckIcon + '</button>' +
-              '<button class="roster-action-btn danger" title="Remove" onclick="deleteAthleteAdmin(\'' + a.id + '\', \'' + (a.name || 'this athlete').replace(/'/g,"\\'") + '\')">' + adminTrashIcon + '</button>' +
+              '<button class="roster-action-btn approve" title="Approve">' + adminCheckIcon + '</button>' +
+              '<button class="roster-action-btn danger" title="Remove">' + adminTrashIcon + '</button>' +
             '</div>';
+          wireRosterRow(row, a, approveAthleteAdmin, deleteAthleteAdmin);
           return row;
         }
 
@@ -6331,13 +6357,14 @@ var usStates = ["Virginia"];
               : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>') +
           '</div>' +
           '<div class="roster-name-block">' +
-            '<div class="roster-name">' + a.name + '</div>' +
-            (a.parent_email ? '<div class="roster-age">' + a.parent_email + '</div>' : '') +
+            '<div class="roster-name">' + escapeHtml(a.name) + '</div>' +
+            (a.parent_email ? '<div class="roster-age">' + escapeHtml(a.parent_email) + '</div>' : '') +
           '</div>' +
           '<div class="roster-right">' +
             '<div class="status-pill ' + (isPaid ? 'status-paid' : 'status-unpaid') + '">' + (statusLabels[status] || 'Awaiting payment') + '</div>' +
           '</div>' +
-          '<button class="roster-action-btn danger" title="Remove athlete" onclick="deleteAthleteAdmin(\'' + a.id + '\', \'' + (a.name || 'this athlete').replace(/'/g,"\\'") + '\')">' + adminTrashIcon + '</button>';
+          '<button class="roster-action-btn danger" title="Remove athlete">' + adminTrashIcon + '</button>';
+        wireRosterRow(row, a, approveAthleteAdmin, deleteAthleteAdmin);
         return row;
       }
 

@@ -324,8 +324,18 @@
     fees_per_athlete: cfg.dues,
     fee_bps: cfg.feeBps,
     fee_agreed_at: '2026-11-01T00:00:00.000Z',
+    // Fixture copy of the Worker's DEFAULT_DEADLINE_DAYS_BEFORE_SEASON, so the
+    // add-team form fills in its deadline the way the real one does.
+    default_deadline_days_before_season: 7,
     teams: teams
   };
+
+  function daysBefore(iso, days) {
+    var d = new Date(String(iso) + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return null;
+    d.setUTCDate(d.getUTCDate() - days);
+    return d.toISOString().slice(0, 10);
+  }
 
   function publicClub() {
     var c = Object.assign({}, club);
@@ -500,7 +510,7 @@
         dues_cents: body.dues_cents,
         season_start: body.season_start,
         season_end: body.season_end,
-        dues_due_date: body.dues_due_date,
+        dues_due_date: body.dues_due_date || daysBefore(body.season_start, club.default_deadline_days_before_season),
         fees: body.fees || [],
         athletes: []
       };

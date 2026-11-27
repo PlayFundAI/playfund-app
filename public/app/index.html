@@ -1467,13 +1467,17 @@
          once as a stat, once as the section label over the team list. They
          are now one sentence. -->
     <div class="payout-hero">
-      <div class="payout-hero-eyebrow">Landing in your account</div>
+      <div class="payout-hero-eyebrow">Your share of payments so far</div>
       <div class="payout-hero-amount" id="overviewPayoutAmt">$0</div>
       <div class="payout-hero-sub" id="overviewPayoutSub">
         <b id="overviewFundedCount">0</b> of <b id="overviewAthleteCount">0</b> athletes
         &middot; <b id="overviewTotalDues">$0</b> in dues
       </div>
     </div>
+    <!-- Shown until the club's first family has paid. The processor holds a
+         new account's first payout, and that wait starts with the first
+         payment, so the useful thing to say is "start it early". -->
+    <div class="funded-note" id="overviewFirstPayoutNote" style="display:none;"></div>
 
     <!-- Status buckets. Labels are the design reference's — "Needs another
          option" says a decline is a fork, not a dead end, and is deliberate. -->
@@ -1542,7 +1546,7 @@
          about direction — a club reading it could not tell whether the money
          had left PlayFund or was owed to it. -->
     <div class="payout-hero">
-      <div class="payout-hero-eyebrow">Already sent to you</div>
+      <div class="payout-hero-eyebrow">Your share of payments so far</div>
       <div class="payout-hero-amount" id="statCollected">$0</div>
       <div class="payout-hero-sub">
         <b id="statFundedFraction">0/0</b> athletes paid &middot; <b id="rosterDuesAmt">$0</b> dues each
@@ -1553,10 +1557,12 @@
     <div class="date-chips">
       <div class="date-chip"><b id="seasonStart">&mdash;</b><span>Season starts</span></div>
       <div class="date-chip"><b id="seasonEnd">&mdash;</b><span>Season ends</span></div>
-      <div class="date-chip is-due"><b id="duesDate">&mdash;</b><span>Dues due</span></div>
+      <div class="date-chip is-due"><b id="duesDate">&mdash;</b><span>Payment deadline</span></div>
     </div>
 
     <div class="funded-note" id="fundedNote"></div>
+    <div class="funded-note" id="deadlineNote" style="display:none;"></div>
+    <div class="funded-note" id="rosterFirstPayoutNote" style="display:none;"></div>
 
     <button class="btn btn-secondary" id="rosterRemindBtn" onclick="openReminderModal()" style="margin-bottom:16px; width:100%; display:none;">Send reminders to unpaid families</button>
 
@@ -1654,6 +1660,8 @@
         <div class="due-banner-label" id="parentClubLabel">Hawks Travel Basketball &middot; Fall season</div>
         <div class="due-banner-amt" id="parentDuesAmt">$1,000</div>
       </div>
+      <div id="parentDeadline" style="display:none; font-size:14px; font-weight:700; color:var(--ink); margin:10px 0 2px;"></div>
+      <div id="parentDeadlinePassed" style="display:none; font-size:13px; color:var(--ink-soft); margin-bottom:4px;">This date has passed. You can still pay.</div>
       <div class="breakdown-heading">What this covers</div>
       <div class="breakdown-panel" id="breakdownPanel"></div>
     </div>
@@ -1685,7 +1693,8 @@
           </div>
           <div>
             <div class="payment-method-label">Pay by bank</div>
-            <div class="payment-method-sub">US bank account &middot; takes about 4 business days to clear</div>
+            <div class="payment-method-sub">US bank account &middot; takes a few business days to clear</div>
+            <div class="payment-method-sub" id="bankLongerNote" style="display:none; font-weight:700; color:var(--flag-text,#7A5C00);">Bank payments take longer to reach the club.</div>
           </div>
           <svg class="payment-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -1820,6 +1829,7 @@
     <div class="eyebrow">Club</div>
     <h1 class="title" style="margin-bottom:4px;">Connect your bank</h1>
     <p class="subtitle" style="margin-bottom:16px;">Securely connect with Stripe, without leaving PlayFund. This is where your payouts land.</p>
+    <p class="subtitle" style="margin-bottom:16px;">Your first payout takes longer than later ones, and the wait starts with your first payment. Get your first real registration paid as early as you can.</p>
     <div id="clubStripeOnboardingError" style="display:none; background:var(--paper-dim); border:1.5px solid var(--unpaid); color:var(--unpaid); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px;"></div>
     <div id="clubStripeOnboardingContainer" style="min-height:420px;"></div>
     <button class="btn btn-secondary" onclick="exitClubStripeOnboarding()" style="margin-top:16px;">Done for now</button>
@@ -2067,7 +2077,7 @@
     <div class="field-row">
       <div class="field">
         <label>Season start</label>
-        <input type="date" id="addTeamStart" tabindex="3">
+        <input type="date" id="addTeamStart" tabindex="3" required onchange="syncAddTeamDeadline()">
       </div>
       <div class="field">
         <label>Season end</label>
@@ -2075,9 +2085,9 @@
       </div>
     </div>
     <div class="field">
-      <label>When should the fees be due?</label>
-      <input type="date" id="addTeamDue" tabindex="5" required>
-      <p style="font-size:11.5px; color:var(--ink-soft); margin:4px 0 0;">Payment reminders to families are scheduled from this date.</p>
+      <label>Registration payment deadline</label>
+      <input type="date" id="addTeamDue" tabindex="5" oninput="addTeamDueTouched = true">
+      <p style="font-size:11.5px; color:var(--ink-soft); margin:4px 0 0;" id="addTeamDueHint">Set from the season start. You can move it earlier, not later. Payment reminders to families are scheduled from this date.</p>
     </div>
 
     <div class="section-label" style="margin-top:20px;">Fee breakdown</div>
@@ -2527,7 +2537,6 @@
       <div style="font-size:11px; font-weight:700; letter-spacing:0.03em; color:var(--ink-soft); margin-bottom:4px;">Season dues to collect</div>
       <div style="font-family:'Anton',sans-serif; font-size:28px; color:var(--ink);" id="regEstTotal">$0</div>
       <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;" id="regEstSub">Enter athletes and dues above</div>
-      <div style="font-size:12px; color:var(--fund-green); font-weight:700; margin-top:6px;" id="regEstDate"></div>
     </div>
 
     <div class="field">
@@ -2561,7 +2570,7 @@
           <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:6px; padding-left:0;">① Set your password via the email link</li>
           <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:6px; padding-left:0;">② Sign in and add your teams</li>
           <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; margin-bottom:6px; padding-left:0;">③ Add athletes, parents get a payment link automatically</li>
-          <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; padding-left:0;">④ Payout lands in your account on day 1</li>
+          <li style="font-size:13px; color:var(--ink-soft); line-height:1.6; padding-left:0;">④ Families pay, and your payouts go to your bank account</li>
         </ul>
       </div>
 
@@ -2620,7 +2629,7 @@
         <div class="faq-question-text">What is PlayFund?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">PlayFund is a payment platform for youth sports. It lets your club get paid in full before the season starts, while you choose to pay in full today or spread payments over the season. There's no extra cost to you, the club covers the fee.</div>
+      <div class="faq-answer">PlayFund is a payment platform for youth sports. It lets your club get paid up front, while you choose to pay in full today or spread payments over the season. There's no extra cost to you, the club covers the fee.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -2668,10 +2677,10 @@
 
     <div class="faq-item" onclick="toggleFaq(this)">
       <div class="faq-question">
-        <div class="faq-question-text">How does the club advance work?</div>
+        <div class="faq-question-text">How does my club get paid?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Each family's payment lands in your account (less PlayFund's service fee) as they pay, whether that's a card payment settling right away or a Klarna installment plan where Klarna pays your club upfront and collects from the family over time. Either way, your club gets paid in full regardless of how families choose to pay, you're never waiting on a family's installment schedule.</div>
+      <div class="faq-answer">Each family's payment is paid out to your bank account, less the fee for that payment, after it clears. When a family chooses Klarna, Klarna pays the full amount up front and collects the installments from the family, so you are not waiting on a family's installment schedule. Your first payout takes longer than later ones, and a payment from a bank account takes longer to clear than a card payment.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -2679,7 +2688,7 @@
         <div class="faq-question-text">What if a family doesn't pay?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">That's PlayFund's problem, not yours. The advance to your club is non-recourse. If a family defaults on their installments, you keep the money. PlayFund and its lending partner absorb the default risk. You never have to chase a family for payment again.</div>
+      <div class="faq-answer">On an approved Klarna installment plan, Klarna collects the installments and carries the loss if the family stops paying. Your club has already been paid for that registration. A refund or a disputed payment is different: that amount can be taken back from your club. The Terms of Service set out how.</div>
     </div>
 
     <div class="faq-item" onclick="toggleFaq(this)">
@@ -2695,7 +2704,7 @@
         <div class="faq-question-text">What do I need to get started?</div>
         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
-      <div class="faq-answer">Your club's EIN, a bank account to receive the advance, and your athlete roster with parent emails. The bank connection is handled through Stripe, it takes about 5 minutes and PlayFund never sees your account credentials.</div>
+      <div class="faq-answer">Your club's EIN, a bank account to receive your payouts, and your athlete roster with parent emails. The bank connection is handled through Stripe, it takes about 5 minutes and PlayFund never sees your account credentials.</div>
     </div>
 
     <!-- About -->
@@ -3727,6 +3736,28 @@ var usStates = ["Virginia"];
 
   var addTeamFees = [];
 
+  // The latest registration payment deadline a team may have: a set number
+  // of days before its season starts. The number comes from the Worker with
+  // the club, and the Worker enforces the rule whatever this form does.
+  var addTeamDueTouched = false;
+  function latestAddTeamDeadline(startIso){
+    var days = state.club ? state.club.default_deadline_days_before_season : null;
+    if(!startIso || days == null) return '';
+    var d = new Date(startIso + 'T00:00:00Z');
+    if(isNaN(d.getTime())) return '';
+    d.setUTCDate(d.getUTCDate() - days);
+    return d.toISOString().slice(0, 10);
+  }
+  function syncAddTeamDeadline(){
+    var dueEl = document.getElementById('addTeamDue');
+    var latest = latestAddTeamDeadline(document.getElementById('addTeamStart').value);
+    if(!latest){ dueEl.removeAttribute('max'); return; }
+    dueEl.max = latest;
+    // Fill the default in, and pull back a date that is now too late. A date
+    // the club chose that is still early enough is left alone.
+    if(!addTeamDueTouched || !dueEl.value || dueEl.value > latest) dueEl.value = latest;
+  }
+
   function showAddTeamScreen(){
     var c = state.club;
     if(c) document.getElementById('addTeamClubName').textContent = c.name;
@@ -3735,6 +3766,8 @@ var usStates = ["Virginia"];
     document.getElementById('addTeamStart').value = '';
     document.getElementById('addTeamEnd').value   = '';
     document.getElementById('addTeamDue').value   = '';
+    document.getElementById('addTeamDue').removeAttribute('max');
+    addTeamDueTouched = false;
     document.getElementById('addTeamError').textContent = '';
     var hintEl = document.getElementById('addTeamEstimateHint');
     if(hintEl){
@@ -3814,11 +3847,14 @@ var usStates = ["Virginia"];
 
     if(!name)           { errEl.textContent = 'Team name is required.'; return; }
     if(totalDues <= 0)  { errEl.textContent = 'Add at least one fee amount.'; return; }
-    // Required because the daily reminder sweep only considers teams with a
-    // due date (runScheduledReminders filters on dues_due_date=not.is.null).
-    // A blank date silently means this team's families are never reminded,
-    // which is the main lever against non-payment.
-    if(!dueDate)        { errEl.textContent = 'A due date is required, it is what schedules payment reminders.'; return; }
+    // The deadline is set from the season start, so the start is required.
+    // A blank deadline is filled in by the Worker with the default.
+    if(!start)          { errEl.textContent = 'A season start date is required. The registration payment deadline is set from it.'; return; }
+    var latestDue = latestAddTeamDeadline(start);
+    if(dueDate && latestDue && dueDate > latestDue){
+      errEl.textContent = 'The registration payment deadline can be no later than ' + formatDate(latestDue) + '. Pick that date or an earlier one.';
+      return;
+    }
     if(!c)              { errEl.textContent = 'No club loaded. Please log in again.'; return; }
 
     var clubSession = null;
@@ -3839,9 +3875,9 @@ var usStates = ["Virginia"];
           age_group:     age || null,
           dues_cents:    Math.round(totalDues * 100),
           fees:          validFees,
-          season_start:  start || null,
+          season_start:  start,
           season_end:    end || null,
-          dues_due_date: dueDate
+          dues_due_date: dueDate || null
         })
       });
       var data = await res.json();
@@ -3849,7 +3885,8 @@ var usStates = ["Virginia"];
 
       var newTeam = Object.assign({}, data.team, {
         dues: totalDues, fees: validFees, athletes: [],
-        start: formatDate(start), end: formatDate(end), due: formatDate(dueDate)
+        start: formatDate(start), end: formatDate(end),
+        due: formatDate((data.team && data.team.dues_due_date) || dueDate)
       });
       c.teams.push(newTeam);
       delete clubCache[c.code];
@@ -4044,6 +4081,7 @@ var usStates = ["Virginia"];
     // Payout hero — advance for all funded athletes, net of this club's own rate
     var payoutDollars = Math.round(fundedCents / 100);
     document.getElementById('overviewPayoutAmt').textContent = '$' + payoutDollars.toLocaleString();
+    setFirstPayoutNote('overviewFirstPayoutNote', totalFunded === 0);
     document.getElementById('overviewFundedCount').textContent = totalFunded;
     document.getElementById('overviewAthleteCount').textContent = totalAthletes;
     document.getElementById('overviewTotalDues').textContent  = '$' + Math.round(totalDuesCents / 100).toLocaleString();
@@ -4266,6 +4304,39 @@ var usStates = ["Virginia"];
     return 1 - (bps / 10000);
   }
 
+  var FIRST_PAYOUT_PROMPT = 'Your first payout takes longer than later ones, and the wait starts with your first payment. Get your first real registration paid as early as you can.';
+  function setFirstPayoutNote(id, show){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = show ? FIRST_PAYOUT_PROMPT : '';
+    el.style.display = show ? '' : 'none';
+  }
+
+  // The date the payment processor expects to pay the club for each payment.
+  // It comes from the processor through the Worker. Nothing here works out a
+  // date: a payment with no answer shows nothing.
+  async function loadRosterPayoutDates(c){
+    try {
+      if(!c || !c.id) return;
+      var tok = await getClubSessionToken();
+      if(!tok) return;
+      var res = await fetch(WORKER_URL + '/admin/clubs/' + c.id + '/payments?payout_dates=1', {
+        headers: { 'Authorization': 'Bearer ' + tok }
+      });
+      if(!res.ok) return;
+      var data = await res.json();
+      var seen = {};
+      (data.payments || []).forEach(function(p){
+        // Newest first, so the first one seen for an athlete is the latest.
+        if(!p.expected_payout_date || seen[p.athlete_id]) return;
+        seen[p.athlete_id] = true;
+        var el = document.querySelector('#rosterList [data-payout-for="' + p.athlete_id + '"]');
+        if(!el) return;
+        el.textContent = (p.payout_funds_status === 'available' ? 'Released for payout ' : 'Expected payout ') + formatDate(p.expected_payout_date);
+      });
+    } catch(e){ console.warn('loadRosterPayoutDates error:', e); }
+  }
+
   function openRoster(){
     var c = state.club;
     var team = state.team;
@@ -4314,15 +4385,33 @@ var usStates = ["Virginia"];
         noteEl.innerHTML = clockIcon + 'Add athletes to start tracking payments.';
       } else if(fundedCount === totalCount){
         noteEl.style.color = 'var(--paid)';
-        noteEl.innerHTML = checkIcon + '<span style="color:var(--ink-soft);">Club balance fully funded by PlayFund \u2014 no waiting on family payments.</span>';
+        noteEl.innerHTML = checkIcon + '<span style="color:var(--ink-soft);">Every family on this team has paid.</span>';
       } else if(fundedCount === 0){
         noteEl.style.color = '#F59E0B';
-        noteEl.innerHTML = clockIcon + '<span style="color:var(--ink-soft);">No families have paid yet \u2014 send a reminder to get things moving.</span>';
+        noteEl.innerHTML = clockIcon + '<span style="color:var(--ink-soft);">No families have paid yet. Send a reminder to get things moving.</span>';
       } else {
         noteEl.style.color = '#F59E0B';
-        noteEl.innerHTML = clockIcon + '<span style="color:var(--ink-soft);">' + fundedCount + ' of ' + totalCount + ' families have paid. You\'ve already been advanced their share \u2014 the rest lands as each family completes payment.</span>';
+        noteEl.innerHTML = clockIcon + '<span style="color:var(--ink-soft);">' + fundedCount + ' of ' + totalCount + ' families have paid. Your share of each payment is paid out to your bank account after it clears.</span>';
       }
     }
+
+    // Dated, and worded as an expectation. The date is the team's own
+    // deadline, so nothing here is worked out from payout speeds.
+    var deadlineNoteEl = document.getElementById('deadlineNote');
+    if(deadlineNoteEl){
+      var deadlineIso = team.payment_deadline || team.dues_due_date;
+      if(deadlineIso && team.season_start){
+        deadlineNoteEl.textContent = 'Payments made by ' + formatDate(deadlineIso) + ' are expected in your bank account before your season starts.';
+        deadlineNoteEl.style.display = '';
+      } else { deadlineNoteEl.style.display = 'none'; }
+    }
+    var clubHasPayment = (c.teams || []).some(function(t){
+      return (t.athletes || []).some(function(a){
+        var s = a.payment_status || 'unpaid';
+        return s !== 'unpaid' && s !== 'defaulted';
+      });
+    });
+    setFirstPayoutNote('rosterFirstPayoutNote', !clubHasPayment);
 
     var listEl = document.getElementById('rosterList');
     listEl.innerHTML = '';
@@ -4384,7 +4473,7 @@ var usStates = ["Virginia"];
             : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/></svg>')+'</div>'+
           '<div class="roster-name-block">'+
             '<div class="roster-name">'+(a.name||'')+'</div>'+
-            
+            (isPaid ? '<div class="roster-age" data-payout-for="'+a.id+'"></div>' : '')+
           '</div>'+
           '<div class="roster-right">'+
             '<div class="status-pill '+(isPaid?'status-paid':'status-unpaid')+'">'+(statusLabels[status]||'Awaiting payment')+'</div>'+
@@ -4405,6 +4494,7 @@ var usStates = ["Virginia"];
       addGroup('Needs approval', needsApproval);
       addGroup('Pending', pending);
       addGroup('Paid', paid);
+      if(paid.length) loadRosterPayoutDates(c);
     }
     showScreen('roster');
   }
@@ -4993,6 +5083,28 @@ var usStates = ["Virginia"];
     document.getElementById('athleteDetailTitle').textContent = athlete.name + "'s season dues";
     document.getElementById('parentClubLabel').textContent = ct.club.name + ' \u2014 ' + ct.team.name;
     document.getElementById('parentDuesAmt').textContent = '$' + ct.team.dues.toLocaleString();
+    // The registration payment deadline, stated plainly. A payment after it
+    // is still accepted, and the page says so.
+    var deadlineIso = ct.team.payment_deadline || ct.team.dues_due_date;
+    var deadlineEl = document.getElementById('parentDeadline');
+    var passedEl = document.getElementById('parentDeadlinePassed');
+    if(deadlineEl && passedEl){
+      if(deadlineIso){
+        var dl = new Date(deadlineIso + 'T00:00:00');
+        deadlineEl.textContent = 'Registration payment deadline: ' +
+          dl.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        deadlineEl.style.display = '';
+        var endOfDeadline = new Date(deadlineIso + 'T23:59:59');
+        passedEl.style.display = new Date() > endOfDeadline ? '' : 'none';
+      } else {
+        deadlineEl.style.display = 'none';
+        passedEl.style.display = 'none';
+      }
+    }
+    // The Worker says whether a bank payment made today is close enough to
+    // the season start that it may not reach the club in time.
+    var bankNoteEl = document.getElementById('bankLongerNote');
+    if(bankNoteEl) bankNoteEl.style.display = ct.team.bank_takes_longer ? '' : 'none';
     // Shallow-copy the team so we can safely set a display name without mutating
     // the shared clubs/teams dataset (ct.team is a direct reference into it).
     state.parentClub = Object.assign({}, ct.team, { name: ct.club.name + ' \u2014 ' + ct.team.name });
@@ -5581,15 +5693,8 @@ var usStates = ["Virginia"];
     document.getElementById('regEstSub').textContent = (dues > 0 && count > 0)
       ? count + ' athlete' + (count!==1?'s':'') + ' \u00d7 $' + Math.round(dues).toLocaleString() + ' each'
       : 'Enter athletes and dues above';
-    var dateEl = document.getElementById('regEstDate');
-    var start = document.getElementById('reg1SeasonStart').value;
-    if(start && total > 0){
-      // Parse at local midnight. new Date("2026-10-01") is UTC midnight, which
-      // renders as the previous day everywhere west of Greenwich.
-      var d = new Date(start + 'T00:00:00');
-      d.setDate(d.getDate() - 5);
-      dateEl.textContent = 'Estimated payout: ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    } else { dateEl.textContent = ''; }
+    // No payout date here. The one that used to be shown was the season start
+    // minus five days, which has nothing to do with when the processor pays.
   }
 
   async function submitRegistration(){
@@ -5613,14 +5718,6 @@ var usStates = ["Virginia"];
     var total  = regState.fees.reduce(function(s,f){ return s + (parseFloat(f.amount)||0); }, 0);
     // total is dues per athlete; seasonDues is what the club collects overall.
     var seasonDues = Math.round(total * regState.athleteCount);
-
-    // Compute payout date
-    var payoutDateStr = '';
-    if(regState.seasonStart){
-      var d = new Date(regState.seasonStart + 'T00:00:00');
-      d.setDate(d.getDate() + 14);
-      payoutDateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-    }
 
     trackEvent('club_signup_submitted', {});
     try {
@@ -5664,7 +5761,6 @@ var usStates = ["Virginia"];
     document.getElementById('reg4Payout').textContent = '$' + seasonDues.toLocaleString();
 
     var subParts = ['Illustrative · ' + regState.athleteCount + ' athletes · $' + Math.round(total).toLocaleString() + ' dues each'];
-    if(payoutDateStr) subParts.push('Estimated payout: ' + payoutDateStr);
     document.getElementById('reg4PayoutSub').textContent = subParts.join(' · ');
 
     // Clear registration state and form so back button can't return to filled-in steps
@@ -6502,7 +6598,7 @@ var usStates = ["Virginia"];
 
     if(isBank){
       trackEvent('checkout_bank_submitted', {});
-      toast("Bank payment submitted. It usually takes about 4 business days to clear, and your registration will update on its own once it does. You don't need to pay again.");
+      toast("Bank payment submitted. It takes a few business days to clear, and your registration will update on its own once it does. You don't need to pay again.");
       showScreen('home', true);
       return;
     }

@@ -1,11 +1,13 @@
 import { KLARNA_PERCENT, KLARNA_MAX_AMOUNT_CENTS } from "./fee-config.js";
 import { applicationFeeCents, PAYMENT_CHOICES, STRIPE_METHOD_FOR_CHOICE } from "./fees.js";
+import { DEFAULT_DEADLINE_DAYS_BEFORE_SEASON } from "./timing-config.js";
+import { resolveDeadline, withTiming, todayInUS } from "./timing.js";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // index.js
-// Stripe Payment Method Configuration scoped to "pay in full": card + bank
-// only, with Link and every BNPL method (Klarna, Affirm, Afterpay) turned
+// Stripe Payment Method Configuration scoped to paying by card: cards, Apple
+// Pay and Google Pay only, with Link and every BNPL method (Klarna, Affirm, Afterpay) turned
 // off. Not a secret — it lives in wrangler.toml [vars], same as the
 // publishable key.
 //
@@ -98,6 +100,44 @@ async function stripe(env, method, path, params) {
   return { ok: res.ok, status: res.status, data };
 }
 __name(stripe, "stripe");
+// The date the payment processor expects to pay a club for each payment, read
+// from the processor and never worked out here.
+//
+// A payment is a destination charge, so the club's share exists as a separate
+// payment on the club's own account. The processor stamps that one with the
+// date its funds become available, and on a daily automatic payout schedule
+// that is the day the payout is sent. The bank may post it later.
+//
+// One request per payment, so only the most recent ones are looked up. A
+// payment with no answer, for any reason, simply carries no date.
+const PAYOUT_DATE_LOOKUPS = 30;
+async function expectedPayoutDates(env, payments) {
+  const wanted = payments
+    .filter((p) => p.status === "succeeded" && p.stripe_payment_intent)
+    .slice(0, PAYOUT_DATE_LOOKUPS);
+  const found = {};
+  await Promise.all(wanted.map(async (p) => {
+    try {
+      const res = await stripe(
+        env,
+        "GET",
+        `/payment_intents/${encodeURIComponent(p.stripe_payment_intent)}?expand[]=latest_charge.transfer.destination_payment.balance_transaction`
+      );
+      if (!res.ok) return;
+      const bt = res.data?.latest_charge?.transfer?.destination_payment?.balance_transaction;
+      if (!bt || typeof bt !== "object" || !Number.isFinite(bt.available_on)) return;
+      found[p.id] = {
+        expected_payout_date: new Date(bt.available_on * 1000).toISOString().slice(0, 10),
+        // "pending" until that date, "available" once the funds are released.
+        payout_funds_status: bt.status === "available" ? "available" : "pending"
+      };
+    } catch (e) {
+      console.error(`Payout date lookup failed for payment ${p.id}: ${e && e.message}`);
+    }
+  }));
+  return found;
+}
+__name(expectedPayoutDates, "expectedPayoutDates");
 async function stripeV2(env, method, path, body) {
   const res = await fetch(`https://api.stripe.com/v2${path}`, {
     method,
@@ -788,12 +828,8 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
   // price as settled. Total dues is arithmetic on what they typed, commits to
   // nothing, and still shows the season's size. The real payout appears once
   // a rate exists on the club record.
-  let payoutDate = "TBD, set your team dues after signing in";
-  if (club.season_start) {
-    const d = new Date(club.season_start + "T00:00:00");
-    d.setDate(d.getDate() + 14);
-    payoutDate = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  }
+  // No payout date either. The one that used to be here was the season start
+  // plus 14 days, which has nothing to do with when the processor pays.
   const startStr = fmt(club.season_start);
   const endStr = fmt(club.season_end);
   const seasonDates = startStr && endStr ? `${startStr} to ${endStr}` : startStr || endStr || "TBD";
@@ -820,16 +856,10 @@ async function sendClubWelcomeEmail(env, club, setupUrl) {
     </td></tr>
     <tr><td style="padding:0;background-color:#004643;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-        <tr><td style="padding:24px 32px 8px;">
+        <tr><td style="padding:24px 32px 24px;">
           <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5BA888;">Season dues to collect</p>
           <p style="margin:0 0 6px;font-size:48px;font-weight:800;color:#FFFFFF;line-height:1;">${totalStr}</p>
           <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.6);">${athleteCount} athletes &middot; illustrative, based on what you entered</p>
-        </td></tr>
-        <tr><td style="padding:12px 32px 24px;border-top:1px solid rgba(255,255,255,0.12);">
-          <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
-            <td style="font-size:13px;color:rgba(255,255,255,0.6);">Estimated payout date</td>
-            <td align="right" style="font-size:13px;font-weight:700;color:#FFFFFF;">${payoutDate}</td>
-          </tr></table>
         </td></tr>
       </table>
     </td></tr>
@@ -1839,6 +1869,7 @@ var index_default = {
       const profile = profileRes.data?.[0];
       const isAllowed = profile && (profile.role === "playfund_admin" || profile.role === "club_admin" && profile.club_id === clubId);
       if (!isAllowed) return err("Forbidden", 403);
+      const wantPayoutDates = url.searchParams.get("payout_dates") === "1";
       const teamsRes = await supabase(env, "GET", `/teams?select=id,name&club_id=eq.${clubId}`);
       const teams = teamsRes.data || [];
       const teamMap = {};
@@ -1859,15 +1890,20 @@ var index_default = {
           const paymentsRes = await supabase(
             env,
             "GET",
-            `/payments?select=id,created_at,amount_cents,status,payment_method,installment_number,athlete_id&athlete_id=in.(${athleteIds.join(",")})&order=created_at.desc`
+            `/payments?select=id,created_at,amount_cents,status,payment_method,installment_number,athlete_id,stripe_payment_intent&athlete_id=in.(${athleteIds.join(",")})&order=created_at.desc`
           );
-          payments = (paymentsRes.data || []).map((p) => {
+          const rows = paymentsRes.data || [];
+          const payoutDates = wantPayoutDates ? await expectedPayoutDates(env, rows) : {};
+          payments = rows.map((row) => {
+            const { stripe_payment_intent, ...p } = row;
             const athlete = athleteMap[p.athlete_id] || {};
             return {
               ...p,
               amount: (p.amount_cents || 0) / 100,
               athlete_name: athlete.name || "Unknown",
-              team_name: teamMap[athlete.team_id] || "Unknown"
+              team_id: athlete.team_id || null,
+              team_name: teamMap[athlete.team_id] || "Unknown",
+              ...(payoutDates[p.id] || {})
             };
           });
         }
@@ -1987,7 +2023,11 @@ var index_default = {
         "GET",
         `/teams?select=id,name,age_group,dues_cents,season_start,season_end,dues_due_date,fees&club_id=eq.${club.id}&active=eq.true&order=age_group.asc`
       );
-      const teams = teamsRes.data || [];
+      // Each team carries its registration payment deadline, the latest
+      // deadline the club could set, and whether a bank payment made today
+      // is inside the window where it may not reach the club in time.
+      const today = todayInUS();
+      const teams = (teamsRes.data || []).map((t) => withTiming(t, today));
 
       // Roster data (names, ages, payment status) is only returned to a caller
       // authenticated as this specific club's admin/team admin, or a PlayFund
@@ -2023,6 +2063,7 @@ var index_default = {
             // So the page can leave Klarna off the list above this amount.
             // Checkout enforces it either way.
             klarna_max_amount_cents: KLARNA_MAX_AMOUNT_CENTS,
+            default_deadline_days_before_season: DEFAULT_DEADLINE_DAYS_BEFORE_SEASON,
             teams: teams.map((team) => ({ ...team, dues: team.dues_cents / 100 }))
           }
         });
@@ -2065,7 +2106,12 @@ var index_default = {
         collected_cents = (paymentsRes.data || []).reduce((sum, p) => sum + (p.amount_cents || 0), 0);
       }
       return json({
-        club: { ...club, klarna_max_amount_cents: KLARNA_MAX_AMOUNT_CENTS, teams: teamsWithAthletes },
+        club: {
+          ...club,
+          klarna_max_amount_cents: KLARNA_MAX_AMOUNT_CENTS,
+          default_deadline_days_before_season: DEFAULT_DEADLINE_DAYS_BEFORE_SEASON,
+          teams: teamsWithAthletes
+        },
         stats: { total_athletes: totalAthletes, funded_athletes: fundedAthletes, fronted_cents, collected_cents }
       });
     }
@@ -2503,10 +2549,13 @@ var index_default = {
       }
       const { club_id, club_code, name, age_group, dues_cents, season_start, season_end, dues_due_date, fees } = body;
       if (!name || !dues_cents) return err("name and dues_cents are required");
-      // Enforced here too, not just in the form: the daily reminder sweep
-      // skips teams with no dues_due_date, so a team created without one
-      // never reminds anyone and nothing surfaces that.
-      if (!dues_due_date) return err("dues_due_date is required — it is what schedules payment reminders for this team");
+      // dues_due_date is the team's registration payment deadline. Left
+      // blank it becomes the default, a set number of days before the season
+      // starts, and it can be earlier than that but not later. Enforced here
+      // and not only in the form. It is also what the daily reminder sweep
+      // schedules from, so a team is never stored without one.
+      const deadline = resolveDeadline(season_start, dues_due_date);
+      if (deadline.error) return err(deadline.error);
       let resolvedClubId = club_id;
       if (!resolvedClubId && club_code) {
         const clubRes = await supabase(env, "GET", `/clubs?select=id&code=eq.${club_code.toUpperCase()}`);
@@ -2521,9 +2570,9 @@ var index_default = {
         name: name.trim(),
         age_group: age_group || null,
         dues_cents: Math.round(dues_cents),
-        season_start: season_start || null,
+        season_start,
         season_end: season_end || null,
-        dues_due_date,
+        dues_due_date: deadline.deadline,
         active: true
       };
       // The club's own fee breakdown. teams.fees has existed all along but
